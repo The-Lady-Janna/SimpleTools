@@ -1,0 +1,1245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADHS-Werkzeuge</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  :root {
+    --soft: color-mix(in srgb, var(--accent) 9%, var(--card));
+    --soft2: color-mix(in srgb, var(--accent) 18%, var(--card));
+    --c-a: #5b86d6; --c-b: #d9962b; --c-c: #3a9d8c;
+    --on-accent: #fff;
+  }
+  @media (prefers-color-scheme: dark) { :root { --c-a: #7fa6f5; --c-b: #f0b252; --c-c: #5fcdb9; --on-accent: #0b1220; } }
+  button.primary { color: var(--on-accent); }
+  html { -webkit-text-size-adjust: 100%; }
+  main { max-width: 900px; padding: 12px 16px 90px; }
+  h1 { margin: .3em 0 .1em; }
+  h2 { font-size: 1.15rem; margin: .1em 0 .4em; }
+  h3 { font-size: 1rem; margin: 1em 0 .35em; }
+  .sub { color: var(--muted); margin: 0 0 8px; font-size: .95rem; }
+  .topnav { display: flex; flex-wrap: wrap; gap: 4px 18px; justify-content: space-between; margin: 6px 0; }
+  .toolbar button { min-height: 40px; }
+  .toolbar .sp { flex: 1; }
+  .opt { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--muted); cursor: pointer; min-height: 36px; }
+  .opt input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .pts { font-size: .95rem; background: var(--soft2); border-radius: 99px; padding: 4px 12px; white-space: nowrap; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
+  .tab { min-height: 46px; padding: 8px 14px; border-radius: 99px; font-size: 1rem; display: inline-flex; gap: 6px; align-items: center; }
+  .tab[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+  .panel[hidden], [hidden] { display: none !important; }
+  .hint { color: var(--muted); font-size: .9rem; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  label.l { display: block; font-size: .9rem; color: var(--muted); margin: 10px 0 4px; }
+  .big-in { width: 100%; font-size: 1.1rem; padding: 10px 14px; min-height: 50px; }
+  .btn-lg { min-height: 50px; padding: 10px 18px; font-size: 1.05rem; border-radius: 12px; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  button.ghost:hover { color: var(--fg); border-color: var(--line); }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip { border-radius: 99px; padding: 6px 14px; min-height: 40px; }
+  .chip[aria-pressed=true] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .list { list-style: none; margin: 0; padding: 0; }
+  .item { padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .item:last-child { border-bottom: 0; }
+  .meta { color: var(--muted); font-size: .85rem; }
+  .empty { text-align: center; color: var(--muted); padding: 20px 8px; }
+  .ok-msg { color: var(--ok); font-weight: 600; min-height: 1.4em; }
+  .soft { background: var(--soft); border-radius: 10px; padding: 10px 14px; }
+  .mini { padding: 4px 10px; min-height: 36px; font-size: .9rem; }
+  input[type=checkbox].big { width: 28px; height: 28px; accent-color: var(--accent); flex: none; cursor: pointer; margin: 0; }
+  input[type=time], input[type=search], input[type=password] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
+  .hide-num .num { display: none; }
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 12px; z-index: 50; display: flex; gap: 12px; align-items: center; width: max-content; max-width: min(92vw, 560px); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  #toast span { min-width: 0; overflow-wrap: anywhere; }
+  #toast button { background: transparent; color: inherit; border-color: currentColor; min-height: 34px; white-space: nowrap; flex: none; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: .85rem; color: var(--muted); margin-top: 4px; }
+  .lg { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; }
+  .lg-a { background: var(--c-a); } .lg-b { background: var(--c-b); }
+  .chart-wrap { overflow-x: auto; }
+  .chart-wrap svg { display: block; }
+  .chart-wrap svg.fluid { width: 100%; min-width: 520px; height: auto; }
+  svg text { fill: var(--muted); font-family: inherit; }
+  svg .grid { stroke: var(--line); stroke-width: 1; }
+  @media (max-width: 480px) { main { padding: 10px 12px 90px; } .tab { padding: 8px 12px; } .card { padding: 12px; } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+  /* Brain Dump */
+  .bd-item .bd-top { display: flex; gap: 12px; align-items: flex-start; }
+  .bd-text { flex: 1; min-width: 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 1.05rem; padding-top: 2px; }
+  .bd-item.done .bd-text { color: var(--muted); text-decoration: line-through; }
+  .bd-meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 0 0; }
+  .bd-item.istask .bd-meta { margin-left: 40px; }
+  .tag { background: var(--soft2); border-radius: 99px; padding: 1px 10px; font-size: .85rem; }
+  .tag.past { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+  .bd-acts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0 0; }
+  .bd-acts button { min-height: 40px; }
+  .bd-acts button[aria-current=true] { background: var(--soft2); border-color: var(--accent); }
+  .bd-acts .del { margin-left: auto; }
+  .bd-panel { margin-top: 10px; background: var(--soft); border-radius: 10px; padding: 10px 12px; }
+  .bd-panel h3 { margin-top: 6px; }
+  .bd-panel h3:first-child { margin-top: 0; }
+  /* Zeitschätzung */
+  .es-clock { font-size: clamp(2.4rem, 12vw, 4rem); font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; padding: 10px 0; }
+  .es-clock.calm { font-size: 1.4rem; font-weight: 500; color: var(--muted); }
+  .bar-a { fill: var(--c-a); } .bar-b { fill: var(--c-b); }
+  .es-row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+  .es-row .t { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  #es-run-title { overflow-wrap: anywhere; }
+  /* Entscheidungshilfe */
+  .dc-card { background: var(--soft); border-radius: 12px; padding: 14px 16px; }
+  .dc-card .big { font-size: 1.3rem; font-weight: 600; overflow-wrap: anywhere; }
+  .dc-roll { font-size: 2rem; font-weight: 700; text-align: center; min-height: 2.6rem; padding: 10px 0 2px; }
+  .dc-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .dc-row span { flex: 1; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<main class="wide">
+  <p class="topnav"><a href="../index.html">← Alle Tools</a><a href="adhs-werkzeuge-extra.html">Extra-Seite: Tagesplan, Gewohnheiten, Belohnungen … →</a></p>
+  <h1>ADHS-Werkzeuge</h1>
+  <p class="sub">Denken &amp; Fokus: Brain Dump, Zeitschätzung und Entscheidungshilfe. Ruhig und ohne Druck – deine Daten bleiben auf deinem Rechner.</p>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+    <span class="sp"></span>
+    <label class="opt"><input type="checkbox" id="hideNum"> Zahlen ausblenden</label>
+    <span class="pts" id="pts"></span>
+  </div>
+  <div id="status"></div>
+  <div class="tabs" id="tabs" role="tablist" aria-label="Werkzeuge"></div>
+  <!-- 🧠 Brain Dump -->
+  <section id="p-braindump" class="panel" role="tabpanel" aria-labelledby="tab-braindump" hidden>
+    <div class="card">
+      <h2>Was geht dir durch den Kopf?</h2>
+      <p class="hint" style="margin-top:0">Alles rein, nichts bewerten. Enter = merken · Shift+Enter = neue Zeile.</p>
+      <div class="row" style="align-items:stretch">
+        <textarea id="bd-input" class="big-in grow" rows="2" maxlength="500" aria-label="Gedanke eingeben" placeholder="Gedanke eintippen und Enter drücken …"></textarea>
+        <button id="bd-add" class="primary btn-lg" type="button">Merken</button>
+      </div>
+      <div id="bd-ok" class="ok-msg" aria-live="polite"></div>
+    </div>
+    <div class="card">
+      <div class="chips" id="bd-filters" role="group" aria-label="Gedanken filtern"></div>
+      <ul class="list" id="bd-list" style="margin-top:8px"></ul>
+      <p id="bd-empty" class="empty" hidden></p>
+      <details id="bd-donebox" style="margin-top:10px" hidden>
+        <summary>Erledigt <span class="num" id="bd-donecnt"></span></summary>
+        <ul class="list" id="bd-done"></ul>
+        <button id="bd-clear-done" class="mini" type="button">Erledigte aufräumen</button>
+      </details>
+      <p class="hint" id="bd-hint" style="margin-bottom:0"></p>
+    </div>
+  </section>
+
+  <!-- 🎯 Zeitschätzung -->
+  <section id="p-estimates" class="panel" role="tabpanel" aria-labelledby="tab-estimates" hidden>
+    <div class="card" id="es-setup">
+      <h2>Wie lange brauche ich wirklich?</h2>
+      <p class="hint" style="margin-top:0">Erst schätzen, dann stoppen. So bekommst du Stück für Stück ein Gefühl für Zeit – ganz ohne Bewertung.</p>
+      <label class="l" for="es-title">Woran arbeitest du?</label>
+      <input id="es-title" type="text" class="big-in" maxlength="120" placeholder="z. B. Belege sortieren">
+      <label class="l" for="es-min">Meine Schätzung (Minuten)</label>
+      <div class="row">
+        <input id="es-min" type="number" class="big-in" style="width:130px" min="1" max="1440" step="1" inputmode="numeric" placeholder="20">
+        <div class="chips" id="es-chips" role="group" aria-label="Schnellwahl Minuten"></div>
+      </div>
+      <p id="es-factor-hint" class="hint" aria-live="polite"></p>
+      <button id="es-start" class="primary btn-lg" type="button">▶ Stoppuhr starten</button>
+    </div>
+    <div class="card" id="es-running" hidden>
+      <h2 id="es-run-title" tabindex="-1"></h2>
+      <p class="hint" id="es-run-est" style="margin-top:0"></p>
+      <div id="es-clock" class="es-clock" aria-live="off"></div>
+      <div class="row" style="margin-top:12px">
+        <button id="es-stop" class="primary btn-lg" type="button">■ Fertig – Stopp</button>
+        <button id="es-peek" class="btn-lg" type="button" aria-pressed="true">Zeit verbergen</button>
+        <button id="es-cancel" class="ghost" type="button">Verwerfen</button>
+      </div>
+    </div>
+    <div class="card soft" id="es-result" hidden role="status"></div>
+    <div class="card" id="es-stats">
+      <h2>Dein Zeitgefühl</h2>
+      <p id="es-stat-line" style="margin:.2em 0"></p>
+      <p id="es-tip" class="soft" style="margin:.5em 0" hidden></p>
+      <div class="chart-wrap" id="es-chart"></div>
+      <div class="legend" id="es-legend" hidden><span class="lg lg-a"></span> Geschätzt <span class="lg lg-b"></span> Gebraucht</div>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow" style="margin:0">Verlauf</h2><button id="es-clear" class="mini" type="button">Verlauf löschen</button></div>
+      <ul class="list" id="es-list"></ul>
+      <p id="es-empty" class="empty">Noch nichts gestoppt. Der erste Eintrag ist der wichtigste. 🌱</p>
+    </div>
+    <details class="card">
+      <summary>Ergebnis nachtragen (ohne Stoppuhr)</summary>
+      <div class="row" style="margin-top:8px">
+        <input id="es-m-title" type="text" class="grow" maxlength="120" placeholder="Aufgabe" aria-label="Aufgabe (nachtragen)">
+        <input id="es-m-est" type="number" min="1" max="1440" style="width:130px" placeholder="geschätzt" aria-label="Geschätzte Minuten (nachtragen)">
+        <input id="es-m-act" type="number" min="0.1" max="10080" step="any" style="width:130px" placeholder="gebraucht" aria-label="Gebrauchte Minuten (nachtragen)">
+        <button id="es-m-add" type="button">Eintragen</button>
+      </div>
+    </details>
+  </section>
+
+  <!-- 🎲 Entscheidungshilfe -->
+  <section id="p-decide" class="panel" role="tabpanel" aria-labelledby="tab-decide" hidden>
+    <div class="card">
+      <h2>Was jetzt?</h2>
+      <p class="hint" style="margin-top:0">Sag mir, wie viel Zeit und Kraft du gerade hast – ich suche dir eine passende Aufgabe aus deinem Brain Dump.</p>
+      <h3>Wie viel Zeit hast du?</h3>
+      <div class="row">
+        <div class="chips" id="dc-time" role="group" aria-label="Verfügbare Zeit"></div>
+        <input id="dc-min" type="number" min="1" max="1440" style="width:100px" placeholder="Minuten" aria-label="Verfügbare Minuten">
+      </div>
+      <h3>Wie viel Energie hast du?</h3>
+      <div class="chips" id="dc-energy" role="group" aria-label="Verfügbare Energie"></div>
+      <div style="margin-top:14px"><button id="dc-go" class="primary btn-lg" type="button">🎲 Was jetzt?</button></div>
+      <div id="dc-result" aria-live="polite" style="margin-top:12px"></div>
+    </div>
+    <div class="card">
+      <h2>Münzwurf &amp; Würfel</h2>
+      <div class="row">
+        <button id="dc-coin" class="btn-lg" type="button">🪙 Münze werfen</button>
+        <button id="dc-d6" class="btn-lg" type="button">🎲 W6</button>
+        <button id="dc-d20" class="btn-lg" type="button">🎲 W20</button>
+      </div>
+      <div id="dc-roll" class="dc-roll" aria-live="polite"></div>
+      <div id="dc-hist" class="hint"></div>
+    </div>
+    <div class="card">
+      <h2>Zufallsauswahl aus meiner Liste</h2>
+      <div class="row">
+        <label class="sr" for="dc-list">Liste wählen</label>
+        <select id="dc-list" class="grow big-in" style="flex:1 1 260px"></select>
+        <button id="dc-newlist" type="button">+ Neue Liste</button>
+        <button id="dc-dellist" type="button" class="ghost">Liste löschen</button>
+      </div>
+      <div id="dc-listbody">
+        <div class="row" style="margin-top:10px">
+          <input id="dc-lname" type="text" maxlength="60" class="grow" aria-label="Name der Liste" placeholder="Name der Liste">
+        </div>
+        <ul class="list" id="dc-items"></ul>
+        <div class="row" style="margin-top:6px">
+          <input id="dc-newitem" type="text" maxlength="80" class="grow big-in" aria-label="Neuer Eintrag" placeholder="Neuer Eintrag, Enter">
+          <button id="dc-additem" type="button" class="btn-lg">Hinzufügen</button>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="dc-pick" class="primary btn-lg" type="button">🎲 Auswählen</button>
+        </div>
+        <div id="dc-pickres" aria-live="polite" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+/* ===== Gemeinsamer Teil (in beiden ADHS-Seiten identisch) =====
+   Beide Seiten nutzen dieselbe JSON-Datei „adhs-werkzeuge“ (ein Schlüssel pro Werkzeug).
+   Jede Seite normalisiert ihre eigenen Werkzeuge; Schlüssel der anderen Seite bleiben unangetastet erhalten.
+   Nur das Punktekonto (rewards) kennen beide, damit Punkte seitenübergreifend stimmen. */
+
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+function btn(label, cls, onclick) {
+  const b = el('button', cls, label);
+  b.type = 'button';
+  if (onclick) b.onclick = onclick;
+  return b;
+}
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const pad = (n) => String(n).padStart(2, '0');
+const HEX = /^#[0-9a-f]{6}$/i;
+const ID_RE = /^[A-Za-z0-9_.:-]{1,40}$/;
+
+/* ---------- Zufall (Top-Level-Funktion, in Tests überschreibbar) ---------- */
+function rnd(n) { // ganze Zahl 0..n-1
+  try {
+    const a = new Uint32Array(1);
+    crypto.getRandomValues(a);
+    return Math.floor((a[0] / 4294967296) * n);
+  } catch { return Math.floor(Math.random() * n); }
+}
+
+/* ---------- Zahlen / Text / Zeit (für normalize) ---------- */
+function toNum(v) { return typeof v === 'number' ? v : typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN; }
+function num(v, def, lo, hi) { v = toNum(v); if (!Number.isFinite(v)) v = def; return Math.min(hi, Math.max(lo, v)); }
+function int(v, def, lo, hi) { return Math.round(num(v, def, lo, hi)); }
+function optInt(v, lo, hi) { const n = toNum(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : undefined; }
+function str(v, max) { return (typeof v === 'string' ? v : typeof v === 'number' && Number.isFinite(v) ? String(v) : '').trim().slice(0, max); }
+function pick(v, list, def) { return list.includes(v) ? v : def; }
+function fixIds(list) {
+  const seen = new Set();
+  list.forEach((x) => { if (typeof x.id !== 'string' || !ID_RE.test(x.id) || seen.has(x.id)) x.id = uid(); seen.add(x.id); });
+  return list;
+}
+const isoNow = () => new Date().toISOString();
+const TS_MIN = Date.UTC(1901, 0, 1), TS_MAX = Date.UTC(2199, 11, 31); // Bereich, den die Tagesanzeige (parseKey: 1900–2200) verarbeiten kann
+function ts(v, fallback) { // Zeitpunkt (ISO) – nur für Momente, nie für Kalendertage
+  if (typeof v === 'string' || typeof v === 'number') {
+    let t = NaN;
+    if (typeof v === 'number') t = v;
+    else { const dk = parseKey(v.trim()); t = dk ? dk.getTime() : Date.parse(v); } // reines 'YYYY-MM-DD' = lokaler Kalendertag (mittags), nicht UTC
+    if (Number.isFinite(t)) return new Date(Math.min(TS_MAX, Math.max(TS_MIN, t))).toISOString();
+  }
+  return fallback === undefined ? isoNow() : fallback;
+}
+
+/* ---------- Kalendertage als lokales 'YYYY-MM-DD' ---------- */
+function dateKey(d) { d = d || new Date(); return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+function parseKey(s) { // -> Date (mittags, lokal) oder null
+  if (typeof s !== 'string') return null;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  const y = +m[1], mo = +m[2], da = +m[3];
+  if (y < 1900 || y > 2200) return null;
+  const d = new Date(y, mo - 1, da, 12);
+  return d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === da ? d : null;
+}
+const today = () => dateKey();
+function addDays(key, n) { const d = parseKey(key); d.setDate(d.getDate() + n); return dateKey(d); }
+const dayOfIso = (iso) => dateKey(new Date(iso));
+
+/* ---------- Uhrzeiten 'HH:MM' ---------- */
+function toMin(t) { // 'HH:MM' (auch 'H:MM', '24:00') -> Minuten oder null
+  if (typeof t !== 'string') return null;
+  if (t.trim() === '24:00') return 1440;
+  const m = /^(\d{1,2}):(\d{2})$/.exec(t.trim());
+  if (!m || +m[1] > 23 || +m[2] > 59) return null;
+  return +m[1] * 60 + +m[2];
+}
+function fromMin(m) { m = Math.max(0, Math.min(1440, Math.round(m))); return pad(Math.floor(m / 60)) + ':' + pad(m % 60); }
+function normTime(v) { const m = toMin(v); return m === null || m >= 1440 ? '' : fromMin(m); }
+const clock = (iso) => { const d = new Date(iso); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+
+/* ---------- Anzeige ---------- */
+function fmtN(x, dec) { dec = dec == null ? 1 : dec; return String(+Number(x).toFixed(dec)).replace('.', ','); }
+const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+const WD_LONG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+function dayShort(key) { const d = parseKey(key); return WD[d.getDay()] + ', ' + d.getDate() + '.' + (d.getMonth() + 1) + '.'; }
+function dayLong(key) { const d = parseKey(key); return WD_LONG[d.getDay()] + ', ' + d.getDate() + '. ' + MONTHS[d.getMonth()] + ' ' + d.getFullYear(); }
+function dayRel(key) {
+  const t = today();
+  if (key === t) return 'heute';
+  if (key === addDays(t, 1)) return 'morgen';
+  if (key === addDays(t, -1)) return 'gestern';
+  return dayShort(key) + (key.slice(0, 4) !== t.slice(0, 4) ? ' ' + key.slice(0, 4) : '');
+}
+const short = (s, n) => (s.length > (n || 40) ? s.slice(0, (n || 40) - 1) + '…' : s);
+function fmtDur(min) { min = Math.round(min); return min >= 60 && min % 60 === 0 ? (min / 60) + ' Std' : min + ' Min'; }
+function fmtClock(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return h ? h + ':' + pad(m) + ':' + pad(s % 60) : pad(m) + ':' + pad(s % 60);
+}
+function ago(iso) { // freundliche, neutrale Zeitangabe
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return '';
+  const min = Math.floor((Date.now() - t) / 60000);
+  if (min < 1) return 'gerade eben';
+  if (min < 60) return 'vor ' + min + ' Min';
+  const k = dayOfIso(iso), tk = today();
+  if (!parseKey(k)) return '';
+  if (k === tk) return 'heute ' + clock(iso);
+  if (k === addDays(tk, -1)) return 'gestern ' + clock(iso);
+  return dayShort(k) + ' ' + clock(iso);
+}
+const pick1 = (list) => list[rnd(list.length)];
+const hideNum = () => !!(store && store.data && store.data.ui && store.data.ui.hideNumbers);
+
+function svgEl(tag, attrs, parent) {
+  const n = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  for (const k in attrs) n.setAttribute(k, attrs[k]);
+  if (parent) parent.append(n);
+  return n;
+}
+
+/* ---------- Meldungen mit Rückgängig ---------- */
+let toastTimer = null;
+function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
+function toast(msg, undo, ms) {
+  const t = $('toast');
+  t.textContent = '';
+  t.append(el('span', null, msg));
+  if (undo) t.append(btn('Rückgängig', null, () => { hideToast(); clearTimeout(toastTimer); undo(); }));
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, ms || (undo ? 9000 : 4500));
+}
+
+/* ---------- Zwischenablage ---------- */
+async function copyText(text) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { /* Fallback */ }
+  try {
+    const ta = el('textarea'); ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;left:-999px';
+    document.body.append(ta); ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    return ok;
+  } catch { return false; }
+}
+
+/* ===== Punktekonto (rewards): gemeinsam für Brain Dump, Gewohnheiten und Belohnungen =====
+   Kontostand = Summe des ledger (wird nie separat gespeichert, nie unter 0).
+   Automatische Buchungen tragen eine eindeutige ref (task:<id> / habit:<id>:<Tag>) -> keine Doppelbuchung. */
+const LEDGER_KINDS = ['habit', 'task', 'manual', 'redeem', 'adjust', 'archive'];
+const LEDGER_MAX = 2000;
+function defaultsRewards() {
+  return {
+    taskPoints: 2,
+    menu: [
+      { id: uid(), name: 'Ein Stück Schokolade 🍫', cost: 5 },
+      { id: uid(), name: 'Eine Folge der Lieblingsserie 📺', cost: 10 },
+      { id: uid(), name: 'Gemütlicher Kaffee ☕', cost: 8 },
+    ],
+    ledger: [],
+  };
+}
+const ledgerSum = (l) => l.reduce((a, e) => a + e.pts, 0);
+function compactLedger(r) {
+  if (r.ledger.length <= LEDGER_MAX) return;
+  const cut = r.ledger.length - Math.floor(LEDGER_MAX * 0.75);
+  const old = r.ledger.splice(0, cut);
+  r.ledger.unshift({ id: uid(), at: old[0].at, day: old[0].day, pts: ledgerSum(old), reason: 'Frühere Buchungen (zusammengefasst)', kind: 'archive', ref: '' });
+}
+function normRewards(d) {
+  const src = isObj(d.rewards) ? d.rewards : {};
+  const def = defaultsRewards();
+  const r = { taskPoints: int(src.taskPoints, 2, 0, 20) };
+  r.menu = Array.isArray(src.menu)
+    ? fixIds(src.menu.filter(isObj).map((m) => ({ id: m.id, name: str(m.name, 80) || 'Belohnung', cost: int(m.cost, 5, 1, 9999) })).slice(0, 100))
+    : def.menu;
+  const ids = new Set(), refs = new Set();
+  const led = [];
+  (Array.isArray(src.ledger) ? src.ledger : []).filter(isObj).forEach((e) => {
+    const pts = int(e.pts, 0, -1e6, 1e6);
+    if (!pts) return;
+    const at = ts(e.at);
+    const ref = str(e.ref, 100);
+    if (ref && refs.has(ref)) return; // Doppelbuchung verwerfen
+    if (ref) refs.add(ref);
+    let id = typeof e.id === 'string' && ID_RE.test(e.id) && !ids.has(e.id) ? e.id : uid();
+    ids.add(id);
+    led.push({ id, at, day: parseKey(e.day) ? e.day : dayOfIso(at), pts, reason: str(e.reason, 120), kind: pick(e.kind, LEDGER_KINDS, pts > 0 ? 'manual' : 'redeem'), ref });
+  });
+  led.sort((a, b) => (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const bal = ledgerSum(led);
+  if (bal < 0) led.push({ id: uid(), at: isoNow(), day: today(), pts: -bal, reason: 'Ausgleich (Konto bleibt im Plus)', kind: 'adjust', ref: '' });
+  r.ledger = led;
+  compactLedger(r);
+  d.rewards = r;
+}
+const balance = () => ledgerSum(D().rewards.ledger);
+function pointsAward(ref, pts, reason, kind) { // gibt gebuchte Punkte zurück (0 = nichts gebucht)
+  const r = D().rewards;
+  pts = Math.round(pts);
+  if (!(pts > 0) || r.ledger.some((e) => e.ref === ref)) return 0;
+  r.ledger.push({ id: uid(), at: isoNow(), day: today(), pts, reason: str(reason, 120), kind, ref });
+  compactLedger(r);
+  store.changed();
+  return pts;
+}
+function pointsRevoke(ref) { // Rücknahme nur, solange die Buchung vom selben Tag ist
+  const r = D().rewards;
+  const i = r.ledger.findIndex((e) => e.ref === ref);
+  if (i < 0 || r.ledger[i].day !== today()) return 0;
+  const [e] = r.ledger.splice(i, 1);
+  const bal = ledgerSum(r.ledger);
+  if (bal < 0) r.ledger.push({ id: uid(), at: isoNow(), day: today(), pts: -bal, reason: 'Ausgleich (Konto bleibt im Plus)', kind: 'adjust', ref: '' });
+  store.changed();
+  return e.pts;
+}
+
+/* ===== Seitenrahmen: Module, Tabs, Rendern ===== */
+const PAGE = { modules: [], active: null };
+function registerModule(m) { PAGE.modules.push(m); }
+
+function makeDefaults() {
+  const d = { ui: { hideNumbers: false }, rewards: defaultsRewards() };
+  PAGE.modules.forEach((m) => { d[m.key] = m.defaults(); });
+  return d;
+}
+function normalize(d) {
+  Object.keys(d).forEach((k) => { if (/^\d+$/.test(k)) delete d[k]; }); // Reste aus Nicht-Objekt-JSON (Text/Array)
+  const u = isObj(d.ui) ? d.ui : {};
+  d.ui = { hideNumbers: u.hideNumbers === true };
+  normRewards(d);
+  PAGE.modules.forEach((m) => m.normalize(d));
+}
+
+function renderChrome() {
+  $('hideNum').checked = hideNum();
+  document.body.classList.toggle('hide-num', hideNum());
+  const p = $('pts');
+  if (p) p.textContent = hideNum() ? '🏆 Punkte ✨' : '🏆 ' + balance() + ' Punkte';
+}
+function renderAll() {
+  renderChrome();
+  PAGE.modules.forEach((m) => m.render());
+}
+const focusOk = (n) => !!(n && n.isConnected && n.getClientRects().length); // vorhanden und sichtbar (nicht in verstecktem/eingeklapptem Bereich)
+const focusLost = () => { const a = document.activeElement; return !a || a === document.body || !focusOk(a); };
+function uiRender(after) { // neu zeichnen, Fokus auf dasselbe Element zurückgeben
+  const a = document.activeElement, k = a && a.dataset ? a.dataset.fk : null;
+  const pn = a && a !== document.body && a.closest ? a.closest('.panel') : null;
+  renderAll();
+  if (k) {
+    const n = document.querySelector('[data-fk="' + k + '"]');
+    if (n && n !== document.activeElement) n.focus({ preventScroll: true });
+  }
+  // Ging der Fokus mit einem entfernten/versteckten Element verloren, auf ein sinnvolles Ziel setzen (nie Fokus aus einem Feld stehlen)
+  if ((pn || after) && focusLost()) {
+    const m = PAGE.modules.find((x) => x.id === PAGE.active);
+    for (const f of [after, m && m.focusFallback]) {
+      const n = typeof f === 'function' ? f() : null;
+      if (focusOk(n)) { n.focus({ preventScroll: true }); break; }
+    }
+  }
+}
+function commit(after) { store.changed(); uiRender(after); }
+
+function selectTab(id, focus, initial) {
+  PAGE.active = id;
+  PAGE.modules.forEach((m) => {
+    const on = m.id === id;
+    const tb = $('tab-' + m.id);
+    tb.setAttribute('aria-selected', String(on));
+    tb.tabIndex = on ? 0 : -1;
+    $('p-' + m.id).hidden = !on;
+    if (on && focus) tb.focus();
+  });
+  const m = PAGE.modules.find((x) => x.id === id);
+  if (m && m.onShow) m.onShow(!!initial || !!focus); // focus = Tastaturnavigation (Pfeile/Home/End): Fokus bleibt auf dem Tab
+}
+function buildTabs() {
+  const bar = $('tabs');
+  PAGE.modules.forEach((m, i) => {
+    const b = el('button', 'tab');
+    b.type = 'button'; b.id = 'tab-' + m.id;
+    b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', 'p-' + m.id); b.setAttribute('aria-selected', 'false');
+    b.append(el('span', null, m.icon), el('span', null, m.label));
+    b.onclick = () => selectTab(m.id);
+    b.onkeydown = (e) => {
+      const n = PAGE.modules.length;
+      let j = -1;
+      if (e.key === 'ArrowRight') j = (i + 1) % n;
+      else if (e.key === 'ArrowLeft') j = (i + n - 1) % n;
+      else if (e.key === 'Home') j = 0;
+      else if (e.key === 'End') j = n - 1;
+      if (j >= 0) { e.preventDefault(); selectTab(PAGE.modules[j].id, true); }
+    };
+    bar.append(b);
+  });
+}
+
+/* ---------- Datumsgrenze (Mitternacht): beim Laden, bei visibilitychange und minütlich ---------- */
+let curDay = today();
+function checkDay() {
+  const t = today();
+  if (t === curDay) return;
+  const old = curDay;
+  curDay = t;
+  PAGE.modules.forEach((m) => { if (m.dayChange) m.dayChange(t, old); });
+  uiRender();
+}
+function afterLoad() {
+  curDay = today();
+  PAGE.modules.forEach((m) => { if (m.onLoad) m.onLoad(); });
+  renderAll();
+}
+function tickAll() { PAGE.modules.forEach((m) => { if (m.tick) m.tick(); }); }
+
+function boot(pageStoreName) {
+  const s = SimpleStorage.create({
+    name: pageStoreName,
+    defaults: makeDefaults,
+    onChange: () => { hideToast(); normalize(s.data); afterLoad(); }, // neue Daten (Öffnen/Neu/Neuladen): Toast samt Rückgängig gehört zu den alten Daten
+    statusEl: $('status'),
+  });
+  return s;
+}
+
+/* ================= 🧠 BRAIN DUMP ================= */
+const BD_CATS = ['inbox', 'task', 'event', 'later', 'done'];
+const BD_MINS = [5, 10, 15, 30, 60, 120];
+const EN_LABEL = { 1: '🔋 leicht', 2: '🔋🔋 mittel', 3: '🔋🔋🔋 fordernd' };
+const CHEERS = ['Geschafft – gut gemacht! 🎉', 'Eins weniger im Kopf. ✨', 'Stark! Das zählt. 🌟', 'Erledigt – du darfst kurz stolz sein. 💛'];
+const BD = { filter: 'inbox', panel: null, okTimer: null };
+const bdItems = () => D().braindump.items;
+const bdFind = (id) => bdItems().find((x) => x.id === id);
+const openTasks = () => bdItems().filter((i) => i.cat === 'task' && !i.done);
+
+function normBraindump(d) {
+  const src = isObj(d.braindump) ? d.braindump : {};
+  const items = [];
+  (Array.isArray(src.items) ? src.items : []).forEach((raw) => {
+    if (typeof raw === 'string') raw = { text: raw };
+    if (!isObj(raw)) return;
+    const text = str(raw.text, 500);
+    if (!text) return;
+    let cat = pick(raw.cat, BD_CATS, 'inbox'), done = raw.done === true;
+    if (cat === 'done') { cat = 'task'; done = true; }
+    if (cat !== 'task') done = false;
+    const it = { id: raw.id, text, createdAt: ts(raw.createdAt), cat, done };
+    const m = optInt(raw.minutes, 1, 1440); if (m !== undefined) it.minutes = m;
+    const en = optInt(raw.energy, 1, 3); if (en !== undefined) it.energy = en;
+    if (parseKey(raw.date)) it.date = raw.date;
+    const tm = normTime(raw.time); if (tm) it.time = tm;
+    if (done) it.doneAt = ts(raw.doneAt, it.createdAt);
+    items.push(it);
+  });
+  d.braindump = { items: fixIds(items.slice(0, 2000)) };
+}
+
+function bdAddText(text) {
+  text = String(text).trim().slice(0, 500);
+  if (!text) return false;
+  if (bdItems().length >= 2000) { toast('Das sind sehr viele Gedanken – sortiere zuerst ein paar aus. 🌿'); return false; }
+  bdItems().unshift({ id: uid(), text, createdAt: isoNow(), cat: 'inbox', done: false });
+  commit();
+  $('bd-ok').textContent = 'Gemerkt ✓';
+  clearTimeout(BD.okTimer);
+  BD.okTimer = setTimeout(() => { $('bd-ok').textContent = ''; }, 1800);
+  return true;
+}
+function bdAfter(id, ownFk) { // Fokusziel nach dem Sortieren/Abhaken/Löschen: dieselbe Zeile (Auslöser), sonst Nachbarzeile
+  const rows = Array.from($('bd-list').children), i = rows.findIndex((r) => r.dataset.id === id);
+  const nb = i >= 0 ? rows[i + 1] || rows[i - 1] : null, nid = nb ? nb.dataset.id : null;
+  return () => {
+    const cur = Array.from($('bd-list').children);
+    for (const [x, sel] of [[id, ownFk ? '[data-fk="' + ownFk + '"]' : null], [nid, null]]) {
+      const r = x && cur.find((li) => li.dataset.id === x);
+      const c = r && ((sel && r.querySelector(sel)) || r.querySelector('input, button'));
+      if (focusOk(c)) return c;
+    }
+    return null; // -> Fallback des Moduls (aktiver Filter)
+  };
+}
+function bdUnDone(it) { // Erledigt-Status zurücknehmen (inkl. Punkte, falls noch am Buchungstag)
+  it.done = false; delete it.doneAt;
+  pointsRevoke('task:' + it.id);
+}
+function bdToggleDone(id, on) {
+  const it = bdFind(id);
+  if (!it || it.cat !== 'task') return;
+  let msg = '';
+  if (on && !it.done) {
+    it.done = true; it.doneAt = isoNow();
+    const p = pointsAward('task:' + id, D().rewards.taskPoints, 'Aufgabe: ' + short(it.text, 60), 'task');
+    msg = pick1(CHEERS) + (p && !hideNum() ? '  +' + p + ' Punkte' : '');
+  } else if (!on && it.done) bdUnDone(it);
+  commit(bdAfter(id));
+  if (msg) toast(msg);
+}
+function bdSetCat(it, cat) {
+  if (it.done && cat !== 'task') bdUnDone(it);
+  it.cat = cat;
+  BD.panel = null;
+  commit(bdAfter(it.id));
+}
+function bdDelete(id) {
+  const i = bdItems().findIndex((x) => x.id === id);
+  if (i < 0) return;
+  const after = bdAfter(id); // vor dem Entfernen: Nachbarzeile merken
+  const [it] = bdItems().splice(i, 1);
+  if (BD.panel && BD.panel.id === id) BD.panel = null;
+  commit(after);
+  toast('Weg damit: „' + short(it.text, 40) + '“', () => {
+    if (bdFind(it.id)) return;
+    bdItems().splice(Math.min(i, bdItems().length), 0, it);
+    commit();
+  });
+}
+function bdApplyPanel(it, skip) {
+  const P = BD.panel;
+  if (!P) return;
+  if (P.kind === 'task') {
+    it.cat = 'task';
+    if (!skip) {
+      if (P.minutes) it.minutes = P.minutes; else delete it.minutes;
+      if (P.energy) it.energy = P.energy; else delete it.energy;
+    }
+  } else {
+    it.cat = 'event';
+    if (!skip) {
+      if (parseKey(P.date)) it.date = P.date; else delete it.date;
+      if (normTime(P.time)) it.time = normTime(P.time); else delete it.time;
+    }
+  }
+  BD.panel = null;
+  commit(bdAfter(it.id, 'bd-' + P.kind + '-' + it.id));
+}
+
+function bdPanelNode(it) {
+  const P = BD.panel, box = el('div', 'bd-panel');
+  const isNew = P.kind === 'task' ? it.cat !== 'task' : it.cat !== 'event';
+  const save = () => bdApplyPanel(it, false);
+  if (P.kind === 'task') {
+    box.append(el('h3', null, 'Wie lange ungefähr? (optional)'));
+    const c1 = el('div', 'chips'), chips = [];
+    const sync = () => chips.forEach(([b, m]) => b.setAttribute('aria-pressed', String(P.minutes === m)));
+    BD_MINS.forEach((m) => {
+      const b = btn(fmtDur(m), 'chip', () => { P.minutes = P.minutes === m ? undefined : m; $('bd-pm').value = ''; sync(); });
+      b.dataset.fk = 'bd-pm-' + m; chips.push([b, m]); c1.append(b);
+    });
+    const inp = el('input'); inp.id = 'bd-pm'; inp.type = 'number'; inp.min = 1; inp.max = 1440; inp.style.width = '110px';
+    inp.placeholder = 'Min'; inp.setAttribute('aria-label', 'Eigene Minuten');
+    inp.value = P.minutes && !BD_MINS.includes(P.minutes) ? P.minutes : '';
+    inp.oninput = () => { P.minutes = optInt(inp.value, 1, 1440); sync(); };
+    inp.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+    c1.append(inp);
+    sync();
+    box.append(c1, el('h3', null, 'Wie viel Kraft kostet es? (optional)'));
+    const c2 = el('div', 'chips');
+    [1, 2, 3].forEach((n) => {
+      const b = btn(EN_LABEL[n], 'chip', () => { P.energy = P.energy === n ? undefined : n; uiRender(); });
+      b.setAttribute('aria-pressed', String(P.energy === n)); b.dataset.fk = 'bd-pe-' + n; c2.append(b);
+    });
+    box.append(c2);
+  } else {
+    box.append(el('h3', null, 'Wann? (optional)'));
+    const r = el('div', 'row');
+    const di = el('input'); di.type = 'date'; di.value = P.date || ''; di.setAttribute('aria-label', 'Datum');
+    di.oninput = () => { P.date = di.value; };
+    const ti = el('input'); ti.type = 'time'; ti.value = P.time || ''; ti.setAttribute('aria-label', 'Uhrzeit');
+    ti.oninput = () => { P.time = ti.value; };
+    di.onkeydown = ti.onkeydown = (e) => { if (e.key === 'Enter') save(); };
+    r.append(di, ti,
+      btn('Heute', 'chip', () => { P.date = today(); di.value = P.date; }),
+      btn('Morgen', 'chip', () => { P.date = addDays(today(), 1); di.value = P.date; }));
+    box.append(r);
+  }
+  const acts = el('div', 'row'); acts.style.marginTop = '10px';
+  acts.append(btn(P.kind === 'task' ? 'Als Aufgabe speichern' : 'Als Termin speichern', 'primary', save),
+    btn(isNew ? (P.kind === 'task' ? 'Ohne Angaben' : 'Ohne Datum') : 'Abbrechen', null, () => (isNew ? bdApplyPanel(it, true) : (BD.panel = null, uiRender(bdAfter(it.id, 'bd-' + P.kind + '-' + it.id))))));
+  if (isNew) acts.append(btn('Abbrechen', 'ghost', () => { BD.panel = null; uiRender(bdAfter(it.id, 'bd-' + P.kind + '-' + it.id)); }));
+  box.append(acts);
+  return box;
+}
+
+function bdTags(it) {
+  const t = el('div', 'bd-meta');
+  if (it.minutes) { const s = el('span', 'tag', '⏱ ' + fmtDur(it.minutes)); s.title = 'Geschätzte Dauer'; t.append(s); }
+  if (it.energy) { const s = el('span', 'tag', EN_LABEL[it.energy]); s.title = 'Kraftaufwand'; t.append(s); }
+  if (it.cat === 'event' || it.date) {
+    if (it.date) {
+      const past = it.date < today();
+      const s = el('span', 'tag' + (past ? ' past' : ''), '📅 ' + dayRel(it.date) + (it.time ? ' ' + it.time : '') + (past ? ' · vorbei' : ''));
+      t.append(s);
+    } else if (it.cat === 'event') t.append(el('span', 'tag past', 'ohne Datum' + (it.time ? ' · ' + it.time : '')));
+  }
+  return t.children.length ? t : null;
+}
+
+function bdRow(it) {
+  const li = el('li', 'item bd-item' + (it.done ? ' done' : '') + (it.cat === 'task' ? ' istask' : ''));
+  li.dataset.id = it.id;
+  const top = el('div', 'bd-top');
+  if (it.cat === 'task') {
+    const cb = el('input', 'big'); cb.type = 'checkbox'; cb.checked = it.done;
+    cb.setAttribute('aria-label', 'Erledigt: ' + it.text);
+    cb.dataset.fk = 'bd-cb-' + it.id;
+    cb.onchange = () => bdToggleDone(it.id, cb.checked);
+    top.append(cb);
+  }
+  top.append(el('div', 'bd-text', it.text));
+  li.append(top);
+  const tags = bdTags(it);
+  if (tags) li.append(tags);
+  const acts = el('div', 'bd-acts');
+  const mk = (label, cat, fn, cur) => {
+    const b = btn(label, null, fn);
+    b.dataset.fk = 'bd-' + cat + '-' + it.id;
+    if (cur) b.setAttribute('aria-current', 'true');
+    b.setAttribute('aria-label', label + ': ' + short(it.text, 30));
+    return b;
+  };
+  if (!it.done) {
+    acts.append(
+      mk('Aufgabe', 'task', () => { BD.panel = { id: it.id, kind: 'task', minutes: it.minutes, energy: it.energy }; uiRender(); }, it.cat === 'task'),
+      mk('Termin', 'event', () => { BD.panel = { id: it.id, kind: 'event', date: it.date || '', time: it.time || '' }; uiRender(); }, it.cat === 'event'),
+      mk('Später', 'later', () => { if (it.cat !== 'later') bdSetCat(it, 'later'); }, it.cat === 'later'));
+    if (it.cat !== 'inbox') acts.append(mk('↩ Posteingang', 'inbox', () => bdSetCat(it, 'inbox'), false));
+  }
+  const del = mk('Weg damit', 'del', () => bdDelete(it.id), false);
+  del.classList.add('del');
+  acts.append(del);
+  li.append(acts);
+  if (BD.panel && BD.panel.id === it.id) li.append(bdPanelNode(it));
+  return li;
+}
+
+function renderBD() {
+  const its = bdItems();
+  if (BD.panel && !bdFind(BD.panel.id)) BD.panel = null;
+  const counts = { inbox: 0, task: 0, event: 0, later: 0 };
+  its.forEach((i) => { if (i.cat === 'task') { if (!i.done) counts.task++; } else counts[i.cat]++; });
+  const fb = $('bd-filters');
+  fb.textContent = '';
+  [['inbox', 'Posteingang'], ['task', 'Aufgaben'], ['event', 'Termine'], ['later', 'Später']].forEach(([k, label]) => {
+    const b = el('button', 'chip'); b.type = 'button';
+    b.setAttribute('aria-pressed', String(BD.filter === k)); b.dataset.fk = 'bd-f-' + k;
+    b.append(document.createTextNode(label + ' '), el('span', 'num', String(counts[k])));
+    b.onclick = () => { BD.filter = k; BD.panel = null; uiRender(); };
+    fb.append(b);
+  });
+  let list = its.filter((i) => (BD.filter === 'task' ? i.cat === 'task' && !i.done : i.cat === BD.filter));
+  if (BD.filter === 'event') {
+    list = list.map((x, n) => [x, n]).sort((a, b) => {
+      const da = a[0].date || '9999', db = b[0].date || '9999';
+      return da < db ? -1 : da > db ? 1 : (a[0].time || '') < (b[0].time || '') ? -1 : (a[0].time || '') > (b[0].time || '') ? 1 : a[1] - b[1];
+    }).map((p) => p[0]);
+  }
+  const ul = $('bd-list'); ul.textContent = '';
+  list.forEach((i) => ul.append(bdRow(i)));
+  const empty = $('bd-empty');
+  empty.hidden = list.length > 0;
+  empty.textContent = { inbox: 'Nichts im Posteingang – dein Kopf ist frei ✨', task: 'Keine offenen Aufgaben. Sortiere Gedanken aus dem Posteingang hierher.', event: 'Keine Termine gemerkt.', later: 'Nichts auf „Später“ – manche Dinge dürfen warten.' }[BD.filter];
+  const done = its.filter((i) => i.cat === 'task' && i.done);
+  const box = $('bd-donebox');
+  box.hidden = !(BD.filter === 'task' && done.length);
+  $('bd-donecnt').textContent = '(' + done.length + ')';
+  const dl = $('bd-done'); dl.textContent = '';
+  done.forEach((i) => dl.append(bdRow(i)));
+  $('bd-hint').textContent = counts.inbox === 0 ? '🌤️ Posteingang leer = Kopf frei.' : 'Ziel: Posteingang leer = Kopf frei. Sortiere in deinem Tempo – es eilt nichts.';
+}
+function bdAddFromInput() {
+  const inp = $('bd-input');
+  if (bdAddText(inp.value)) inp.value = '';
+  inp.focus();
+}
+$('bd-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); bdAddFromInput(); }
+});
+$('bd-add').onclick = bdAddFromInput;
+$('bd-clear-done').onclick = () => {
+  const removed = [];
+  bdItems().forEach((x, i) => { if (x.cat === 'task' && x.done) removed.push([i, x]); });
+  if (!removed.length) return;
+  D().braindump.items = bdItems().filter((x) => !(x.cat === 'task' && x.done));
+  commit();
+  toast(removed.length + ' erledigte Aufgabe(n) aufgeräumt.', () => {
+    removed.forEach(([i, x]) => { if (!bdFind(x.id)) bdItems().splice(Math.min(i, bdItems().length), 0, x); });
+    commit();
+  });
+};
+registerModule({
+  id: 'braindump', key: 'braindump', icon: '🧠', label: 'Brain Dump',
+  defaults: () => ({ items: [] }), normalize: normBraindump, render: renderBD,
+  onShow: (skip) => { if (!skip && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) $('bd-input').focus(); }, // nicht bei Tastaturnavigation, nicht am Handy (Bildschirmtastatur)
+  focusFallback: () => document.querySelector('#bd-filters [aria-pressed="true"]'),
+});
+
+/* ================= 🎯 ZEITSCHÄTZUNG ================= */
+const ES = { hide: false, resultId: null, factorShown: '' };
+const ES_CHIPS = [5, 10, 15, 20, 30, 45, 60, 90];
+function normEstimates(d) {
+  const src = isObj(d.estimates) ? d.estimates : {};
+  const entries = [];
+  (Array.isArray(src.entries) ? src.entries : []).filter(isObj).forEach((e) => {
+    const est = num(e.estimateMin, NaN, 1, 1440), act = num(e.actualMin, NaN, 0.1, 10080);
+    if (!Number.isFinite(est) || !Number.isFinite(act)) return;
+    entries.push({ id: e.id, title: str(e.title, 120) || 'Aufgabe', estimateMin: +est.toFixed(1), actualMin: +act.toFixed(1), at: ts(e.at) });
+  });
+  let running = null;
+  if (isObj(src.running)) {
+    const est = num(src.running.estimateMin, NaN, 1, 1440);
+    if (Number.isFinite(est)) {
+      let st = ts(src.running.startedAt);
+      if (Date.parse(st) > Date.now() + 60000) st = isoNow();
+      running = { title: str(src.running.title, 120) || 'Aufgabe', estimateMin: +est.toFixed(1), startedAt: st };
+    }
+  }
+  d.estimates = { entries: fixIds(entries.slice(-500)), running };
+}
+const esFactor = (e) => e.actualMin / e.estimateMin;
+function median(a) {
+  const s = a.slice().sort((x, y) => x - y), n = s.length;
+  return !n ? NaN : n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+const fmtMin = (x) => fmtN(x, 1);
+const esSentence = (e) => 'Geschätzt ' + fmtMin(e.estimateMin) + ' Min, gebraucht ' + fmtMin(e.actualMin) + ' Min (×' + fmtN(esFactor(e), 2) + ')';
+function esComment(e) {
+  const f = esFactor(e);
+  if (f < 0.85) return 'Schneller als gedacht – super! 🚀';
+  if (f <= 1.15) return 'Volltreffer! Dein Zeitgefühl wird besser. 🎯';
+  if (f <= 2) return 'Etwas länger als gedacht – das ist ganz normal. 🌿';
+  return 'Deutlich länger als gedacht – gut zu wissen, das hilft bei der nächsten Planung. 💡';
+}
+function esStart() {
+  const est = optInt($('es-min').value, 1, 1440);
+  if (!est) {
+    $('es-factor-hint').textContent = 'Wie viele Minuten schätzt du? Eine Zahl reicht.';
+    $('es-min').focus();
+    return;
+  }
+  D().estimates.running = { title: str($('es-title').value, 120) || 'Aufgabe', estimateMin: est, startedAt: isoNow() };
+  ES.resultId = null;
+  $('es-title').value = ''; $('es-min').value = '';
+  commit();
+}
+function esStop() {
+  const r = D().estimates.running;
+  if (!r) return;
+  const ms = Math.max(0, Date.now() - Date.parse(r.startedAt));
+  const e = { id: uid(), title: r.title, estimateMin: r.estimateMin, actualMin: Math.min(10080, Math.max(0.1, Math.round(ms / 6000) / 10)), at: isoNow() };
+  D().estimates.entries.push(e);
+  if (D().estimates.entries.length > 500) D().estimates.entries.shift();
+  D().estimates.running = null;
+  ES.resultId = e.id;
+  commit();
+}
+function esDelete(id) {
+  const L = D().estimates.entries, i = L.findIndex((x) => x.id === id);
+  if (i < 0) return;
+  const [e] = L.splice(i, 1);
+  commit(() => $('es-list').querySelector('button'));
+  toast('Eintrag gelöscht.', () => { if (!D().estimates.entries.some((x) => x.id === e.id)) { D().estimates.entries.splice(Math.min(i, D().estimates.entries.length), 0, e); commit(); } });
+}
+function niceMax(v) {
+  const p = Math.pow(10, Math.floor(Math.log10(v)));
+  for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p;
+  return 10 * p;
+}
+function esChart(entries) {
+  const n = entries.length, GW = 40, L = 38, T = 10, B = 26, H = 190, W = L + n * GW + 10;
+  const max = niceMax(Math.max(1, ...entries.map((e) => Math.max(e.estimateMin, e.actualMin))));
+  const svg = svgEl('svg', { viewBox: '0 0 ' + W + ' ' + H, width: W, height: H, role: 'img' });
+  svg.setAttribute('aria-label', 'Balkengrafik der letzten ' + n + ' Einträge: geschätzte und gebrauchte Minuten');
+  const y = (v) => T + (H - T - B) * (1 - v / max);
+  [0, 0.5, 1].forEach((f) => {
+    svgEl('line', { x1: L, x2: W - 4, y1: y(max * f), y2: y(max * f), class: 'grid' }, svg);
+    const t = svgEl('text', { x: L - 6, y: y(max * f) + 4, 'text-anchor': 'end', 'font-size': 11 }, svg);
+    t.textContent = fmtN(max * f, 1);
+  });
+  entries.forEach((e, i) => {
+    const x0 = L + i * GW + 4;
+    const g = svgEl('g', {}, svg);
+    svgEl('title', {}, g).textContent = e.title + ': ' + esSentence(e);
+    svgEl('rect', { x: x0, width: 15, y: y(e.estimateMin), height: y(0) - y(e.estimateMin), class: 'bar-a', rx: 2 }, g);
+    svgEl('rect', { x: x0 + 17, width: 15, y: y(e.actualMin), height: y(0) - y(e.actualMin), class: 'bar-b', rx: 2 }, g);
+    const d = new Date(e.at);
+    svgEl('text', { x: x0 + 16, y: H - 8, 'text-anchor': 'middle', 'font-size': 10 }, g).textContent = d.getDate() + '.' + (d.getMonth() + 1) + '.';
+  });
+  return svg;
+}
+function esScrollEnd() { const cw = $('es-chart'); cw.scrollLeft = cw.scrollWidth; } // neueste Einträge (rechts) zuerst zeigen
+function renderES() {
+  const E = D().estimates, r = E.running;
+  $('es-setup').hidden = !!r;
+  $('es-running').hidden = !r;
+  if (r) {
+    $('es-run-title').textContent = r.title;
+    $('es-run-est').textContent = 'Geschätzt: ' + fmtMin(r.estimateMin) + ' Min';
+    $('es-peek').setAttribute('aria-pressed', String(ES.hide));
+    esTick();
+  }
+  const res = $('es-result'), re = E.entries.find((x) => x.id === ES.resultId);
+  res.hidden = !re;
+  res.textContent = '';
+  if (re) res.append(el('strong', null, esSentence(re)), el('div', null, esComment(re)));
+  // Statistik
+  const es = E.entries, n = es.length, med = median(es.map(esFactor));
+  const line = $('es-stat-line'), tip = $('es-tip');
+  line.textContent = '';
+  tip.hidden = true;
+  if (n < 3) {
+    line.append('Noch zu wenig Daten für deinen Faktor – ab 3 Einträgen zeige ich ihn dir.');
+    if (n) line.append(' Bisher: ', el('span', 'num', String(n)));
+  } else {
+    line.append('Typischer Faktor (Median): ', el('strong', null, '×' + fmtN(med, 2)), ' ', el('span', 'num meta', '(aus ' + n + ' Einträgen)'));
+    const mr = Math.round(med * 10) / 10;
+    tip.hidden = false;
+    tip.textContent = mr > 1.1 ? 'Tipp: Plane deine Schätzungen mit ×' + fmtN(mr, 1) + ' ein.'
+      : mr >= 0.9 ? 'Deine Schätzungen passen meist gut – weiter so! 🎯'
+        : 'Du bist meist schneller als gedacht – du darfst mutiger planen. 🚀';
+  }
+  const cw = $('es-chart'); cw.textContent = '';
+  const last = es.slice(-15);
+  $('es-legend').hidden = !last.length;
+  if (last.length) { cw.append(esChart(last)); esScrollEnd(); }
+  // Verlauf
+  const ul = $('es-list'); ul.textContent = '';
+  es.slice(-20).reverse().forEach((e) => {
+    const li = el('li', 'item');
+    const row = el('div', 'es-row');
+    row.append(el('span', 't', e.title), el('span', 'meta', ago(e.at)));
+    const x = btn('✕', 'ghost mini', () => esDelete(e.id));
+    x.setAttribute('aria-label', 'Eintrag löschen: ' + e.title); x.style.marginLeft = 'auto';
+    row.append(x);
+    li.append(row, el('div', null, esSentence(e)));
+    ul.append(li);
+  });
+  $('es-empty').hidden = n > 0;
+  $('es-clear').hidden = n === 0;
+  updateFactorHint();
+}
+function updateFactorHint() {
+  const h = $('es-factor-hint'), est = optInt($('es-min').value, 1, 1440);
+  const es = D().estimates.entries;
+  if (est && es.length >= 3) {
+    const med = median(es.map(esFactor)), mr = Math.round(med * 10) / 10;
+    h.textContent = mr > 1.1 ? 'Mit deinem Faktor ×' + fmtN(mr, 1) + ' wären das eher ca. ' + fmtN(est * mr, 0) + ' Min.' : '';
+  } else if (!est) h.textContent = h.textContent.startsWith('Wie viele') ? h.textContent : '';
+  else h.textContent = '';
+}
+function esTick() {
+  const r = D().estimates.running;
+  if (!r) return;
+  const c = $('es-clock'), ms = Date.now() - Date.parse(r.startedAt);
+  c.classList.toggle('calm', ES.hide);
+  const t = ES.hide ? 'Die Uhr läuft – nimm dir die Zeit. 🌿' : fmtClock(ms);
+  if (c.textContent !== t) c.textContent = t;
+}
+$('es-start').onclick = esStart;
+$('es-stop').onclick = esStop;
+$('es-peek').onclick = () => { ES.hide = !ES.hide; uiRender(); };
+$('es-cancel').onclick = () => {
+  const r = D().estimates.running;
+  if (!r) return;
+  D().estimates.running = null;
+  commit();
+  toast('Stoppuhr verworfen.', () => { if (!D().estimates.running) { D().estimates.running = r; commit(); } });
+};
+$('es-title').onkeydown = $('es-min').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); esStart(); } };
+$('es-min').oninput = () => { if (optInt($('es-min').value, 1, 1440)) $('es-factor-hint').textContent = ''; updateFactorHint(); };
+ES_CHIPS.forEach((m) => { const b = btn(fmtDur(m), 'chip', () => { $('es-min').value = m; updateFactorHint(); }); $('es-chips').append(b); });
+$('es-clear').onclick = () => {
+  const E = D().estimates;
+  if (!E.entries.length || !confirm('Gesamten Verlauf löschen?')) return;
+  const old = E.entries;
+  E.entries = [];
+  ES.resultId = null;
+  commit();
+  toast('Verlauf gelöscht.', () => { if (!D().estimates.entries.length) { D().estimates.entries = old; commit(); } });
+};
+$('es-m-add').onclick = () => {
+  const est = num($('es-m-est').value, NaN, 1, 1440), act = num($('es-m-act').value, NaN, 0.1, 10080);
+  if (!Number.isFinite(est) || !Number.isFinite(act)) { toast('Bitte Schätzung und tatsächliche Minuten eintragen.'); return; }
+  const e = { id: uid(), title: str($('es-m-title').value, 120) || 'Aufgabe', estimateMin: +est.toFixed(1), actualMin: +act.toFixed(1), at: isoNow() };
+  D().estimates.entries.push(e);
+  ES.resultId = e.id;
+  $('es-m-title').value = $('es-m-est').value = $('es-m-act').value = '';
+  commit();
+};
+registerModule({
+  id: 'estimates', key: 'estimates', icon: '🎯', label: 'Zeitschätzung',
+  defaults: () => ({ entries: [], running: null }), normalize: normEstimates, render: renderES, tick: esTick,
+  onLoad: () => { ES.resultId = null; },
+  onShow: esScrollEnd, // beim Einblenden (vorher war der Bereich versteckt, scrollWidth = 0)
+  focusFallback: () => (D().estimates.running ? $('es-run-title') : $('es-title')),
+});
+
+/* ================= 🎲 ENTSCHEIDUNGSHILFE ================= */
+const DC = { minutes: null, energy: null, skipped: new Set(), current: null, status: 'idle', hist: [], listId: null, roll: '', pickSkipped: new Set(), pick: null, pickStatus: 'idle' };
+function defaultsDecide() {
+  return { lists: [{ id: uid(), name: 'Was esse ich?', items: ['Nudeln', 'Suppe', 'Brot und Käse', 'Reis mit Gemüse'] }] };
+}
+function normDecide(d) {
+  const src = isObj(d.decide) ? d.decide : null;
+  if (src && Array.isArray(src.lists)) {
+    const lists = src.lists.filter(isObj).slice(0, 30).map((l) => ({
+      id: l.id, name: str(l.name, 60) || 'Liste',
+      items: (Array.isArray(l.items) ? l.items : []).map((x) => str(isObj(x) ? x.text : x, 80)).filter(Boolean).slice(0, 200),
+    }));
+    d.decide = { lists: fixIds(lists) };
+  } else d.decide = defaultsDecide();
+}
+const dcLists = () => D().decide.lists;
+const dcList = () => dcLists().find((l) => l.id === DC.listId) || dcLists()[0] || null;
+function dcCandidates() {
+  return openTasks().filter((t) => (DC.minutes == null || t.minutes == null || t.minutes <= DC.minutes) && (DC.energy == null || t.energy == null || t.energy <= DC.energy));
+}
+function dcSuggest() {
+  const all = openTasks(), c = dcCandidates();
+  DC.current = null;
+  if (!all.length) { DC.status = 'notasks'; return; }
+  if (!c.length) { DC.status = 'none'; return; }
+  const rest = c.filter((t) => !DC.skipped.has(t.id));
+  if (!rest.length) { DC.status = 'exhausted'; return; }
+  DC.current = rest[rnd(rest.length)].id;
+  DC.status = 'suggest';
+}
+function dcParamChange() { DC.skipped.clear(); DC.current = null; DC.status = 'idle'; uiRender(); }
+function dcChips(host, opts, isOn, onPick, prefix) {
+  host.textContent = '';
+  opts.forEach(([label, val]) => {
+    const b = btn(label, 'chip', () => onPick(val));
+    b.setAttribute('aria-pressed', String(isOn(val))); b.dataset.fk = prefix + (val == null ? 'any' : val);
+    host.append(b);
+  });
+}
+function rollHist(text) { DC.hist.unshift(text); DC.hist = DC.hist.slice(0, 6); }
+function renderDC() {
+  dcChips($('dc-time'), [['egal', null], ['5 Min', 5], ['15 Min', 15], ['30 Min', 30], ['1 Std', 60], ['2 Std', 120]], (v) => DC.minutes === v,
+    (v) => { DC.minutes = v; $('dc-min').value = ''; dcParamChange(); }, 'dc-t-');
+  dcChips($('dc-energy'), [['egal', null], ['🔋 niedrig', 1], ['🔋🔋 mittel', 2], ['🔋🔋🔋 hoch', 3]], (v) => DC.energy === v,
+    (v) => { DC.energy = v; dcParamChange(); }, 'dc-e-');
+  if (DC.current && !openTasks().some((t) => t.id === DC.current)) { DC.current = null; DC.status = 'idle'; }
+  const res = $('dc-result'); res.textContent = '';
+  if (DC.status === 'suggest') {
+    const t = bdFind(DC.current);
+    const card = el('div', 'dc-card');
+    card.append(el('div', 'meta', 'Wie wäre es damit?'), el('div', 'big', t.text));
+    const tags = bdTags(t); if (tags) card.append(tags);
+    const acts = el('div', 'row'); acts.style.marginTop = '10px';
+    acts.append(
+      btn('✓ Erledigt', 'primary', () => { DC.status = 'idle'; DC.current = null; bdToggleDone(t.id, true); }),
+      btn('▶ Mit Stoppuhr starten', null, () => {
+        const run = D().estimates.running;
+        if (run) { // es läuft schon eine Stoppuhr: Vorschlag nicht übernehmen, Felder unangetastet lassen
+          toast('Es läuft schon eine Stoppuhr („' + short(run.title, 30) + '“) – stoppe sie zuerst, dann kannst du diese Aufgabe starten. 🌿');
+          selectTab('estimates');
+          $('es-run-title').focus();
+          return;
+        }
+        $('es-title').value = t.text; $('es-min').value = t.minutes || '';
+        DC.status = 'idle'; uiRender(); selectTab('estimates');
+        $(t.minutes ? 'es-start' : 'es-min').focus();
+      }),
+      btn('Nicht diese', null, () => { DC.skipped.add(t.id); dcSuggest(); uiRender(); }));
+    acts.lastChild.dataset.fk = 'dc-not';
+    card.append(acts);
+    res.append(card);
+  } else if (DC.status === 'exhausted') {
+    const card = el('div', 'dc-card');
+    card.append(el('div', null, 'Das waren alle passenden Vorschläge – du hast schon gut geprüft. 🌿'));
+    const b = btn('Nochmal von vorn', null, () => { DC.skipped.clear(); dcSuggest(); uiRender(() => $('dc-go')); }); b.style.marginTop = '8px';
+    card.append(b); res.append(card);
+  } else if (DC.status === 'none' || DC.status === 'notasks') {
+    const card = el('div', 'dc-card');
+    card.append(el('div', null, DC.status === 'notasks'
+      ? 'Noch keine offenen Aufgaben. Im Brain Dump kannst du Gedanken zu Aufgaben machen – oder du ruhst dich einfach aus. 🌿'
+      : 'Gerade passt nichts genau. Vielleicht ist jetzt Zeit zum Ausruhen – oder wähle etwas mehr Zeit oder Energie. 🌿'));
+    res.append(card);
+  }
+  // Münze / Würfel
+  $('dc-roll').textContent = DC.roll;
+  $('dc-hist').textContent = DC.hist.length ? 'Zuletzt: ' + DC.hist.join('  ·  ') : '';
+  // eigene Listen
+  const sel = $('dc-list'), ls = dcLists(), cur = dcList();
+  sel.textContent = '';
+  ls.forEach((l) => { const o = el('option', null, l.name); o.value = l.id; sel.append(o); });
+  if (cur) sel.value = cur.id;
+  sel.dataset.fk = 'dc-list';
+  $('dc-listbody').hidden = !cur;
+  $('dc-dellist').disabled = !cur;
+  sel.disabled = !cur;
+  if (!cur) { sel.append(el('option', null, 'Noch keine Liste')); return; }
+  DC.listId = cur.id;
+  if (document.activeElement !== $('dc-lname')) $('dc-lname').value = cur.name;
+  const ul = $('dc-items'); ul.textContent = '';
+  cur.items.forEach((it, i) => {
+    const li = el('li', 'dc-row');
+    li.append(el('span', null, it));
+    const x = btn('✕', 'ghost mini', () => dcRemoveItem(cur, i));
+    x.setAttribute('aria-label', 'Entfernen: ' + it); li.append(x); ul.append(li);
+  });
+  $('dc-pick').disabled = cur.items.length === 0;
+  const pr = $('dc-pickres'); pr.textContent = '';
+  if (DC.pickStatus === 'pick' && DC.pick && cur.items.includes(DC.pick)) {
+    const card = el('div', 'dc-card');
+    card.append(el('div', 'meta', cur.name), el('div', 'big', DC.pick));
+    const acts = el('div', 'row'); acts.style.marginTop = '8px';
+    acts.append(btn('Nicht diese', null, () => { DC.pickSkipped.add(DC.pick); dcPick(); uiRender(() => $('dc-pick')); }));
+    acts.lastChild.dataset.fk = 'dc-pnot';
+    card.append(acts); pr.append(card);
+  } else if (DC.pickStatus === 'exhausted') {
+    const card = el('div', 'dc-card');
+    card.append(el('div', null, 'Das war alles auf der Liste. 🌿'));
+    const b = btn('Nochmal von vorn', null, () => { DC.pickSkipped.clear(); dcPick(); uiRender(() => $('dc-pick')); }); b.style.marginTop = '8px';
+    card.append(b); pr.append(card);
+  }
+}
+function dcPick() {
+  const cur = dcList();
+  if (!cur || !cur.items.length) { DC.pickStatus = 'idle'; return; }
+  const rest = cur.items.filter((x) => !DC.pickSkipped.has(x));
+  if (!rest.length) { DC.pickStatus = 'exhausted'; DC.pick = null; return; }
+  DC.pick = rest[rnd(rest.length)];
+  DC.pickStatus = 'pick';
+}
+function dcRemoveItem(list, i) {
+  const [it] = list.items.splice(i, 1);
+  commit(() => $('dc-newitem'));
+  toast('Entfernt: „' + short(it, 30) + '“', () => { list.items.splice(Math.min(i, list.items.length), 0, it); commit(); });
+}
+function dcAddItem() {
+  const cur = dcList(), inp = $('dc-newitem'), v = str(inp.value, 80);
+  if (!cur || !v) return;
+  if (cur.items.length >= 200) { toast('Die Liste ist voll (200 Einträge).'); return; }
+  cur.items.push(v);
+  inp.value = '';
+  DC.pickSkipped.clear(); DC.pickStatus = 'idle';
+  commit();
+  inp.focus();
+}
+$('dc-go').onclick = () => { DC.skipped.clear(); dcSuggest(); uiRender(); };
+$('dc-min').oninput = () => { const v = optInt($('dc-min').value, 1, 1440); DC.minutes = v === undefined ? null : v; dcParamChange(); };
+$('dc-coin').onclick = () => { DC.roll = '🪙 ' + (rnd(2) ? 'Kopf' : 'Zahl'); rollHist(DC.roll); uiRender(); };
+$('dc-d6').onclick = () => { DC.roll = '🎲 ' + (1 + rnd(6)) + '  (W6)'; rollHist(DC.roll.replace('🎲 ', '').replace('  (W6)', ' (W6)')); uiRender(); };
+$('dc-d20').onclick = () => { DC.roll = '🎲 ' + (1 + rnd(20)) + '  (W20)'; rollHist(DC.roll.replace('🎲 ', '').replace('  (W20)', ' (W20)')); uiRender(); };
+$('dc-list').onchange = (e) => { DC.listId = e.target.value; DC.pickSkipped.clear(); DC.pickStatus = 'idle'; uiRender(); };
+$('dc-newlist').onclick = () => {
+  if (dcLists().length >= 30) { toast('Das sind schon viele Listen (30).'); return; }
+  const l = { id: uid(), name: 'Neue Liste', items: [] };
+  dcLists().push(l); DC.listId = l.id; DC.pickStatus = 'idle';
+  commit();
+  $('dc-lname').focus(); $('dc-lname').select();
+};
+$('dc-dellist').onclick = () => {
+  const cur = dcList();
+  if (!cur) return;
+  const i = dcLists().indexOf(cur);
+  dcLists().splice(i, 1);
+  DC.listId = null; DC.pickStatus = 'idle';
+  commit();
+  toast('Liste „' + short(cur.name, 30) + '“ gelöscht.', () => { if (!dcLists().some((l) => l.id === cur.id)) { dcLists().splice(Math.min(i, dcLists().length), 0, cur); DC.listId = cur.id; commit(); } });
+};
+$('dc-lname').oninput = () => { const cur = dcList(); if (cur) { cur.name = str($('dc-lname').value, 60) || 'Liste'; store.changed(); } };
+$('dc-lname').onchange = () => { const cur = dcList(); if (cur) { cur.name = str($('dc-lname').value, 60) || 'Liste'; $('dc-lname').value = cur.name; commit(); } };
+$('dc-additem').onclick = dcAddItem;
+$('dc-newitem').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); dcAddItem(); } };
+$('dc-pick').onclick = () => { DC.pickSkipped.clear(); dcPick(); uiRender(); };
+registerModule({
+  id: 'decide', key: 'decide', icon: '🎲', label: 'Entscheidungshilfe',
+  defaults: defaultsDecide, normalize: normDecide, render: renderDC,
+  onLoad: () => { DC.skipped.clear(); DC.current = null; DC.status = 'idle'; DC.pickStatus = 'idle'; },
+  focusFallback: () => $('dc-go'),
+});
+
+/* ================= Start ================= */
+const store = boot('adhs-werkzeuge');
+const D = () => store.data;
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+$('hideNum').onchange = (e) => { D().ui.hideNumbers = e.target.checked; commit(); };
+buildTabs();
+normalize(store.data);
+afterLoad();
+selectTab(PAGE.modules[0].id, false, true);
+store.restore();
+setInterval(tickAll, 1000);
+setInterval(checkDay, 60000);
+setInterval(() => { if (store.state === 'conflict' && !store.dirty) store.reload(); }, 3000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { checkDay(); tickAll(); } });
+</script>
+</body>
+</html>

@@ -1,0 +1,1454 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zeitraster</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  :root { --on-accent:#fff; }
+  @media (prefers-color-scheme: dark) { :root { --on-accent:#0b1220; } }
+  [hidden] { display:none !important; }
+  button.primary { color:var(--on-accent); }
+  main.wide { max-width:1200px; }
+  .layout { display:flex; gap:16px; align-items:flex-start; }
+  .stage { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .stage #label { width:min(100%, 640px); font-size:1.1rem; text-align:center; }
+  .time { font-size:clamp(2rem, 7vw, 3.6rem); font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; min-height:1.1em; text-align:center; }
+  .time.small { font-size:clamp(1.3rem, 4vw, 2rem); }
+  .cvwrap { width:min(100%, 70vh); aspect-ratio:1; border-radius:10px; border:3px solid transparent; }
+  .cvwrap.flash { animation:pulse 0.8s ease-in-out 4; border-color:var(--err); }
+  @media (prefers-reduced-motion: reduce) { .cvwrap.flash { animation:none; } }
+  @keyframes pulse { 50% { border-color:transparent; } }
+  canvas { width:100%; height:100%; display:block; border-radius:8px; }
+  .stage:fullscreen { background:var(--bg); justify-content:center; padding:2vh; }
+  .stage:fullscreen .cvwrap { width:min(94vw, 82vh); }
+  .controls { width:340px; flex:none; margin:0; }
+  @media (max-width:900px) { .layout { flex-direction:column; align-items:stretch; } .controls { width:100%; } }
+  .controls h2 { font-size:1rem; margin:14px 0 6px; }
+  .controls h2:first-child { margin-top:0; }
+  .bigbtn { width:100%; font-size:1.3rem; padding:12px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .chip { padding:4px 12px; border-radius:99px; }
+  .chip.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .chip .x { margin-left:6px; color:var(--err); }
+  .controls label.l { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; font-size:.9rem; }
+  .controls select, .controls input[type=number] { max-width:170px; }
+  .controls input[type=range] { max-width:170px; }
+  .log { font-size:.85rem; color:var(--muted); margin:6px 0 0; padding-left:0; list-style:none; }
+  .log li { padding:2px 0; border-bottom:1px solid var(--line); }
+  .sum { font-weight:600; }
+  .hint { color:var(--muted); font-size:.85rem; }
+  .swatch { display:inline-block; width:80px; height:12px; border-radius:6px; vertical-align:middle; }
+
+  /* ---------- Tabs ---------- */
+  .tabbar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:12px 0 16px; padding-bottom:12px; border-bottom:1px solid var(--line); }
+  .tabs { display:flex; flex-wrap:wrap; gap:8px; }
+  .tab { min-height:44px; padding:8px 18px; border-radius:99px; font-weight:600; }
+  .tab[aria-selected=true] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .timerchip { margin-left:auto; min-height:44px; padding:8px 16px; border-radius:99px; border:2px solid var(--accent); font-weight:600; font-variant-numeric:tabular-nums; }
+  @media (max-width:520px) { .tab { padding:8px 10px; font-size:.86rem; } .tabbar, .tabs { gap:6px; } .timerchip { padding:8px 12px; } }
+  :focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+
+  /* ---------- Fokus-Runden im Timer ---------- */
+  .phasebar { display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:6px 12px; width:min(100%, 640px); }
+  .phasename { font-weight:700; padding:4px 16px; border-radius:99px; background:color-mix(in srgb, var(--accent) 14%, var(--card)); }
+  .stage.pomo .cvwrap.flash { border-color:var(--accent); } /* in Fokus-Runden kein rotes Blinken */
+  .stage.brk .phasename { background:color-mix(in srgb, var(--ok) 18%, var(--card)); }
+  .dots { display:inline-flex; gap:7px; }
+  .dots i { display:block; width:13px; height:13px; border-radius:50%; border:2px solid var(--muted); }
+  .dots i.d { background:var(--accent); border-color:var(--accent); }
+  .dots i.c { border-color:var(--accent); box-shadow:0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+  .note, .sugbox, .linkbox { width:min(100%, 640px); border-radius:10px; padding:10px 14px; text-align:center; background:color-mix(in srgb, var(--ok) 13%, var(--card)); border:1px solid color-mix(in srgb, var(--ok) 35%, var(--line)); }
+  .sugbox { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; justify-content:center; background:color-mix(in srgb, var(--accent) 9%, var(--card)); border-color:var(--line); }
+  .linkbox { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; justify-content:center; }
+  .pomoset { margin-top:8px; }
+  .pomoset summary { cursor:pointer; padding:4px 0; }
+  .pomoset input[type=number] { width:80px; }
+  .pomoset input[type=text] { flex:1; min-width:0; }
+  .sugs { list-style:none; margin:6px 0; padding:0; font-size:.88rem; }
+  .sugs li { display:flex; align-items:center; gap:6px; padding:3px 0; border-bottom:1px solid var(--line); }
+  .sugs li span { flex:1; overflow-wrap:anywhere; }
+  .sugs button, .iconbtn { padding:2px 9px; }
+  /* lange Wörter ohne Leerzeichen sollen umbrechen statt die Seite zu verbreitern */
+  .log li, .note, .cheer, #linktext, #sugtext, .rchip { overflow-wrap:anywhere; }
+  #linktext, #sugtext { min-width:0; }
+  .rchip { max-width:100%; }
+
+  /* ---------- Gemeinsame Bausteine (Aufgaben & Routinen) ---------- */
+  .pane-top { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; margin:0 0 10px; }
+  .pane-top label { display:inline-flex; align-items:center; gap:8px; font-size:.9rem; color:var(--muted); }
+  .cheer { border-radius:10px; padding:12px 16px; margin:0 0 12px; background:color-mix(in srgb, var(--ok) 14%, var(--card)); border:1px solid color-mix(in srgb, var(--ok) 38%, var(--line)); }
+  .cheer.big { font-size:1.15rem; font-weight:600; padding:16px 18px; }
+  .bar { height:12px; border-radius:99px; background:var(--line); overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--accent); border-radius:99px; transition:width .4s ease; }
+  @media (prefers-reduced-motion: reduce) { .bar > i { transition:none; } }
+  .big { min-height:54px; font-size:1.15rem; padding:10px 20px; }
+  .actions { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; margin-top:16px; }
+  .linkbtn { border:none; background:none; color:var(--accent); padding:6px 4px; text-align:left; }
+  .seg { display:inline-flex; gap:0; margin:0 0 12px; }
+  .seg button { border-radius:0; min-height:40px; padding:6px 16px; }
+  .seg button:first-child { border-radius:8px 0 0 8px; }
+  .seg button:last-child { border-radius:0 8px 8px 0; margin-left:-1px; }
+  .seg button[aria-pressed=true] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  input.cb { width:28px; height:28px; flex:none; margin:0; accent-color:var(--accent); cursor:pointer; }
+  .pane input[type=text], .pane input[type=number] { min-height:40px; }
+  .addrow { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .addrow input[type=text] { flex:1 1 180px; min-width:0; }
+  .addrow input[type=number], .erow input[type=number], .steprow input[type=number], .stepform input[type=number] { width:80px; flex:none; }
+  .tasks-layout aside .addrow input[type=text] { flex-basis:100px; }
+  .pane h2 { font-size:1.15rem; margin:0; }
+
+  /* ---------- Aufgaben-Zerleger ---------- */
+  .tasks-layout { display:grid; grid-template-columns:300px 1fr; gap:16px; align-items:start; }
+  .tasks-layout > * { min-width:0; }
+  .tasks-layout .card { margin:0 0 12px; }
+  .listtoggle { display:none; width:100%; margin-top:8px; text-align:left; }
+  @media (max-width:760px) { .tasks-layout { grid-template-columns:1fr; } .listtoggle { display:block; } .listbody.collapsed { display:none; } }
+  .tasklist { list-style:none; margin:8px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .taskitem { width:100%; display:flex; justify-content:space-between; align-items:center; gap:8px; text-align:left; min-height:48px; padding:8px 12px; border-radius:10px; }
+  .taskitem span:first-child { overflow-wrap:anywhere; }
+  .taskitem .meta { color:var(--muted); font-size:.85rem; flex:none; }
+  .taskitem[aria-current=true] { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 12%, var(--card)); font-weight:600; }
+  .taskitem.fin { color:var(--muted); }
+  .thead { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .thead h2 { flex:1 1 220px; overflow-wrap:anywhere; }
+  .tact { display:flex; flex-wrap:wrap; gap:8px; }
+  .thead input[type=text] { flex:1 1 200px; min-width:0; font-size:1.1rem; }
+  .focuscard { text-align:center; padding:22px 16px !important; }
+  .focuscard .progtxt { margin:8px 0 0; font-weight:600; color:var(--muted); }
+  .focuscard .cur { font-size:clamp(1.45rem, 5.2vw, 2.2rem); font-weight:700; line-height:1.25; margin:18px 0 6px; overflow-wrap:anywhere; }
+  .focuscard .est { color:var(--muted); margin:0; }
+  .splitbox { text-align:left; margin-top:18px; padding:14px; border-radius:10px; border:1px dashed var(--line); background:var(--bg); }
+  .splitbox ol { margin:8px 0; padding-left:1.4rem; }
+  .splitbox li { margin:4px 0; overflow-wrap:anywhere; }
+  .steplist { list-style:none; margin:0; padding:0; }
+  .steprow, .erow { display:grid; gap:6px 10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+  .steprow { grid-template-columns:auto 1fr auto; }
+  .erow { grid-template-columns:1fr auto; }
+  .ctl { display:flex; align-items:center; gap:6px; }
+  @media (max-width:600px) { .steprow { grid-template-columns:auto 1fr; } .steprow .ctl { grid-column:2; } .erow { grid-template-columns:1fr; } }
+  /* Tablet: Seitenleiste steht schon daneben, die Detailspalte ist noch schmal -> Steuerelemente in zweite Zeile */
+  @media (min-width:761px) and (max-width:1020px) { .steprow { grid-template-columns:auto 1fr; } .steprow .ctl { grid-column:2; } }
+  .steprow:last-child { border-bottom:none; }
+  .steprow.done input[type=text] { color:var(--muted); text-decoration:line-through; }
+  .steprow input[type=text], .erow input[type=text] { width:100%; min-width:0; }
+  .firstcard h2 { margin-bottom:6px; }
+  .firstcard p { margin:0 0 12px; }
+  .stepform { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .stepform .lab { flex:1 1 100%; font-weight:600; }
+  .stepform input[type=text] { flex:1 1 200px; min-width:0; }
+  .stepform.first input[type=text], .stepform.first input[type=number] { min-height:48px; font-size:1.05rem; }
+
+  /* ---------- Routinen ---------- */
+  .routinebar { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:0 0 14px; }
+  .rchip { min-height:44px; padding:8px 16px; border-radius:99px; }
+  .rchip[aria-pressed=true] { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .routinebar .push { margin-left:auto; }
+  .rcard h2 { margin-bottom:10px; overflow-wrap:anywhere; }
+  .progrow { display:flex; align-items:center; gap:12px; margin:4px 0 14px; }
+  .progrow .bar { flex:1; }
+  .progrow .progtxt { font-weight:600; white-space:nowrap; }
+  .checklist { list-style:none; margin:0; padding:0; }
+  .citem { display:flex; align-items:center; gap:10px; padding:4px 0; border-bottom:1px solid var(--line); }
+  .citem:last-child { border-bottom:none; }
+  .citem label { flex:1; display:flex; align-items:center; gap:14px; min-height:56px; cursor:pointer; font-size:1.1rem; overflow-wrap:anywhere; min-width:0; }
+  .citem input.cb { width:32px; height:32px; }
+  .citem.done label span { color:var(--muted); text-decoration:line-through; }
+  .citem .timerbtn { min-height:44px; flex:none; }
+  .rname { font-size:1.1rem; font-weight:600; }
+</style>
+</head>
+<body>
+<main class="wide">
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Zeitraster</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabbar">
+    <div class="tabs" id="tabbar" role="tablist" aria-label="Bereiche">
+      <button type="button" class="tab" role="tab" id="tab-timer" data-tab="timer" aria-controls="pane-timer" aria-selected="true">⏱ Timer</button>
+      <button type="button" class="tab" role="tab" id="tab-tasks" data-tab="tasks" aria-controls="pane-tasks" aria-selected="false" tabindex="-1">🧩 Aufgaben-Zerleger</button>
+      <button type="button" class="tab" role="tab" id="tab-routines" data-tab="routines" aria-controls="pane-routines" aria-selected="false" tabindex="-1">🔁 Routinen</button>
+    </div>
+    <button type="button" class="timerchip" id="timerchip" hidden></button>
+  </div>
+
+  <!-- ============ Timer ============ -->
+  <section id="pane-timer" role="tabpanel" aria-labelledby="tab-timer">
+  <div class="layout">
+    <section class="stage" id="stage">
+      <div class="phasebar" id="phasebar" hidden>
+        <span class="phasename" id="phasename"></span>
+        <span class="dots" id="dots" role="img"></span>
+        <span class="hint" id="roundtxt"></span>
+      </div>
+      <input type="text" id="label" maxlength="200" placeholder="Woran arbeite ich gerade?" aria-label="Woran arbeite ich gerade?">
+      <div class="time" id="time" aria-live="off"></div>
+      <div class="note" id="note" role="status" aria-live="polite" hidden></div>
+      <div class="linkbox" id="linkbox" hidden>
+        <span id="linktext"></span>
+        <button type="button" id="linkdone" class="primary">✔ Schritt erledigt?</button>
+      </div>
+      <div class="sugbox" id="sugbox" hidden>
+        <span aria-hidden="true">💡</span> <span id="sugtext"></span>
+        <button type="button" id="sugnext">Anderer Vorschlag</button>
+      </div>
+      <div class="cvwrap" id="cvwrap"><canvas id="cv" role="img" aria-label="Zeitraster"></canvas></div>
+    </section>
+
+    <aside class="card controls">
+      <button id="start" class="primary bigbtn">▶ Start</button>
+      <div class="row">
+        <button id="reset">↺ Zurücksetzen</button>
+        <button id="plus1">+1 Min</button>
+        <button id="plus5">+5 Min</button>
+        <button id="full">⛶ Vollbild</button>
+      </div>
+
+      <h2>Fokus-Runden</h2>
+      <label class="l">Fokus-Runden (Pomodoro) <input type="checkbox" id="pomoOn"></label>
+      <div id="pomoBox" hidden>
+        <div class="row" style="margin-top:0"><button type="button" id="pomoRestart">⟲ Zyklus neu starten</button></div>
+        <details class="pomoset" id="pomoSet">
+          <summary>Einstellungen &amp; Pausen-Ideen</summary>
+          <label class="l">Fokus (Min) <input type="number" id="pWork" min="1" max="240" step="any"></label>
+          <label class="l">Kurze Pause (Min) <input type="number" id="pShort" min="1" max="120" step="any"></label>
+          <label class="l">Lange Pause (Min) <input type="number" id="pLong" min="1" max="240" step="any"></label>
+          <label class="l">Runden bis zur langen Pause <input type="number" id="pRounds" min="1" max="12" step="1"></label>
+          <label class="l">Nächste Phase automatisch starten <input type="checkbox" id="pAuto"></label>
+          <div class="hint">Änderungen wirken ab der nächsten Phase.</div>
+          <h2 style="margin-top:12px">Pausen-Ideen</h2>
+          <ul class="sugs" id="pSugs"></ul>
+          <div class="row" style="margin-top:4px">
+            <input type="text" id="pSugNew" maxlength="120" placeholder="Neue Idee …" aria-label="Neue Pausen-Idee" style="flex:1;min-width:0">
+            <button type="button" id="pSugAdd" aria-label="Pausen-Idee hinzufügen">+</button>
+          </div>
+        </details>
+      </div>
+
+      <div id="durBox">
+        <h2>Dauer</h2>
+        <div class="row" id="presets"></div>
+        <div class="row">
+          <label class="l" style="margin:0;gap:6px"><input type="number" id="custom" min="0.1" max="720" step="any" style="width:90px"> Min</label>
+          <button id="customset">Setzen</button>
+          <button id="addpreset" title="Aktuelle Dauer als Schnellwahl speichern">+ Merken</button>
+          <button id="editpresets" title="Schnellwahl bearbeiten">✎</button>
+        </div>
+      </div>
+
+      <h2>Darstellung</h2>
+      <label class="l">Farben <select id="scheme"><option value="ampel">Ampel (grün → rot)</option><option value="kontrast">Farbenblind-freundlich</option><option value="ruhig">Ruhig (türkis → violett)</option></select></label>
+      <div class="hint" style="text-align:right"><span class="swatch" id="swatch"></span></div>
+      <label class="l">Verbrauchte Zeit <select id="order"><option value="rows">Zeilenweise</option><option value="cols">Spaltenweise</option><option value="spiral">Spirale (außen → innen)</option><option value="random">Zufällig</option></select></label>
+      <label class="l">Zeitanzeige <select id="display"><option value="exact">Genau (mm:ss)</option><option value="rough">Grob („ca. 12 Min“)</option><option value="off">Keine Zahlen</option></select></label>
+
+      <h2>Signale</h2>
+      <label class="l">Ton am Ende <input type="checkbox" id="sound"></label>
+      <label class="l">Sanfte Hinweise bei 50 / 25 / 10 % <input type="checkbox" id="milestones"></label>
+      <label class="l">Lautstärke <input type="range" id="volume" min="0" max="1" step="0.05"></label>
+      <div class="row" style="margin-top:0"><button id="testsound">Ton testen</button><button id="testsound2" hidden>Pausenton testen</button></div>
+      <label class="l">Bildschirm wach halten <input type="checkbox" id="wake"></label>
+
+      <h2>Heute</h2>
+      <div class="sum" id="sum"></div>
+      <ul class="log" id="log"></ul>
+      <div class="row"><button id="clearlog">Verlauf leeren</button></div>
+      <p class="hint" style="margin-bottom:0">Leertaste = Start/Pause · F = Vollbild. Jede Zelle steht für 1/10&nbsp;000 der Zeit.</p>
+    </aside>
+  </div>
+  </section>
+
+  <!-- ============ Aufgaben-Zerleger ============ -->
+  <section id="pane-tasks" class="pane" role="tabpanel" aria-labelledby="tab-tasks" hidden>
+    <div class="pane-top">
+      <span class="hint">Große Aufgaben in winzige Schritte teilen – du siehst immer nur den nächsten.</span>
+      <label>Zahlen anzeigen <input type="checkbox" class="countsbox" aria-label="Zahlen in Fortschrittsanzeigen anzeigen"></label>
+    </div>
+    <div class="cheer" id="fb-tasks" role="status" aria-live="polite" hidden></div>
+    <div class="tasks-layout">
+      <aside>
+        <div class="card">
+          <div class="addrow">
+            <input type="text" id="newtask" data-k="newtask" maxlength="200" placeholder="Neue Aufgabe …" aria-label="Neue Aufgabe (Titel, dann Enter)">
+            <button type="button" id="addtask" class="primary">Hinzufügen</button>
+          </div>
+          <button type="button" class="listtoggle" id="listtoggle" aria-expanded="false"></button>
+          <div class="listbody" id="listbody"></div>
+        </div>
+      </aside>
+      <div id="taskdetail"></div>
+    </div>
+  </section>
+
+  <!-- ============ Routinen ============ -->
+  <section id="pane-routines" class="pane" role="tabpanel" aria-labelledby="tab-routines" hidden>
+    <div class="pane-top">
+      <span class="hint">Wiederkehrende Checklisten – jeden Tag frisch und ohne Druck.</span>
+      <label>Zahlen anzeigen <input type="checkbox" class="countsbox" aria-label="Zahlen in Fortschrittsanzeigen anzeigen"></label>
+    </div>
+    <div class="cheer big" id="fb-routines" role="status" aria-live="polite" hidden></div>
+    <div class="routinebar" id="routinebar"></div>
+    <div id="routinebody"></div>
+  </section>
+</main>
+
+<script src="../shared/storage.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const N = 100, CELLS = N * N, MAX_MIN = 720;
+const MILESTONES = [0.5, 0.25, 0.1];
+const SCHEMES = {
+  ampel:    [[1, '#22c55e'], [0.5, '#eab308'], [0.2, '#f97316'], [0, '#dc2626']],
+  kontrast: [[1, '#0072b2'], [0.4, '#f0e442'], [0, '#d55e00']],
+  ruhig:    [[1, '#5eead4'], [0.5, '#818cf8'], [0, '#7c3aed']],
+};
+const ORDERS = ['rows', 'cols', 'spiral', 'random'];
+const DISPLAYS = ['exact', 'rough', 'off'];
+const PHASES = ['work', 'short', 'long'];
+const PH = { work: 'Fokus', short: 'Kurze Pause', long: 'Lange Pause' };
+const DEFAULT_SUGGESTIONS = ['Wasser trinken', 'Kurz dehnen', 'Fenster öffnen und tief atmen', 'Aufstehen und ein paar Schritte gehen', 'Augen vom Bildschirm ausruhen', 'Eine Kleinigkeit essen'];
+const MAX_TASKS = 500, MAX_STEPS = 300, MAX_ROUTINES = 30, MAX_ITEMS = 100, MAX_STEP_MIN = 240;
+
+/* ---------- Hilfsfunktionen ---------- */
+let uidN = 0;
+const uid = () => Date.now().toString(36) + (uidN++).toString(36) + Math.random().toString(36).slice(2, 6);
+const pad2 = (n) => String(n).padStart(2, '0');
+// Lokales Kalenderdatum 'YYYY-MM-DD' (bewusst nicht toISOString: das wäre UTC)
+const localDate = (dt = new Date()) => `${dt.getFullYear()}-${pad2(dt.getMonth() + 1)}-${pad2(dt.getDate())}`;
+function isDateStr(s) {
+  if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number), dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+}
+function addDays(s, n) { const [y, m, d] = s.split('-').map(Number); return localDate(new Date(y, m - 1, d + n)); }
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function mkBtn(text, o = {}) {
+  const b = el('button', o.cls || '', text); b.type = 'button';
+  if (o.label) b.setAttribute('aria-label', o.label);
+  if (o.title) b.title = o.title;
+  if (o.k) b.dataset.k = o.k;
+  if (o.disabled) b.disabled = true;
+  if (o.onclick) b.onclick = o.onclick;
+  return b;
+}
+function mkField(type, o = {}) {
+  const i = document.createElement('input'); i.type = type;
+  if (o.cls) i.className = o.cls;
+  if (o.value != null) i.value = o.value;
+  if (o.ph) i.placeholder = o.ph;
+  if (o.label) i.setAttribute('aria-label', o.label);
+  if (o.k) i.dataset.k = o.k;
+  if (type === 'text') i.maxLength = o.max || 200;
+  if (type === 'number') { i.min = o.min == null ? 1 : o.min; i.max = o.maxv == null ? MAX_STEP_MIN : o.maxv; i.step = 1; i.inputMode = 'numeric'; }
+  return i;
+}
+const parseMin = (v, def) => { const x = parseInt(String(v).trim(), 10); return Number.isFinite(x) ? Math.min(MAX_STEP_MIN, Math.max(1, x)) : def; };
+
+/* ---------- Daten ---------- */
+function makeRoutines() {
+  const R = (name, items) => ({
+    id: uid(), name, lastReset: localDate(), history: {},
+    items: items.map(([text, minutes]) => ({ id: uid(), text, minutes, done: false })),
+  });
+  return [
+    R('Morgenroutine', [['Aufstehen und ein Glas Wasser trinken', 0], ['Zähne putzen', 3], ['Anziehen', 5], ['Frühstücken', 15], ['Medikamente / Vitamine nehmen', 0], ['Tasche packen', 5], ['Kurz tief durchatmen', 0]]),
+    R('Abendroutine', [['Geschirr wegräumen', 10], ['Kleidung für morgen bereitlegen', 5], ['Tasche für morgen packen', 5], ['Zähne putzen', 3], ['Handy ans Ladekabel', 0], ['Licht aus', 0]]),
+    R('Aus dem Haus', [['Schlüssel', 0], ['Handy', 0], ['Geldbeutel', 0], ['Fenster zu, Herd aus', 0], ['Wasserflasche', 0]]),
+  ];
+}
+const makeDefaults = () => ({
+  settings: { minutes: 25, scheme: 'ampel', order: 'rows', display: 'exact', milestones: true, sound: true, volume: 0.5, wake: true, counts: true },
+  presets: [5, 10, 15, 25, 45, 60],
+  label: '',
+  timer: { state: 'idle', totalMs: 25 * 60000, remainingMs: 25 * 60000, endAt: 0, startedAt: 0, phase: '', link: null },
+  log: [],
+  pomodoro: { enabled: false, workMin: 25, shortMin: 5, longMin: 15, rounds: 4, auto: false, suggestions: DEFAULT_SUGGESTIONS.slice(), phase: 'work', round: 1, cycles: 0 },
+  tasks: [],
+  routines: makeRoutines(),
+});
+const store = SimpleStorage.create({
+  name: 'zeitraster',
+  defaults: makeDefaults,
+  onChange: () => { normalize(store.data); afterLoad(); },
+  statusEl: $('status'),
+});
+const D = () => store.data;
+
+// Nur im Speicher (nicht in der JSON-Datei)
+const ui = { tab: 'timer', taskId: null, view: 'focus', showDone: false, listOpen: false, renaming: false, split: null, routineId: null, routineEdit: false, focus: null };
+
+// Macht jede (auch handgeschriebene oder alte) Datei konsistent, ohne Daten zu verlieren.
+function normalize(d) {
+  const num = (v, def, lo, hi) => { v = Number(v); if (!Number.isFinite(v)) v = def; return Math.min(hi, Math.max(lo, v)); };
+  // wie num, aber fehlende/leere Werte (null, '', undefined, Objekte) ergeben den Standardwert
+  const numOr = (v, def, lo, hi) => {
+    const ok = typeof v === 'number' || (typeof v === 'string' && v.trim() !== '');
+    let x = ok ? Number(v) : NaN; if (!Number.isFinite(x)) x = def;
+    return Math.min(hi, Math.max(lo, x));
+  };
+  const intOr = (v, def, lo, hi) => Math.round(numOr(v, def, lo, hi));
+  const posOr = (v, def, lo, hi) => { const x = numOr(v, def, -Infinity, Infinity); return x > 0 ? Math.min(hi, Math.max(lo, x)) : def; }; // 0/negativ = ungültig -> Standard
+  const bool = (v) => v === true || v === 1 || v === 'true';
+  const pick = (v, list, def) => (list.includes(v) ? v : def);
+  const str = (v, max, def = '') => { const s = (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '').trim().slice(0, max); return s || def; };
+  // Nicht-leere Strings (handgeschriebene Dateien) werden zu Objekten {key: String}, damit nichts verloren geht
+  const objs = (a, key) => (Array.isArray(a) ? a : []).map((x) => (key && typeof x === 'string' && x.trim() ? { [key]: x } : x)).filter((x) => x && typeof x === 'object' && !Array.isArray(x));
+  const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
+  const uniqIn = (set) => (id) => { id = typeof id === 'string' ? id.trim().slice(0, 64) : typeof id === 'number' ? String(id) : ''; if (!id || set.has(id)) id = uid(); set.add(id); return id; };
+  const today = localDate();
+
+  const s = obj(d.settings);
+  d.settings = {
+    minutes: num(s.minutes, 25, 0.1, MAX_MIN), scheme: pick(s.scheme, Object.keys(SCHEMES), 'ampel'),
+    order: pick(s.order, ORDERS, 'rows'), display: pick(s.display, DISPLAYS, 'exact'),
+    milestones: s.milestones !== false, sound: s.sound !== false, volume: num(s.volume, 0.5, 0, 1), wake: s.wake !== false,
+    counts: s.counts !== false,
+  };
+  const pr = (Array.isArray(d.presets) ? d.presets : []).map(Number).filter((x) => Number.isFinite(x) && x >= 0.1 && x <= MAX_MIN);
+  d.presets = [...new Set(pr)].sort((a, b) => a - b).slice(0, 12);
+  if (!d.presets.length) d.presets = [5, 10, 15, 25, 45, 60];
+  d.label = typeof d.label === 'string' ? d.label.slice(0, 200) : '';
+
+  // Fokus-Runden (Einstellungen + Zustand)
+  const p = obj(d.pomodoro);
+  const rounds = intOr(p.rounds, 4, 1, 12);
+  let sugs = DEFAULT_SUGGESTIONS.slice();
+  if (Array.isArray(p.suggestions)) sugs = [...new Set(p.suggestions.filter((x) => typeof x === 'string').map((x) => x.trim().slice(0, 120)).filter(Boolean))].slice(0, 30);
+  d.pomodoro = {
+    enabled: bool(p.enabled), workMin: posOr(p.workMin, 25, 0.1, 240), shortMin: posOr(p.shortMin, 5, 0.1, 120), longMin: posOr(p.longMin, 15, 0.1, 240),
+    rounds, auto: bool(p.auto), suggestions: sugs,
+    phase: pick(p.phase, PHASES, 'work'), round: intOr(p.round, 1, 1, rounds), cycles: intOr(p.cycles, 0, 0, 999999),
+  };
+
+  const t = obj(d.timer);
+  const total = num(t.totalMs, d.settings.minutes * 60000, 1000, MAX_MIN * 60000);
+  d.timer = {
+    state: pick(t.state, ['idle', 'running', 'paused', 'done'], 'idle'), totalMs: total,
+    remainingMs: num(t.remainingMs, total, 0, total), endAt: num(t.endAt, 0, 0, 8.64e15), startedAt: num(t.startedAt, 0, 0, 8.64e15),
+    phase: d.pomodoro.enabled ? pick(t.phase, ['', ...PHASES], '') : '',
+    link: t.link && typeof t.link === 'object' && typeof t.link.taskId === 'string' && typeof t.link.stepId === 'string' && t.link.taskId && t.link.stepId
+      ? { taskId: t.link.taskId, stepId: t.link.stepId } : null,
+  };
+  if (d.timer.state === 'running') { // ohne gültiges Ende gilt der Timer als pausiert; das Ende liegt nie weiter weg als jetzt + Gesamtdauer
+    if (!(d.timer.endAt > 0)) d.timer.state = 'paused';
+    else d.timer.endAt = Math.min(d.timer.endAt, Date.now() + d.timer.totalMs);
+  }
+  if (d.timer.state === 'done') d.timer.remainingMs = 0;
+  if (d.pomodoro.enabled && d.timer.state === 'idle') { // ruhender Timer zeigt immer die aktuelle Phase
+    d.timer.phase = d.pomodoro.phase; d.timer.totalMs = d.timer.remainingMs = num(phaseMs(d.pomodoro, d.pomodoro.phase), 25 * 60000, 1000, MAX_MIN * 60000);
+  }
+  d.log = (Array.isArray(d.log) ? d.log : []).filter((e) => e && typeof e === 'object' && !Number.isNaN(Date.parse(e.at)))
+    .map((e) => ({ at: new Date(e.at).toISOString(), label: typeof e.label === 'string' ? e.label.slice(0, 200) : '', minutes: num(e.minutes, 0, 0, MAX_MIN) })).slice(-500);
+
+  // Aufgaben
+  const tIds = new Set(), tUniq = uniqIn(tIds);
+  d.tasks = objs(d.tasks, 'title').slice(0, MAX_TASKS).map((tk) => ({
+    id: tUniq(tk.id), title: str(tk.title, 200, 'Aufgabe'),
+    createdAt: typeof tk.createdAt === 'string' && !Number.isNaN(Date.parse(tk.createdAt)) ? new Date(tk.createdAt).toISOString() : new Date().toISOString(),
+    done: bool(tk.done),
+    steps: objs(tk.steps, 'text').slice(0, MAX_STEPS).map((st) => ({ id: tUniq(st.id), text: str(st.text, 300, 'Schritt'), minutes: intOr(st.minutes, 5, 1, MAX_STEP_MIN), done: bool(st.done) })),
+  }));
+  if (d.timer.link) { // ins Leere laufende Verknüpfung entfernen
+    const tk = d.tasks.find((x) => x.id === d.timer.link.taskId);
+    if (!tk || !tk.steps.some((x) => x.id === d.timer.link.stepId)) d.timer.link = null;
+  }
+
+  // Routinen
+  if (!Array.isArray(d.routines)) d.routines = makeRoutines();
+  const rIds = new Set(), rUniq = uniqIn(rIds);
+  d.routines = objs(d.routines, 'name').slice(0, MAX_ROUTINES).map((r) => {
+    const hist = {};
+    Object.entries(obj(r.history)).forEach(([k, v]) => {
+      if (!isDateStr(k) || !v || typeof v !== 'object') return;
+      const tot = intOr(v.total, 0, 0, 999);
+      hist[k] = { done: intOr(v.done, 0, 0, tot), total: tot };
+    });
+    const out = {
+      id: rUniq(r.id), name: str(r.name, 100, 'Routine'),
+      items: objs(r.items, 'text').slice(0, MAX_ITEMS).map((it) => ({ id: rUniq(it.id), text: str(it.text, 200, 'Punkt'), minutes: intOr(it.minutes, 0, 0, MAX_STEP_MIN), done: bool(it.done) })),
+      lastReset: isDateStr(r.lastReset) ? r.lastReset : today, history: hist,
+    };
+    trimHistory(out, today);
+    return out;
+  });
+
+  // Timer lief ab, während die Seite zu war: als beendet führen (ohne Signal)
+  if (d.timer.state === 'running' && d.timer.endAt <= Date.now()) {
+    const ph = d.timer.phase;
+    if (!ph || ph === 'work') d.log.push({ at: new Date(d.timer.endAt || Date.now()).toISOString(), label: d.label, minutes: Math.round(d.timer.totalMs / 600) / 100 });
+    if (d.pomodoro.enabled && ph && ph === d.pomodoro.phase) advanceOn(d.pomodoro);
+    d.timer.state = 'done'; d.timer.remainingMs = 0;
+  }
+}
+
+/* ---------- Fokus-Runden: Phasen ---------- */
+const isBreak = (ph) => ph === 'short' || ph === 'long';
+const phaseMs = (p, ph) => (ph === 'short' ? p.shortMin : ph === 'long' ? p.longMin : p.workMin) * 60000;
+const plannedMs = () => {
+  const d = D();
+  return Math.min(MAX_MIN * 60000, Math.max(1000, d.pomodoro.enabled ? phaseMs(d.pomodoro, d.pomodoro.phase) : d.settings.minutes * 60000));
+};
+// work -> short (nach 'rounds' Runden: long); short -> work (Runde+1); long -> work (Runde 1, Zyklus+1)
+function advanceOn(p) {
+  if (p.phase === 'work') p.phase = p.round >= p.rounds ? 'long' : 'short';
+  else if (p.phase === 'short') { p.phase = 'work'; p.round = Math.min(p.rounds, p.round + 1); }
+  else { p.phase = 'work'; p.round = 1; p.cycles += 1; }
+}
+// Phase, die gerade angezeigt wird ('' = Einzel-Timer, z. B. aus dem Zerleger)
+function shownPhase() {
+  const p = D().pomodoro, t = D().timer;
+  if (!p.enabled) return '';
+  return t.state === 'running' || t.state === 'paused' ? t.phase : p.phase;
+}
+const effScheme = () => (isBreak(shownPhase()) ? 'ruhig' : D().settings.scheme);
+
+/* ---------- Timer-Logik ---------- */
+let fired = new Set();
+const remaining = () => { const t = D().timer; return t.state === 'running' ? Math.max(0, t.endAt - Date.now()) : t.state === 'done' ? 0 : t.remainingMs; };
+const fracLeft = () => { const t = D().timer; return t.state === 'idle' ? 1 : Math.min(1, Math.max(0, remaining() / t.totalMs)); };
+function refireFlags() { fired = new Set(MILESTONES.filter((m) => fracLeft() <= m)); }
+
+// Timer in den Ruhezustand mit der geplanten Dauer (Schnellwahl-Minuten oder aktuelle Phase)
+function toIdle() {
+  const t = D().timer, p = D().pomodoro;
+  t.totalMs = plannedMs(); t.remainingMs = t.totalMs; t.state = 'idle'; t.endAt = 0; t.phase = p.enabled ? p.phase : ''; t.link = null;
+}
+function syncIdle() { // Einstellungen geändert, während nichts läuft
+  const t = D().timer;
+  if (t.state === 'idle') { t.totalMs = plannedMs(); t.remainingMs = t.totalMs; t.phase = D().pomodoro.enabled ? D().pomodoro.phase : ''; }
+}
+function setNote(text) { const n = $('note'); n.textContent = text || ''; n.hidden = !text; }
+
+function start() {
+  const t = D().timer; ensureAudio();
+  if (t.state === 'done' || t.remainingMs <= 0 && t.state !== 'running') { const keep = D().pomodoro.enabled ? null : t.link; toIdle(); t.link = keep; }
+  if (t.state === 'idle') { t.startedAt = Date.now(); fired = new Set(); }
+  if (t.state !== 'running') { t.endAt = Date.now() + t.remainingMs; t.state = 'running'; }
+  setNote(''); store.changed(); wake(); render(true);
+}
+function pause() {
+  const t = D().timer; if (t.state !== 'running') return;
+  t.remainingMs = remaining(); t.state = 'paused'; store.changed(); releaseWake(); render(true);
+}
+function reset() {
+  toIdle();
+  fired = new Set(); setNote(''); store.changed(); releaseWake(); $('cvwrap').classList.remove('flash'); render();
+}
+function setMinutes(m) {
+  if (D().pomodoro.enabled) return;
+  m = Math.min(MAX_MIN, Math.max(0.1, m));
+  const t = D().timer;
+  if ((t.state === 'running' || t.state === 'paused') && !confirm('Laufende Zeit verwerfen und neue Dauer setzen?')) return;
+  D().settings.minutes = m; reset();
+}
+function extend(ms) {
+  const t = D().timer;
+  if (t.state === 'done' || t.state === 'idle') {
+    if (t.state === 'idle') {
+      t.totalMs = Math.min(MAX_MIN * 60000, t.totalMs + ms); t.remainingMs = t.totalMs;
+      if (!D().pomodoro.enabled) D().settings.minutes = t.totalMs / 60000;
+      store.changed(); render(); return;
+    }
+    t.totalMs = ms; t.remainingMs = ms; t.state = 'idle'; fired = new Set(); $('cvwrap').classList.remove('flash'); start(); return;
+  }
+  t.totalMs += ms;
+  if (t.state === 'running') t.endAt += ms; else t.remainingMs += ms;
+  MILESTONES.forEach((m) => { if (fracLeft() > m) fired.delete(m); });
+  store.changed(); render();
+}
+let doneAck = true; // Chip „Timer fertig“ in anderen Tabs nur bis zum nächsten Besuch des Timer-Tabs
+function finish() {
+  const t = D().timer, p = D().pomodoro, ph = t.phase;
+  const adv = p.enabled && ph && ph === p.phase; // nur die „echte“ Phase schaltet weiter, nicht +1/+5-Verlängerungen
+  t.state = 'done'; t.remainingMs = 0; t.endAt = 0;
+  if (!ph || ph === 'work') { // Pausen werden nicht protokolliert
+    D().log.push({ at: new Date().toISOString(), label: D().label, minutes: Math.round(t.totalMs / 600) / 100 });
+    if (D().log.length > 500) D().log.shift();
+  }
+  if (adv) { advanceOn(p); sug = ''; }
+  doneAck = ui.tab === 'timer';
+  store.changed(); releaseWake();
+  if (D().settings.sound) (isBreak(ph) ? breakEndSound() : endSound());
+  $('cvwrap').classList.add('flash'); setTimeout(() => $('cvwrap').classList.remove('flash'), 3600);
+  const msg = !p.enabled ? '' : ph === 'work' ? 'Fokusrunde geschafft – gut gemacht!' : ph === 'long' ? 'Ein ganzer Zyklus geschafft – stark!' : ph === 'short' ? 'Pause vorbei. Bereit für die nächste Runde?' : '';
+  if (adv && p.auto) { // nächste Phase startet von selbst
+    start();
+    setNote(ph === 'work' ? 'Fokusrunde geschafft – jetzt kurz entspannen.' : ph === 'short' ? 'Pause vorbei – die nächste Runde läuft.' : 'Ein ganzer Zyklus geschafft – neuer Zyklus läuft.');
+    return;
+  }
+  setNote(msg); render(true);
+}
+function update() {
+  const t = D().timer;
+  if (t.state === 'running') {
+    if (t.endAt <= Date.now()) { finish(); return; }
+    const f = fracLeft();
+    MILESTONES.forEach((m) => { if (f <= m && !fired.has(m)) { fired.add(m); if (D().settings.milestones) softSound(); } });
+  }
+  renderTime();
+}
+
+// Startet einen Einzel-Timer mit eigener Dauer (aus Zerleger/Routine); false = abgebrochen
+function launchTimer(min, label, link) {
+  const t = D().timer;
+  if ((t.state === 'running' || t.state === 'paused') && !confirm('Es läuft gerade ein Timer. Durch den neuen Timer ersetzen?')) return false;
+  min = Math.min(MAX_MIN, Math.max(0.1, min));
+  if (!D().pomodoro.enabled) D().settings.minutes = min;
+  t.totalMs = min * 60000; t.remainingMs = t.totalMs; t.state = 'idle'; t.endAt = 0; t.phase = ''; t.link = link || null;
+  D().label = String(label || '').slice(0, 200);
+  fired = new Set(); releaseWake(); $('cvwrap').classList.remove('flash'); setNote('');
+  setTab('timer');
+  start();
+  return true;
+}
+
+/* ---------- Audio ---------- */
+let actx = null;
+function ensureAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch { /* ohne Ton weiter */ }
+}
+function tone(freq, start, dur, vol) {
+  if (!actx || vol <= 0) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + start;
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function softSound() { ensureAudio(); tone(660, 0, 0.35, 0.25 * D().settings.volume); }
+function endSound() {
+  ensureAudio(); const v = 0.6 * D().settings.volume;
+  [0, 0.45, 0.9].forEach((s) => { tone(880, s, 0.35, v); tone(1175, s + 0.15, 0.35, v); });
+}
+// Pausenende: weicher, aufsteigender Dreiklang (klingt anders als das Fokus-Ende)
+function breakEndSound() {
+  ensureAudio(); const v = 0.45 * D().settings.volume;
+  [[523, 0], [659, 0.35], [784, 0.7]].forEach(([f, s]) => tone(f, s, 0.7, v));
+}
+
+/* ---------- Bildschirm wach halten ---------- */
+let lock = null;
+async function wake() {
+  if (!D().settings.wake || !navigator.wakeLock || lock || D().timer.state !== 'running' || document.hidden) return;
+  try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch { lock = null; }
+}
+function releaseWake() { if (lock) { lock.release().catch(() => {}); lock = null; } }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { update(); wake(); requestDraw(); checkDaily(); } });
+
+/* ---------- Zeichnen ---------- */
+const ranks = {};
+function getRank(order) {
+  if (ranks[order]) return ranks[order];
+  const rk = new Uint16Array(CELLS);
+  if (order === 'rows') for (let i = 0; i < CELLS; i++) rk[i] = i;
+  else if (order === 'cols') for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) rk[r * N + c] = c * N + r;
+  else if (order === 'spiral') {
+    let top = 0, bottom = N - 1, left = 0, right = N - 1, k = 0;
+    while (top <= bottom && left <= right) {
+      for (let c = left; c <= right; c++) rk[top * N + c] = k++;
+      top++;
+      for (let r = top; r <= bottom; r++) rk[r * N + right] = k++;
+      right--;
+      if (top <= bottom) { for (let c = right; c >= left; c--) rk[bottom * N + c] = k++; bottom--; }
+      if (left <= right) { for (let r = bottom; r >= top; r--) rk[r * N + left] = k++; left++; }
+    }
+  } else { // zufällig, aber immer gleiche Reihenfolge (fester Startwert)
+    const idx = Array.from({ length: CELLS }, (_, i) => i); let a = 123456789;
+    const rnd = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    for (let i = CELLS - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    idx.forEach((cell, k) => { rk[cell] = k; });
+  }
+  return (ranks[order] = rk);
+}
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+function schemeColor(name, f) {
+  const st = SCHEMES[name]; f = Math.min(1, Math.max(0, f));
+  for (let i = 0; i < st.length - 1; i++) {
+    if (f <= st[i][0] && f >= st[i + 1][0]) {
+      const t = (st[i][0] - f) / (st[i][0] - st[i + 1][0]), a = hex(st[i][1]), b = hex(st[i + 1][1]);
+      return a.map((x, k) => Math.round(x + (b[k] - x) * t));
+    }
+  }
+  return hex(st[st.length - 1][1]);
+}
+const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+const mix = (a, b, t) => a.map((x, k) => Math.round(x + (b[k] - x) * t));
+function cssColor(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return HEXRE.test(v) ? hex(v.length === 4 ? '#' + [...v.slice(1)].map((x) => x + x).join('') : v) : fallback;
+}
+const HEXRE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+let drawKey = '', drawQueued = false;
+function requestDraw() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); } }
+function draw() {
+  const cv = $('cv'), s = D().settings, t = D().timer;
+  if (!cv.clientWidth) return; // Timer-Tab gerade nicht sichtbar
+  const dpr = window.devicePixelRatio || 1, side = Math.max(1, Math.round(cv.clientWidth * dpr));
+  const f = fracLeft(), progress = t.state === 'idle' ? 0 : 1 - f, scheme = effScheme();
+  const exact = progress * CELLS, n = Math.min(CELLS, Math.floor(exact)), part = t.state === 'running' ? exact - n : 0;
+  const elapsedC = cssColor('--line', [228, 231, 236]), gapC = cssColor('--bg', [246, 247, 249]);
+  const key = [side, n, Math.round(part * 6), Math.round(f * 400), scheme, s.order, elapsedC, gapC, t.state === 'done'].join('|');
+  if (key === drawKey) return;
+  drawKey = key;
+  if (cv.width !== side || cv.height !== side) { cv.width = side; cv.height = side; }
+  const ctx = cv.getContext('2d'), cs = side / N, gap = cs >= 3 ? Math.max(1, Math.round(dpr)) : 0;
+  const rk = getRank(s.order), remainC = schemeColor(scheme, f);
+  const xs = new Int32Array(N + 1); for (let i = 0; i <= N; i++) xs[i] = Math.round(i * cs);
+  ctx.fillStyle = rgb(gapC); ctx.fillRect(0, 0, side, side);
+  const paint = (test, color) => {
+    ctx.fillStyle = rgb(color);
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (test(rk[r * N + c])) ctx.fillRect(xs[c], xs[r], xs[c + 1] - xs[c] - gap, xs[r + 1] - xs[r] - gap);
+    }
+  };
+  paint((k) => k > n, remainC);
+  paint((k) => k < n, elapsedC);
+  if (n < CELLS) paint((k) => k === n, mix(remainC, elapsedC, part));
+  const pct = Math.round(f * 100);
+  cv.setAttribute('aria-label', t.state === 'done' ? 'Zeit abgelaufen' : `Zeitraster, noch ${pct} Prozent`);
+}
+
+/* ---------- Anzeige (Timer) ---------- */
+function fmt(ms) {
+  const sec = Math.ceil(ms / 1000), h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const p = (x) => String(x).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+function rough(ms) {
+  const m = Math.ceil(ms / 60000);
+  if (m <= 1) return 'unter 1 Minute';
+  return 'ca. ' + (m >= 60 ? `${Math.floor(m / 60)} Std ${m % 60} Min` : `${m} Min`);
+}
+function renderChip() {
+  const c = $('timerchip'), t = D().timer, dsp = D().settings.display;
+  const show = ui.tab !== 'timer' && (t.state === 'running' || t.state === 'paused' || (t.state === 'done' && !doneAck));
+  if (c.hidden === show) c.hidden = !show;
+  if (!show) return;
+  let text;
+  if (t.state === 'done') text = '✔ Timer fertig';
+  else {
+    const ms = remaining();
+    const v = dsp === 'off' ? (t.state === 'running' ? 'läuft' : 'pausiert') : dsp === 'rough' ? rough(ms) : fmt(ms);
+    text = (t.state === 'paused' ? '⏸ ' : '⏱ ') + v;
+  }
+  if (c.textContent !== text) { c.textContent = text; c.setAttribute('aria-label', `${text} – zurück zum Timer`); }
+}
+function renderTime() {
+  const s = D().settings, t = D().timer, el = $('time'), ms = remaining();
+  let text = '';
+  if (t.state === 'done') text = '✔ Geschafft!';
+  else if (s.display === 'exact') text = fmt(ms);
+  else if (s.display === 'rough') text = rough(ms);
+  const ph = shownPhase();
+  const title = t.state === 'running' ? `${fmt(ms)}${ph ? ' · ' + PH[ph] : ''} – Zeitraster` : t.state === 'done' ? '✔ Fertig – Zeitraster' : 'Zeitraster';
+  if (el.textContent !== text) el.textContent = text;
+  el.classList.toggle('small', s.display === 'rough' && t.state !== 'done');
+  if (document.title !== title) document.title = title;
+  renderChip();
+  requestDraw();
+}
+let editPresets = false;
+function startLabel() {
+  const t = D().timer, p = D().pomodoro;
+  if (t.state === 'running') return p.enabled ? '⏸ Anhalten' : '⏸ Pause';
+  if (t.state === 'paused') return '▶ Weiter';
+  if (p.enabled) return p.phase === 'work' ? (t.state === 'done' ? '▶ Nächste Runde starten' : '▶ Fokus starten') : p.phase === 'short' ? '▶ Pause starten' : '▶ Lange Pause starten';
+  return t.state === 'done' ? '↻ Nochmal' : '▶ Start';
+}
+function renderTimer() {
+  const d = D(), s = d.settings, t = d.timer;
+  $('start').textContent = startLabel();
+  if (document.activeElement !== $('label')) $('label').value = d.label;
+  ['scheme', 'order', 'display'].forEach((k) => { $(k).value = s[k]; });
+  ['sound', 'milestones', 'wake'].forEach((k) => { $(k).checked = s[k]; });
+  $('volume').value = s.volume;
+  if (document.activeElement !== $('custom')) $('custom').value = +(s.minutes.toFixed(2));
+  const sw = SCHEMES[s.scheme]; $('swatch').style.background = `linear-gradient(90deg, ${sw.slice().reverse().map((x) => x[1]).join(',')})`;
+  const pb = $('presets'); pb.textContent = '';
+  d.presets.forEach((m) => {
+    const b = document.createElement('button'); b.className = 'chip' + (Math.abs(m - s.minutes) < 1e-6 ? ' on' : ''); b.type = 'button';
+    b.textContent = m >= 60 && m % 60 === 0 ? `${m / 60} Std` : `${+m.toFixed(2)} Min`;
+    if (editPresets) { const x = document.createElement('span'); x.className = 'x'; x.textContent = '✕'; b.append(x); b.onclick = () => { d.presets = d.presets.filter((p) => p !== m); if (!d.presets.length) d.presets = [25]; store.changed(); render(); }; }
+    else b.onclick = () => setMinutes(m);
+    pb.append(b);
+  });
+  $('editpresets').classList.toggle('primary', editPresets);
+  renderPomo(); renderLinkbox();
+  renderLog(); renderTime();
+}
+let logDay = ''; // Tag, für den „Heute“ zuletzt gezeichnet wurde (Erkennung von Mitternacht)
+function renderLog() {
+  logDay = localDate();
+  const d = D(), today = new Date().toDateString();
+  const todays = d.log.filter((e) => new Date(e.at).toDateString() === today);
+  const mins = todays.reduce((a, e) => a + e.minutes, 0);
+  $('sum').textContent = todays.length ? `${todays.length} Runde(n), ${Math.round(mins)} Min geschafft` : 'Noch keine Runde heute';
+  const ul = $('log'); ul.textContent = '';
+  todays.slice(-8).reverse().forEach((e) => {
+    const li = document.createElement('li');
+    li.textContent = `${new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${+e.minutes.toFixed(1)} Min${e.label ? ' · ' + e.label : ''}`;
+    ul.append(li);
+  });
+}
+
+/* ---------- Fokus-Runden: Anzeige ---------- */
+let sug = '';
+let keepSugs = false; // true: Ideen-Liste nicht neu aufbauen (sonst geht der erste Klick auf ✕ nach einem blur-„change“ verloren)
+function pickSuggestion(force) {
+  const list = D().pomodoro.suggestions;
+  if (!list.length) { sug = ''; return; }
+  if (!force && list.includes(sug)) return;
+  const others = list.filter((x) => x !== sug), pool = others.length ? others : list;
+  sug = pool[Math.floor(Math.random() * pool.length)];
+}
+function renderPomo() {
+  const p = D().pomodoro, t = D().timer, on = p.enabled;
+  $('pomoOn').checked = on;
+  $('pomoBox').hidden = !on; $('phasebar').hidden = !on; $('durBox').hidden = on; $('testsound2').hidden = !on;
+  const ph = shownPhase(), brk = on && isBreak(ph);
+  $('stage').classList.toggle('brk', brk); $('stage').classList.toggle('pomo', on);
+  if (!on) { $('sugbox').hidden = true; return; }
+  [['pWork', 'workMin'], ['pShort', 'shortMin'], ['pLong', 'longMin'], ['pRounds', 'rounds']].forEach(([id, k]) => { if (document.activeElement !== $(id)) $(id).value = +(+p[k]).toFixed(2); });
+  $('pAuto').checked = p.auto;
+  $('phasename').textContent = (t.state === 'done' && ph ? 'Als Nächstes: ' : '') + (ph ? PH[ph] : 'Einzel-Timer');
+  const dots = $('dots'); dots.textContent = '';
+  for (let i = 1; i <= p.rounds; i++) dots.append(el('i', i < p.round || (i === p.round && p.phase !== 'work') ? 'd' : i === p.round ? 'c' : ''));
+  const rt = `Runde ${p.round} von ${p.rounds}`;
+  dots.setAttribute('aria-label', rt);
+  $('roundtxt').textContent = rt + (p.cycles > 0 && D().settings.counts ? ` · ${p.cycles} ${p.cycles === 1 ? 'Zyklus' : 'Zyklen'} geschafft` : '');
+  // Pausen-Vorschlag
+  if (brk) pickSuggestion(false);
+  const showSug = brk && !!sug;
+  $('sugbox').hidden = !showSug;
+  if (showSug) { $('sugtext').textContent = sug; $('sugnext').hidden = p.suggestions.length < 2; }
+  // Ideen-Liste
+  if (keepSugs) return;
+  const ul = $('pSugs'); ul.textContent = '';
+  p.suggestions.forEach((text, i) => {
+    const li = el('li'); li.append(el('span', null, text), mkBtn('✕', { label: `Idee löschen: ${text}`, title: 'Löschen', onclick: () => { p.suggestions.splice(i, 1); store.changed(); renderPomo(); } }));
+    ul.append(li);
+  });
+  if (!p.suggestions.length) ul.append(el('li', 'hint', 'Keine Ideen – unten eine hinzufügen.'));
+}
+function linkTarget() {
+  const l = D().timer.link; if (!l) return null;
+  const tk = D().tasks.find((x) => x.id === l.taskId), st = tk && tk.steps.find((x) => x.id === l.stepId);
+  return tk && st ? { tk, st } : null;
+}
+function renderLinkbox() {
+  const t = D().timer, lt = linkTarget();
+  const show = t.state === 'done' && !!lt && !lt.st.done;
+  $('linkbox').hidden = !show;
+  if (show) $('linktext').textContent = `Schritt: „${lt.st.text}“ (${lt.tk.title})`;
+}
+
+/* ---------- Tabs ---------- */
+const TABS = ['timer', 'tasks', 'routines'];
+function renderTabs() {
+  TABS.forEach((k) => {
+    const on = k === ui.tab;
+    $('pane-' + k).hidden = !on;
+    const b = $('tab-' + k); b.setAttribute('aria-selected', on ? 'true' : 'false'); b.tabIndex = on ? 0 : -1;
+  });
+}
+function setTab(name) {
+  if (!TABS.includes(name)) return;
+  ui.tab = name;
+  if (name === 'timer') { doneAck = true; requestDraw(); }
+  render();
+}
+// timerOnly: Timer-Ereignisse (Start/Pause/Ende) bauen Aufgaben-/Routinen-Ansicht nicht neu auf,
+// sonst gingen dort getippter Text und Tastaturfokus verloren. Diese Ansichten hängen nicht vom Timer ab.
+function render(timerOnly) {
+  renderTabs(); renderTimer();
+  if (!timerOnly) { if (ui.tab === 'tasks') renderTasks(); else if (ui.tab === 'routines') renderRoutines(); }
+  renderChip();
+}
+$('tabbar').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
+$('tabbar').addEventListener('keydown', (e) => {
+  const b = e.target.closest('.tab'); if (!b) return;
+  const i = TABS.indexOf(b.dataset.tab);
+  const ni = e.key === 'ArrowRight' ? (i + 1) % TABS.length : e.key === 'ArrowLeft' ? (i + TABS.length - 1) % TABS.length : e.key === 'Home' ? 0 : e.key === 'End' ? TABS.length - 1 : -1;
+  if (ni < 0) return;
+  e.preventDefault(); setTab(TABS[ni]); $('tab-' + TABS[ni]).focus();
+});
+$('timerchip').onclick = () => { setTab('timer'); $('tab-timer').focus(); };
+document.querySelectorAll('.countsbox').forEach((c) => {
+  c.onchange = () => { D().settings.counts = c.checked; store.changed(); render(); };
+});
+
+/* ---------- Gemeinsam: Rückmeldung & Fokus ---------- */
+const CHEERS = ['Geschafft – ein Schritt weniger!', 'Stark! Du kommst voran.', 'Das war’s schon? Super gemacht.', 'Schön, weiter im eigenen Tempo.', 'Jeder kleine Schritt zählt.', 'Gut gemacht – atme kurz durch.', 'Und wieder einer geschafft!'];
+let cheerIdx = Math.floor(Math.random() * CHEERS.length);
+const nextCheer = () => CHEERS[(cheerIdx = (cheerIdx + 1) % CHEERS.length)];
+const fbTimers = {};
+function showFb(id, text, big) {
+  const e = $(id); e.textContent = text; e.hidden = !text;
+  if (id === 'fb-tasks') e.classList.toggle('big', !!big);
+  clearTimeout(fbTimers[id]);
+  if (text) fbTimers[id] = setTimeout(() => { e.hidden = true; e.textContent = ''; }, big ? 9000 : 6000);
+}
+// Nach dem Neuaufbau einer Ansicht den Tastaturfokus zurückgeben (ui.focus = Schlüssel oder Liste von Alternativen)
+function applyFocus(root) {
+  const keys = ui.focus == null ? [] : Array.isArray(ui.focus) ? ui.focus : [ui.focus];
+  ui.focus = null;
+  const all = [...root.querySelectorAll('[data-k]')];
+  for (const k of keys) {
+    const e = all.find((x) => x.dataset.k === k && !x.disabled);
+    if (e) { e.focus(); if (e.tagName === 'INPUT' && e.type === 'text' && /^r(ename|name)/.test(k)) e.select(); return; }
+  }
+}
+
+/* ---------- Aufgaben-Zerleger ---------- */
+const selTask = () => D().tasks.find((t) => t.id === ui.taskId) || null;
+function ensureTaskSel() {
+  const d = D();
+  if (!d.tasks.some((t) => t.id === ui.taskId)) {
+    const first = d.tasks.find((t) => !t.done) || d.tasks[0];
+    ui.taskId = first ? first.id : null; ui.split = null; ui.renaming = false;
+  }
+}
+function completeStep(tk, st) { // true, wenn damit die ganze Aufgabe fertig ist
+  st.done = true;
+  const fin = tk.steps.every((s) => s.done);
+  if (fin) tk.done = true;
+  store.changed();
+  return fin;
+}
+const finishedText = (tk) => `Aufgabe geschafft! „${tk.title}“ ist erledigt – das hast du richtig gut gemacht.`;
+
+function addTask(title) {
+  title = title.trim(); if (!title) return;
+  if (D().tasks.length >= MAX_TASKS) return alert(`Maximal ${MAX_TASKS} Aufgaben.`);
+  const tk = { id: uid(), title: title.slice(0, 200), createdAt: new Date().toISOString(), done: false, steps: [] };
+  D().tasks.push(tk); ui.taskId = tk.id; ui.view = 'focus'; ui.split = null; ui.renaming = false; ui.listOpen = false;
+  ui.focus = 'addstep'; store.changed(); renderTasks();
+}
+function addStep(tk, text, minutes) {
+  text = text.trim(); if (!text) return false;
+  if (tk.steps.length >= MAX_STEPS) { alert(`Maximal ${MAX_STEPS} Schritte pro Aufgabe.`); return false; }
+  tk.steps.push({ id: uid(), text: text.slice(0, 300), minutes: parseMin(minutes, 5), done: false });
+  tk.done = false; store.changed(); return true;
+}
+function moveStep(tk, i, dir) {
+  const j = i + dir; if (j < 0 || j >= tk.steps.length) return;
+  const id = tk.steps[i].id;
+  [tk.steps[i], tk.steps[j]] = [tk.steps[j], tk.steps[i]];
+  store.changed(); ui.focus = [(dir < 0 ? 'up:' : 'dn:') + id, (dir < 0 ? 'dn:' : 'up:') + id]; renderTasks();
+}
+function postpone(tk, st) {
+  tk.steps.splice(tk.steps.indexOf(st), 1);
+  let last = -1; tk.steps.forEach((s, k) => { if (!s.done) last = k; });
+  tk.steps.splice(last + 1, 0, st);
+  store.changed(); ui.split = null; ui.focus = 'done'; showFb('fb-tasks', 'Alles gut – der Schritt wartet weiter hinten auf dich.');
+  renderTasks();
+}
+function commitSplit(tk, st, sp, extraText, extraMin) {
+  const items = sp.items.slice();
+  if (extraText.trim()) items.push({ text: extraText.trim().slice(0, 300), minutes: parseMin(extraMin, sp.def) });
+  if (!items.length) return;
+  if (tk.steps.length - 1 + items.length > MAX_STEPS) return alert(`Maximal ${MAX_STEPS} Schritte pro Aufgabe.`);
+  tk.steps.splice(tk.steps.indexOf(st), 1, ...items.map((x) => ({ id: uid(), text: x.text, minutes: x.minutes, done: false })));
+  ui.split = null; store.changed(); ui.focus = 'done';
+  showFb('fb-tasks', 'Gut geteilt – jetzt ist nur der erste kleine Schritt dran.');
+  renderTasks();
+}
+
+function renderTasks() {
+  ensureTaskSel();
+  renderTaskList(); renderTaskDetail();
+  document.querySelectorAll('.countsbox').forEach((c) => { c.checked = D().settings.counts; });
+  applyFocus($('pane-tasks'));
+}
+function taskCount(tk) { const done = tk.steps.filter((s) => s.done).length; return `${done}/${tk.steps.length}`; }
+function renderTaskList() {
+  const d = D(), box = $('listbody'); box.textContent = '';
+  const open = d.tasks.filter((t) => !t.done), fin = d.tasks.filter((t) => t.done);
+  const collapsed = !ui.listOpen && !!selTask();
+  box.classList.toggle('collapsed', collapsed);
+  const lt = $('listtoggle');
+  lt.textContent = `${collapsed ? '▸' : '▾'} Meine Aufgaben (${open.length} offen)`; lt.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+  if (!d.tasks.length) { box.append(el('p', 'hint', 'Noch keine Aufgabe. Schreib oben auf, was du angehen möchtest.')); return; }
+  const list = (arr, cls) => {
+    const ul = el('ul', 'tasklist');
+    arr.forEach((tk) => {
+      const li = el('li'), b = el('button', 'taskitem' + (cls ? ' ' + cls : '')); b.type = 'button'; b.dataset.k = 'task:' + tk.id;
+      b.append(el('span', null, tk.title));
+      if (d.settings.counts && tk.steps.length) b.append(el('span', 'meta', taskCount(tk)));
+      b.setAttribute('aria-current', tk.id === ui.taskId ? 'true' : 'false');
+      b.onclick = () => { ui.taskId = tk.id; ui.view = 'focus'; ui.split = null; ui.renaming = false; ui.listOpen = false; ui.focus = 'task:' + tk.id; renderTasks(); };
+      li.append(b); ul.append(li);
+    });
+    return ul;
+  };
+  if (open.length) box.append(list(open));
+  else box.append(el('p', 'hint', 'Keine offenen Aufgaben – das ist ein gutes Gefühl.'));
+  if (fin.length) {
+    const tg = mkBtn(`${ui.showDone ? '▾' : '▸'} Erledigt (${fin.length})`, { cls: 'linkbtn', k: 'showdone', onclick: () => { ui.showDone = !ui.showDone; ui.focus = 'showdone'; renderTasks(); } });
+    tg.setAttribute('aria-expanded', ui.showDone ? 'true' : 'false'); tg.style.marginTop = '8px';
+    box.append(tg);
+    if (ui.showDone) box.append(list(fin, 'fin'));
+  }
+}
+$('listtoggle').onclick = () => { ui.listOpen = $('listbody').classList.contains('collapsed'); renderTaskList(); };
+$('addtask').onclick = () => { const i = $('newtask'); const v = i.value; if (!v.trim()) return i.focus(); i.value = ''; addTask(v); };
+$('newtask').onkeydown = (e) => { if (e.key === 'Enter') $('addtask').click(); };
+
+function renderTaskDetail() {
+  const box = $('taskdetail'); box.textContent = '';
+  const tk = selTask();
+  if (!tk) {
+    const c = el('div', 'card');
+    c.append(el('h2', null, 'Was möchtest du angehen?'), el('p', 'hint', 'Schreib eine Aufgabe in das Feld „Neue Aufgabe“ und drück Enter. Danach teilen wir sie in winzige Schritte – du siehst immer nur den nächsten.'));
+    box.append(c); return;
+  }
+  box.append(taskHead(tk));
+  if (tk.done) { box.append(doneCard(tk)); return; }
+  if (!tk.steps.length) { box.append(firstStepCard(tk)); return; }
+  const seg = el('div', 'seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Ansicht');
+  [['focus', 'Fokus'], ['all', 'Alle Schritte']].forEach(([v, text]) => {
+    const b = mkBtn(text, { k: 'seg:' + v, onclick: () => { ui.view = v; ui.split = null; ui.focus = 'seg:' + v; renderTasks(); } });
+    b.setAttribute('aria-pressed', ui.view === v ? 'true' : 'false'); seg.append(b);
+  });
+  box.append(seg);
+  if (ui.view === 'all') box.append(allStepsView(tk)); else focusView(box, tk);
+}
+
+function taskHead(tk) {
+  const head = el('div', 'card thead');
+  if (ui.renaming) {
+    const i = mkField('text', { value: tk.title, label: 'Aufgabentitel', max: 200, k: 'rename' });
+    const close = () => { ui.renaming = false; ui.focus = 'renamebtn'; renderTasks(); };
+    const save = () => { const v = i.value.trim(); if (v) { tk.title = v.slice(0, 200); store.changed(); } close(); };
+    i.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } else if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    head.append(i, mkBtn('Speichern', { cls: 'primary', onclick: save }), mkBtn('Abbrechen', { onclick: close }));
+    return head;
+  }
+  head.append(el('h2', null, tk.title));
+  const act = el('div', 'tact');
+  act.append(mkBtn('✎ Umbenennen', { k: 'renamebtn', label: 'Aufgabe umbenennen', onclick: () => { ui.renaming = true; ui.focus = 'rename'; renderTasks(); } }));
+  if (!tk.done) act.append(mkBtn('✔ Abschließen', { label: 'Aufgabe als erledigt markieren', title: 'Aufgabe als erledigt markieren', onclick: () => { tk.done = true; ui.split = null; ui.focus = 'reopen'; store.changed(); showFb('fb-tasks', finishedText(tk), true); renderTasks(); } }));
+  act.append(mkBtn('🗑 Löschen', { label: 'Aufgabe löschen', onclick: () => {
+    if (!confirm(`Aufgabe „${tk.title}“ mit allen Schritten löschen?`)) return;
+    const d = D(); d.tasks.splice(d.tasks.indexOf(tk), 1);
+    if (d.timer.link && d.timer.link.taskId === tk.id) d.timer.link = null;
+    ui.taskId = null; ui.split = null; store.changed(); render();
+    $('newtask').focus();
+  } }));
+  head.append(act);
+  return head;
+}
+
+function stepForm(tk, first) {
+  const f = el('div', 'stepform' + (first ? ' first' : ''));
+  const labelText = first ? 'Was ist der allererste, winzige Schritt (unter 5 Minuten)?' : 'Weiteren Schritt hinzufügen';
+  f.append(el('div', 'lab', labelText));
+  const txt = mkField('text', { max: 300, label: labelText, ph: first ? 'z. B. Laptop aufklappen' : 'Nächster kleiner Schritt …', k: 'addstep' });
+  const min = mkField('number', { label: 'Geschätzte Minuten (optional, Standard 5)', ph: '5 Min', min: 1, maxv: MAX_STEP_MIN });
+  const add = () => { if (!txt.value.trim()) return txt.focus(); if (addStep(tk, txt.value, min.value)) { ui.focus = 'addstep'; renderTasks(); } };
+  const key = (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
+  txt.onkeydown = key; min.onkeydown = key;
+  f.append(txt, min, mkBtn('Hinzufügen', { cls: first ? 'primary' : '', label: 'Schritt hinzufügen', onclick: add }));
+  return f;
+}
+function firstStepCard(tk) {
+  const c = el('div', 'card firstcard');
+  c.append(el('h2', null, 'Erst mal winzig anfangen'), el('p', 'hint', 'Du musst nicht alles planen. Ein Schritt reicht für den Anfang – weitere kannst du jederzeit ergänzen.'), stepForm(tk, true));
+  return c;
+}
+function doneCard(tk) {
+  const c = el('div', 'card');
+  const fin = tk.steps.filter((s) => s.done), openN = tk.steps.length - fin.length;
+  c.append(el('div', 'cheer big', `Aufgabe geschafft!${tk.steps.length && !openN ? ' Alle Schritte sind erledigt.' : ''}${openN ? ` ${openN} ${openN === 1 ? 'Schritt bleibt' : 'Schritte bleiben'} offen – du kannst die Aufgabe jederzeit wieder öffnen.` : ''}`));
+  const row = el('div', 'actions'); row.style.justifyContent = 'flex-start'; row.style.marginTop = '0';
+  row.append(mkBtn('↺ Wieder öffnen', { k: 'reopen', onclick: () => { tk.done = false; store.changed(); ui.focus = ['done', 'finish', 'addstep']; renderTasks(); } }));
+  const next = D().tasks.find((x) => !x.done);
+  if (next) row.append(mkBtn('Nächste Aufgabe ansehen', { cls: 'primary', onclick: () => { ui.taskId = next.id; ui.view = 'focus'; ui.split = null; ui.focus = ['done', 'finish', 'addstep']; renderTasks(); } }));
+  c.append(row);
+  if (fin.length) {
+    const det = el('details'); det.style.marginTop = '12px';
+    det.append(el('summary', null, 'Erledigte Schritte anzeigen'));
+    const ul = el('ul', 'hint'); fin.forEach((s) => ul.append(el('li', null, s.text))); det.append(ul); c.append(det);
+  }
+  return c;
+}
+
+function focusView(box, tk) {
+  const open = tk.steps.filter((s) => !s.done);
+  const counts = D().settings.counts;
+  if (!open.length) { // alles abgehakt, Aufgabe aber (noch) nicht als erledigt markiert
+    const c = el('div', 'card');
+    c.append(el('p', null, 'Alle Schritte sind abgehakt.'), el('div', 'actions'));
+    c.lastChild.style.justifyContent = 'flex-start'; c.lastChild.style.marginTop = '0';
+    c.lastChild.append(mkBtn('✔ Aufgabe abschließen', { cls: 'primary', k: 'finish', onclick: () => { tk.done = true; ui.focus = 'reopen'; store.changed(); showFb('fb-tasks', finishedText(tk), true); renderTasks(); } }));
+    box.append(c, (() => { const a = el('div', 'card'); a.append(stepForm(tk, false)); return a; })());
+    return;
+  }
+  const cur = open[0], doneN = tk.steps.length - open.length;
+  const card = el('div', 'card focuscard');
+  const bar = el('div', 'bar'); bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-label', 'Fortschritt der Aufgabe');
+  bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', String(Math.round(doneN / tk.steps.length * 100)));
+  const fill = el('i'); fill.style.width = (doneN / tk.steps.length * 100) + '%'; bar.append(fill);
+  card.append(bar);
+  if (counts) card.append(el('p', 'progtxt', `Schritt ${doneN + 1} von ${tk.steps.length}`));
+  card.append(el('p', 'cur', cur.text), el('p', 'est', `ca. ${cur.minutes} Min`));
+  const act = el('div', 'actions');
+  act.append(mkBtn('✔ Erledigt', { cls: 'primary big', k: 'done', onclick: () => {
+    const fin = completeStep(tk, cur);
+    ui.split = null; ui.focus = fin ? 'reopen' : 'done';
+    showFb('fb-tasks', fin ? finishedText(tk) : nextCheer(), fin);
+    renderTasks();
+  } }));
+  card.append(act);
+  const act2 = el('div', 'actions'); act2.style.marginTop = '10px';
+  act2.append(
+    mkBtn('⏱ Timer für diesen Schritt', { onclick: () => launchTimer(cur.minutes, cur.text, { taskId: tk.id, stepId: cur.id }) }),
+    mkBtn('✂ Zu groß? Weiter zerlegen', { k: 'splitbtn', onclick: () => { ui.split = ui.split && ui.split.stepId === cur.id ? null : { stepId: cur.id, items: [], def: Math.max(1, Math.min(5, cur.minutes)) }; ui.focus = 'splittext'; renderTasks(); } }),
+    mkBtn('↷ Später', { disabled: open.length < 2, title: open.length < 2 ? 'Nur noch ein Schritt offen' : 'Schritt ans Ende der offenen Schritte', onclick: () => postpone(tk, cur) }),
+  );
+  card.append(act2);
+  if (ui.split && ui.split.stepId === cur.id) card.append(splitBox(tk, cur));
+  box.append(card);
+  const more = el('div', 'card'); more.append(stepForm(tk, false)); box.append(more);
+}
+function splitBox(tk, st) {
+  const sp = ui.split, b = el('div', 'splitbox');
+  b.append(el('strong', null, 'In welche kleineren Schritte lässt sich das teilen?'));
+  b.append(el('div', 'hint', 'Jeder Unterschritt ersetzt den großen Schritt. Enter fügt hinzu.'));
+  if (sp.items.length) {
+    const ol = el('ol');
+    sp.items.forEach((x, i) => { const li = el('li'); li.append(`${x.text} (${x.minutes} Min) `, mkBtn('✕', { cls: 'iconbtn', label: `Unterschritt entfernen: ${x.text}`, onclick: () => { sp.items.splice(i, 1); ui.focus = 'splittext'; renderTasks(); } })); ol.append(li); });
+    b.append(ol);
+  }
+  const row = el('div', 'addrow'); row.style.marginTop = '8px';
+  const txt = mkField('text', { max: 300, label: 'Unterschritt', ph: 'Kleinerer Schritt …', k: 'splittext' });
+  const min = mkField('number', { label: 'Geschätzte Minuten (optional)', ph: `${sp.def} Min`, min: 1, maxv: MAX_STEP_MIN });
+  const add = () => { const v = txt.value.trim(); if (!v) return txt.focus(); sp.items.push({ text: v.slice(0, 300), minutes: parseMin(min.value, sp.def) }); ui.focus = 'splittext'; renderTasks(); };
+  const key = (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } else if (e.key === 'Escape') { ui.split = null; ui.focus = 'splitbtn'; renderTasks(); } };
+  txt.onkeydown = key; min.onkeydown = key;
+  txt.addEventListener('paste', (e) => { // mehrere Zeilen einfügen = mehrere Unterschritte
+    const data = (e.clipboardData || window.clipboardData).getData('text');
+    if (!/\r?\n/.test(data.trim())) return;
+    e.preventDefault();
+    data.split(/\r?\n/).map((x) => x.trim()).filter(Boolean).forEach((line) => sp.items.push({ text: line.slice(0, 300), minutes: sp.def }));
+    ui.focus = 'splittext'; renderTasks();
+  });
+  row.append(txt, min, mkBtn('+', { label: 'Unterschritt hinzufügen', onclick: add }));
+  b.append(row);
+  const row2 = el('div', 'actions'); row2.style.justifyContent = 'flex-start';
+  row2.append(mkBtn('Schritt ersetzen', { cls: 'primary', k: 'splitcommit', onclick: () => commitSplit(tk, st, sp, txt.value, min.value) }), mkBtn('Abbrechen', { onclick: () => { ui.split = null; ui.focus = 'splitbtn'; renderTasks(); } }));
+  b.append(row2);
+  return b;
+}
+
+function allStepsView(tk) {
+  const wrap = el('div');
+  const card = el('div', 'card');
+  const ul = el('ul', 'steplist');
+  tk.steps.forEach((st, i) => {
+    const li = el('li', 'steprow' + (st.done ? ' done' : ''));
+    const cb = mkField('checkbox', { cls: 'cb', label: `Erledigt: ${st.text}`, k: 'cb:' + st.id }); cb.checked = st.done;
+    cb.onchange = () => {
+      st.done = cb.checked;
+      let fin = false;
+      if (!st.done && tk.done) tk.done = false;
+      if (st.done && tk.steps.every((s) => s.done)) { tk.done = true; fin = true; }
+      store.changed();
+      if (fin) showFb('fb-tasks', finishedText(tk), true); else if (st.done) showFb('fb-tasks', nextCheer());
+      ui.focus = fin ? 'reopen' : 'cb:' + st.id; renderTasks();
+    };
+    let good = st.text;
+    const txt = mkField('text', { value: st.text, max: 300, label: `Schritt ${i + 1} bearbeiten`, k: 'tx:' + st.id });
+    txt.oninput = () => { if (txt.value.trim()) { good = txt.value.trim(); st.text = good.slice(0, 300); store.changed(); } };
+    txt.onchange = () => { if (!txt.value.trim()) txt.value = good; };
+    const min = mkField('number', { value: st.minutes, label: `Minuten für Schritt ${i + 1}`, min: 1, maxv: MAX_STEP_MIN });
+    min.onchange = () => { st.minutes = parseMin(min.value, st.minutes); min.value = st.minutes; store.changed(); };
+    const ctl = el('div', 'ctl');
+    ctl.append(min, el('span', 'hint', 'Min'),
+      mkBtn('▲', { cls: 'iconbtn', k: 'up:' + st.id, label: `Nach oben: ${st.text}`, title: 'Nach oben', disabled: i === 0, onclick: () => moveStep(tk, i, -1) }),
+      mkBtn('▼', { cls: 'iconbtn', k: 'dn:' + st.id, label: `Nach unten: ${st.text}`, title: 'Nach unten', disabled: i === tk.steps.length - 1, onclick: () => moveStep(tk, i, 1) }),
+      mkBtn('✕', { cls: 'iconbtn', label: `Schritt löschen: ${st.text}`, title: 'Löschen', onclick: () => {
+        tk.steps.splice(tk.steps.indexOf(st), 1);
+        if (tk.steps.length && tk.steps.every((s) => s.done) && !tk.done) { /* alle übrigen erledigt: Aufgabe offen lassen, Nutzer entscheidet */ }
+        store.changed(); ui.focus = 'addstep'; renderTasks();
+      } }));
+    li.append(cb, txt, ctl);
+    ul.append(li);
+  });
+  card.append(ul);
+  wrap.append(card);
+  const more = el('div', 'card'); more.append(stepForm(tk, false)); wrap.append(more);
+  return wrap;
+}
+
+/* ---------- Routinen ---------- */
+const selRoutine = () => D().routines.find((r) => r.id === ui.routineId) || null;
+function ensureRoutineSel() {
+  if (!D().routines.some((r) => r.id === ui.routineId)) { ui.routineId = D().routines[0] ? D().routines[0].id : null; }
+}
+function trimHistory(r, today) {
+  const cutoff = addDays(today, -59); // letzte 60 Tage inkl. heute
+  Object.keys(r.history).forEach((k) => { if (k < cutoff) delete r.history[k]; });
+}
+// Täglicher Reset: Stand des letzten Tages ins Protokoll, alle Punkte zurück auf „offen“
+function dailyReset(d, today) {
+  let changed = false;
+  d.routines.forEach((r) => {
+    if (r.lastReset === today) return;
+    if (r.lastReset > today) { r.lastReset = today; changed = true; return; } // Uhr zurückgestellt: nichts zurücksetzen
+    const total = r.items.length;
+    if (total > 0) { // einen schon geschriebenen, besseren Stand desselben Tages (Uhr vor- und zurückgestellt) nicht überschreiben
+      const done = r.items.filter((i) => i.done).length, old = r.history[r.lastReset];
+      if (!old || old.total <= 0 || done / total >= old.done / old.total) r.history[r.lastReset] = { done, total };
+    }
+    r.items.forEach((i) => { i.done = false; });
+    r.lastReset = today; trimHistory(r, today); changed = true;
+  });
+  return changed;
+}
+function checkDaily() {
+  if (dailyReset(D(), localDate())) {
+    store.changed();
+    if (ui.tab === 'routines') renderRoutines();
+  }
+  if (ui.tab === 'timer' && logDay !== localDate()) renderLog(); // „Heute“ nach Mitternacht neu zeichnen
+}
+function completeDays(r, today) {
+  let n = 0;
+  for (let i = 0; i < 7; i++) {
+    const day = addDays(today, -i);
+    const h = i === 0 ? { done: r.items.filter((x) => x.done).length, total: r.items.length } : r.history[day];
+    if (h && h.total > 0 && h.done >= h.total) n++;
+  }
+  return n;
+}
+
+function renderRoutines() {
+  ensureRoutineSel();
+  document.querySelectorAll('.countsbox').forEach((c) => { c.checked = D().settings.counts; });
+  renderRoutineBar(); renderRoutineBody();
+  applyFocus($('pane-routines'));
+}
+function renderRoutineBar() {
+  const bar = $('routinebar'); bar.textContent = '';
+  const counts = D().settings.counts;
+  D().routines.forEach((r) => {
+    const done = r.items.filter((i) => i.done).length;
+    const full = r.items.length > 0 && done === r.items.length;
+    const b = mkBtn(r.name + (full ? ' ✔' : counts && r.items.length ? ` ${done}/${r.items.length}` : ''), { cls: 'rchip', k: 'rchip:' + r.id, onclick: () => { ui.routineId = r.id; ui.focus = 'rchip:' + r.id; renderRoutines(); } });
+    b.setAttribute('aria-pressed', r.id === ui.routineId ? 'true' : 'false');
+    bar.append(b);
+  });
+  if (ui.routineEdit) bar.append(mkBtn('＋ Neue Routine', { k: 'newroutine', onclick: newRoutine }));
+  const eb = mkBtn(ui.routineEdit ? '✔ Fertig' : '✎ Bearbeiten', { cls: 'push' + (ui.routineEdit ? ' primary' : ''), k: 'editbtn', onclick: () => { ui.routineEdit = !ui.routineEdit; ui.focus = 'editbtn'; renderRoutines(); } });
+  eb.setAttribute('aria-pressed', ui.routineEdit ? 'true' : 'false');
+  bar.append(eb);
+}
+function newRoutine() {
+  if (D().routines.length >= MAX_ROUTINES) return alert(`Maximal ${MAX_ROUTINES} Routinen.`);
+  const r = { id: uid(), name: 'Neue Routine', items: [], lastReset: localDate(), history: {} };
+  D().routines.push(r); ui.routineId = r.id; ui.routineEdit = true; ui.focus = 'rname'; store.changed(); renderRoutines();
+}
+function renderRoutineBody() {
+  const box = $('routinebody'); box.textContent = '';
+  const r = selRoutine();
+  if (!r) {
+    const c = el('div', 'card');
+    c.append(el('h2', null, 'Noch keine Routine'), el('p', 'hint', 'Routinen sind Checklisten, die jeden Tag wieder frisch beginnen – z. B. für Morgen, Abend oder „Aus dem Haus“.'),
+      mkBtn('＋ Routine anlegen', { cls: 'primary big', onclick: newRoutine }));
+    box.append(c); return;
+  }
+  box.append(ui.routineEdit ? routineEditView(r) : routineCheckView(r));
+}
+function routineCheckView(r) {
+  const card = el('div', 'card rcard');
+  card.append(el('h2', null, r.name));
+  const total = r.items.length, done = r.items.filter((i) => i.done).length, counts = D().settings.counts;
+  if (!total) {
+    card.append(el('p', 'hint', 'Diese Routine hat noch keine Punkte. Tippe auf „Bearbeiten“, um welche hinzuzufügen.'));
+    return card;
+  }
+  const pr = el('div', 'progrow'), bar = el('div', 'bar');
+  bar.setAttribute('role', 'progressbar'); bar.setAttribute('aria-label', 'Fortschritt der Routine'); bar.setAttribute('aria-valuemin', '0'); bar.setAttribute('aria-valuemax', '100'); bar.setAttribute('aria-valuenow', String(Math.round(done / total * 100)));
+  const fill = el('i'); fill.style.width = (done / total * 100) + '%'; bar.append(fill);
+  pr.append(bar); if (counts) pr.append(el('span', 'progtxt', `${done} von ${total}`));
+  card.append(pr);
+  const ul = el('ul', 'checklist');
+  r.items.forEach((it) => {
+    const li = el('li', 'citem' + (it.done ? ' done' : ''));
+    const lab = el('label'), cb = mkField('checkbox', { cls: 'cb', k: 'cb:' + it.id }); cb.checked = it.done;
+    cb.onchange = () => {
+      it.done = cb.checked; store.changed();
+      const all = r.items.every((x) => x.done);
+      if (it.done && all) showFb('fb-routines', `Alles geschafft – „${r.name}“ ist erledigt. Gut gemacht, jetzt darfst du durchatmen.`, true);
+      else if (!it.done) showFb('fb-routines', ''); // Punkt wieder abgewählt: Lob zurücknehmen
+      ui.focus = 'cb:' + it.id; renderRoutines();
+    };
+    lab.append(cb, el('span', null, it.text)); li.append(lab);
+    if (it.minutes > 0) li.append(mkBtn(`⏱ ${it.minutes} Min`, { cls: 'timerbtn', label: `Timer starten: ${it.text}, ${it.minutes} Minuten`, onclick: () => launchTimer(it.minutes, it.text, null) }));
+    ul.append(li);
+  });
+  card.append(ul);
+  if (done === total) {
+    const ch = el('div', 'cheer big', 'Alles erledigt – wunderbar! Du darfst stolz auf dich sein.'); ch.style.marginTop = '14px';
+    card.append(ch);
+  }
+  if (counts) { const w = el('p', 'hint', `In den letzten 7 Tagen vollständig: ${completeDays(r, localDate())}`); w.style.marginBottom = '0'; card.append(w); }
+  return card;
+}
+function routineEditView(r) {
+  const card = el('div', 'card rcard');
+  const top = el('div', 'addrow');
+  let goodName = r.name;
+  const nm = mkField('text', { value: r.name, max: 100, label: 'Name der Routine', cls: 'rname', k: 'rname' });
+  // Chip-Beschriftung schon beim Tippen nachführen; beim blur-„change“ keine Leiste neu aufbauen (sonst geht der erste Klick auf Fertig/Chip verloren)
+  nm.oninput = () => { if (nm.value.trim()) { goodName = nm.value.trim(); r.name = goodName.slice(0, 100); store.changed(); renderRoutineBar(); } };
+  nm.onchange = () => { if (!nm.value.trim()) nm.value = goodName; };
+  top.append(nm, mkBtn('🗑 Routine löschen', { onclick: () => {
+    if (!confirm(`Routine „${r.name}“ löschen?`)) return;
+    const d = D(); d.routines.splice(d.routines.indexOf(r), 1); ui.routineId = null; ui.focus = 'editbtn'; store.changed(); renderRoutines();
+  } }));
+  card.append(top);
+  const ul = el('ul', 'steplist'); ul.style.marginTop = '8px';
+  r.items.forEach((it, i) => {
+    const li = el('li', 'erow');
+    let good = it.text;
+    const tx = mkField('text', { value: it.text, max: 200, label: `Punkt ${i + 1}`, k: 'tx:' + it.id });
+    tx.oninput = () => { if (tx.value.trim()) { good = tx.value.trim(); it.text = good.slice(0, 200); store.changed(); } };
+    tx.onchange = () => { if (!tx.value.trim()) tx.value = good; };
+    const mn = mkField('number', { value: it.minutes || '', label: `Minuten für Punkt ${i + 1} (optional)`, ph: 'Min', min: 1, maxv: MAX_STEP_MIN });
+    mn.onchange = () => { it.minutes = mn.value.trim() === '' ? 0 : parseMin(mn.value, 0); mn.value = it.minutes || ''; store.changed(); };
+    const mv = (dir) => { const j = i + dir; if (j < 0 || j >= r.items.length) return; [r.items[i], r.items[j]] = [r.items[j], r.items[i]]; store.changed(); ui.focus = [(dir < 0 ? 'up:' : 'dn:') + it.id, (dir < 0 ? 'dn:' : 'up:') + it.id]; renderRoutines(); };
+    const ctl = el('div', 'ctl');
+    ctl.append(mn, el('span', 'hint', 'Min'),
+      mkBtn('▲', { cls: 'iconbtn', k: 'up:' + it.id, label: `Nach oben: ${it.text}`, title: 'Nach oben', disabled: i === 0, onclick: () => mv(-1) }),
+      mkBtn('▼', { cls: 'iconbtn', k: 'dn:' + it.id, label: `Nach unten: ${it.text}`, title: 'Nach unten', disabled: i === r.items.length - 1, onclick: () => mv(1) }),
+      mkBtn('✕', { cls: 'iconbtn', label: `Punkt löschen: ${it.text}`, title: 'Löschen', onclick: () => { r.items.splice(i, 1); store.changed(); ui.focus = 'additem'; renderRoutines(); } }));
+    li.append(tx, ctl);
+    ul.append(li);
+  });
+  card.append(ul);
+  const f = el('div', 'stepform'); f.style.marginTop = '12px';
+  f.append(el('div', 'lab', 'Punkt hinzufügen'));
+  const txt = mkField('text', { max: 200, label: 'Neuer Punkt', ph: 'z. B. Schlüssel', k: 'additem' });
+  const min = mkField('number', { label: 'Minuten (optional)', ph: 'Min', min: 1, maxv: MAX_STEP_MIN });
+  const add = () => {
+    const v = txt.value.trim(); if (!v) return txt.focus();
+    if (r.items.length >= MAX_ITEMS) return alert(`Maximal ${MAX_ITEMS} Punkte pro Routine.`);
+    r.items.push({ id: uid(), text: v.slice(0, 200), minutes: min.value.trim() === '' ? 0 : parseMin(min.value, 0), done: false });
+    store.changed(); ui.focus = 'additem'; renderRoutines();
+  };
+  const key = (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } };
+  txt.onkeydown = key; min.onkeydown = key;
+  f.append(txt, min, mkBtn('Hinzufügen', { cls: 'primary', label: 'Punkt hinzufügen', onclick: add }));
+  card.append(f);
+  return card;
+}
+
+/* ---------- Nach dem Laden ---------- */
+function afterLoad() {
+  if (dailyReset(D(), localDate())) store.changed();
+  sug = ''; ui.split = null; ui.renaming = false;
+  refireFlags(); releaseWake(); wake(); drawKey = ''; render();
+}
+
+/* ---------- Bedienung (Timer) ---------- */
+$('start').onclick = () => (D().timer.state === 'running' ? pause() : start());
+$('reset').onclick = () => { const t = D().timer; if ((t.state === 'running' || t.state === 'paused') && !confirm('Laufende Zeit zurücksetzen?')) return; reset(); };
+$('plus1').onclick = () => extend(60000);
+$('plus5').onclick = () => extend(5 * 60000);
+$('full').onclick = toggleFull;
+function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else $('stage').requestFullscreen().catch(() => {}); }
+$('customset').onclick = () => { const v = parseFloat($('custom').value); if (Number.isFinite(v) && v > 0) setMinutes(v); };
+$('custom').onkeydown = (e) => { if (e.key === 'Enter') $('customset').click(); };
+$('addpreset').onclick = () => {
+  const m = +D().settings.minutes.toFixed(2), p = D().presets;
+  if (p.includes(m)) return; if (p.length >= 12) return alert('Maximal 12 Schnellwahl-Einträge.');
+  p.push(m); p.sort((a, b) => a - b); store.changed(); render();
+};
+$('editpresets').onclick = () => { editPresets = !editPresets; render(); };
+$('label').oninput = (e) => { D().label = e.target.value; store.changed(); };
+['scheme', 'order', 'display'].forEach((k) => { $(k).onchange = (e) => { D().settings[k] = e.target.value; store.changed(); drawKey = ''; render(); }; });
+['sound', 'milestones', 'wake'].forEach((k) => { $(k).onchange = (e) => { D().settings[k] = e.target.checked; store.changed(); if (k === 'wake') { e.target.checked ? wake() : releaseWake(); } }; });
+$('volume').oninput = (e) => { D().settings.volume = +e.target.value; store.changed(); };
+$('testsound').onclick = endSound;
+$('testsound2').onclick = breakEndSound;
+$('clearlog').onclick = () => { if (D().log.length && confirm('Gesamten Verlauf löschen?')) { D().log = []; store.changed(); renderLog(); } };
+
+/* ---------- Bedienung (Fokus-Runden) ---------- */
+$('pomoOn').onchange = (e) => {
+  const want = e.target.checked, t = D().timer;
+  if ((t.state === 'running' || t.state === 'paused') && !confirm(want ? 'Laufende Zeit verwerfen und Fokus-Runden einschalten?' : 'Laufende Zeit verwerfen und Fokus-Runden ausschalten?')) { e.target.checked = !want; return; }
+  D().pomodoro.enabled = want; sug = ''; reset();
+};
+$('pomoRestart').onclick = () => {
+  const t = D().timer, p = D().pomodoro;
+  if ((t.state === 'running' || t.state === 'paused') && !confirm('Laufende Zeit verwerfen und den Zyklus neu starten?')) return;
+  p.phase = 'work'; p.round = 1; sug = ''; reset();
+};
+[['pWork', 'workMin', 0.1, 240], ['pShort', 'shortMin', 0.1, 120], ['pLong', 'longMin', 0.1, 240], ['pRounds', 'rounds', 1, 12]].forEach(([id, key, lo, hi]) => {
+  $(id).onchange = (e) => {
+    const p = D().pomodoro; let v = parseFloat(e.target.value);
+    if (!Number.isFinite(v)) { e.target.value = +(+p[key]).toFixed(2); return; }
+    v = Math.min(hi, Math.max(lo, key === 'rounds' ? Math.round(v) : v));
+    p[key] = v; if (key === 'rounds') p.round = Math.min(p.round, v);
+    e.target.value = +(+v).toFixed(2); // begrenzten Wert auch im fokussierten Feld zeigen (renderPomo überspringt das Feld im Fokus)
+    store.changed(); syncIdle();
+    keepSugs = true; try { render(); } finally { keepSugs = false; } // bei laufender Phase ändert sich nur die nächste Phase
+  };
+});
+$('pAuto').onchange = (e) => { D().pomodoro.auto = e.target.checked; store.changed(); };
+$('sugnext').onclick = () => { pickSuggestion(true); renderPomo(); };
+function addSuggestion() {
+  const i = $('pSugNew'), v = i.value.trim().slice(0, 120), p = D().pomodoro;
+  if (!v) return i.focus();
+  if (p.suggestions.length >= 30) return alert('Maximal 30 Pausen-Ideen.');
+  if (!p.suggestions.includes(v)) { p.suggestions.push(v); store.changed(); }
+  i.value = ''; renderPomo(); i.focus();
+}
+$('pSugAdd').onclick = addSuggestion;
+$('pSugNew').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addSuggestion(); } };
+
+// Verknüpfter Schritt aus dem Zerleger: Timer fertig -> „Schritt erledigt?“
+$('linkdone').onclick = () => {
+  const lt = linkTarget(), t = D().timer;
+  if (!lt || lt.st.done) { t.link = null; store.changed(); render(); return; }
+  const fin = completeStep(lt.tk, lt.st);
+  t.link = null; store.changed();
+  setNote(fin ? finishedText(lt.tk) : 'Schritt abgehakt – ' + nextCheer());
+  render();
+};
+
+// Leertaste / F nur im Timer-Tab
+document.addEventListener('keydown', (e) => {
+  if (ui.tab !== 'timer') return;
+  if (/^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|DETAILS|A)$/.test(e.target.tagName) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Space') { e.preventDefault(); $('start').click(); }
+  else if (e.key.toLowerCase() === 'f') toggleFull();
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+new ResizeObserver(() => requestDraw()).observe($('cvwrap'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawKey = ''; requestDraw(); });
+
+function loop() { update(); requestAnimationFrame(loop); }
+setInterval(update, 1000); // läuft auch im Hintergrund-Tab weiter (Ende erkennen, Ton)
+setInterval(checkDaily, 60000); // Tageswechsel der Routinen
+normalize(D()); afterLoad(); loop();
+store.restore();
+</script>
+</body>
+</html>
