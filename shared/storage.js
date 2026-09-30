@@ -140,9 +140,9 @@
         kind = 'warn'; acts = [act('reconnect', 'Verbindung wiederherstellen', true), act('saveAs', 'Speichern unter…')];
       } else if (state === 'unloaded') {
         text = `⚠ „${file}“ wurde nicht geladen: ${errorMsg} Angezeigt werden Standarddaten. Es wird NICHTS gespeichert – die Datei bleibt unverändert.`
-          + (dirty ? ' Deine Änderungen sind NICHT gespeichert.' : '');
+          + (dirty ? ' Deine Änderungen sind NICHT gespeichert – sichere sie mit „Speichern unter…“ in einer anderen Datei.' : '');
         kind = 'error';
-        acts = [act('retry', 'Erneut versuchen', true), act('open', 'Datei öffnen…'), act('overwriteUnloaded', dirty ? 'Mit meinen Daten überschreiben' : 'Mit Standarddaten überschreiben')];
+        acts = [act('retry', 'Erneut versuchen', true), act('open', 'Datei öffnen…'), act('saveAs', 'Speichern unter…'), act('overwriteUnloaded', dirty ? 'Mit meinen Daten überschreiben' : 'Mit Standarddaten überschreiben')];
       } else if (state === 'lost') {
         text = `⚠ Verbindung zu „${file}“ verloren (Datei verschoben oder gelöscht?). Änderungen sind NICHT gespeichert.`;
         kind = 'error'; acts = [act('retry', 'Erneut versuchen'), act('open', 'Datei öffnen…'), act('saveAs', 'Speichern unter…', true)];
@@ -231,7 +231,7 @@
     // Wirft einen loadError bei fremden Dateien und Nicht-Objekten.
     function unwrap(obj) {
       if (!isPlainObject(obj)) throw loadError(`Die Datei hat kein passendes Format: Erwartet wird ein JSON-Objekt, gefunden wurde ${describe(obj)}.`);
-      if (typeof obj.app === 'string' && obj.app !== name) throw loadError(`Diese Datei gehört zum Tool „${obj.app}“, nicht zu „${name}“.`);
+      if (typeof obj.app === 'string' && obj.app !== '' && obj.app !== name) throw loadError(`Diese Datei gehört zum Tool „${obj.app}“, nicht zu „${name}“.`);
       if (obj.app === name) {
         if (!isPlainObject(obj.data)) throw loadError('Die Datei enthält keine gültigen Daten (Feld „data“ fehlt oder ist kein Objekt).');
         return obj.data;
