@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raumplan</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  main.wide { max-width:none; }
+  .layout { display:flex; gap:12px; align-items:flex-start; }
+  .gridwrap { flex:1; min-width:0; overflow:auto; max-height:72vh; border:1px solid var(--line); border-radius:10px; background:var(--card); scroll-padding:28px 40px; outline:none; }
+  .gridwrap:focus-visible { box-shadow:0 0 0 2px var(--accent); }
+  .side { width:320px; flex:none; margin:0; }
+  @media (max-width:900px) { .layout { flex-direction:column; } .side { width:100%; } }
+
+  .grid { --cs:48px; display:grid; width:max-content; user-select:none; -webkit-user-select:none; }
+  .h { position:sticky; background:var(--line); color:var(--muted); font-size:.75rem; display:flex; align-items:center; justify-content:center; cursor:pointer; z-index:2; border-right:1px solid var(--bg); border-bottom:1px solid var(--bg); }
+  .h.col { top:0; } .h.row { left:0; } .h.corner { top:0; left:0; z-index:3; }
+  .h.hl { background:color-mix(in srgb, var(--accent) 30%, var(--line)); color:var(--fg); }
+  .cell { --sc:transparent; --fc:transparent; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; overflow:hidden; border-right:1px solid var(--line); border-bottom:1px solid var(--line); cursor:cell; }
+  .cell.has { cursor:grab; }
+  .cell.st { background:color-mix(in srgb, var(--sc) 35%, var(--card)); box-shadow:inset 0 0 0 3px var(--sc); }
+  .cell.fill { background:var(--fc); }
+  .cell.sel::after { content:''; position:absolute; inset:0; background:color-mix(in srgb, var(--accent) 22%, transparent); pointer-events:none; }
+  .cell.act { outline:2px solid var(--accent); outline-offset:-2px; z-index:1; }
+  .cell .ic { font-size:calc(var(--cs) * .5); line-height:1; pointer-events:none; }
+  .cell img { width:calc(var(--cs) * .55); height:calc(var(--cs) * .55); object-fit:contain; pointer-events:none; }
+  .cell .nm { font-size:max(9px, calc(var(--cs) * .2)); max-width:96%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; line-height:1.2; pointer-events:none; }
+  .cell.fill .nm { color:#fff; text-shadow:0 0 2px #000; }
+  .grid.small .nm { display:none; }
+
+  .tools { gap:6px; }
+  .tool { display:inline-flex; align-items:center; gap:6px; }
+  .tool.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .tool img { width:18px; height:18px; object-fit:contain; }
+  .legend { display:flex; flex-wrap:wrap; gap:14px; font-size:.85rem; color:var(--muted); margin:6px 0; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:50%; background:var(--sc); margin-right:5px; vertical-align:-1px; }
+
+  .side h2 { font-size:1rem; margin:0 0 8px; display:flex; align-items:center; gap:8px; }
+  .side h2 span { flex:1; }
+  .side label.l, .cfg label.l { display:block; font-size:.85rem; color:var(--muted); margin:10px 0 4px; }
+  .side input[type=text], .side input[type=number], .side input[type=date], .side textarea, .side select,
+  .cfg input[type=text], .cfg input[type=number], .cfg select { width:100%; }
+  .side textarea { min-height:72px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chipb { --sc:var(--line); display:inline-flex; align-items:center; gap:2px; border:2px solid var(--line); border-radius:99px; padding:1px 10px; cursor:pointer; background:var(--card); }
+  .chipb.on { border-color:var(--sc); background:color-mix(in srgb, var(--sc) 25%, var(--card)); font-weight:600; }
+  .hint { color:var(--muted); font-size:.85rem; }
+
+  dialog { border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--fg); width:min(880px, 96vw); }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  dialog.small { width:min(520px, 96vw); }
+  .tabs { display:flex; gap:6px; margin:8px 0; flex-wrap:wrap; }
+  .tabs button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .cfgrow { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:6px 0; padding:6px 0; border-bottom:1px solid var(--line); }
+  .cfgrow input[type=text] { flex:1; min-width:120px; width:auto; }
+  .cfgrow input[type=color] { width:38px; height:32px; padding:0; border:1px solid var(--line); border-radius:6px; background:none; }
+  .cfgrow select { width:auto; }
+  .iconpick { width:44px; height:38px; display:inline-flex; align-items:center; justify-content:center; font-size:1.4rem; padding:0; }
+  .iconpick img { width:28px; height:28px; object-fit:contain; }
+  .emojis { display:flex; flex-wrap:wrap; gap:4px; max-height:260px; overflow:auto; }
+  .emojis button { font-size:1.4rem; width:42px; height:42px; padding:0; }
+  .small-btn { padding:2px 8px; }
+  details.types { flex-basis:100%; color:var(--muted); font-size:.9rem; }
+  details.types label { display:inline-block; margin-right:12px; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:8px; z-index:50; }
+  #toast[hidden] { display:none; }
+  #roomname { width:200px; font-weight:600; }
+</style>
+</head>
+<body>
+<main class="wide">
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Raumplan</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+    <span style="flex:1"></span>
+    <button id="undo" title="Rückgängig (Strg+Z)">↶</button>
+    <button id="redo" title="Wiederholen (Strg+Y)">↷</button>
+    <button id="cfgbtn">⚙ Konfiguration</button>
+  </div>
+  <div id="status"></div>
+  <div class="card toolbar tools">
+    <input type="text" id="roomname" aria-label="Raumname" placeholder="Raumname">
+    <span id="palette" class="toolbar tools"></span>
+    <span style="flex:1"></span>
+    <label>Zoom <input type="range" id="zoom" min="28" max="96" step="2"></label>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="layout">
+    <div class="gridwrap" id="gridwrap" tabindex="0" aria-label="Raster"><div id="grid" class="grid"></div></div>
+    <aside class="side card" id="side"></aside>
+  </div>
+  <p class="hint">Klick = auswählen · Ziehen = Bereich · Asset ziehen = verschieben (Strg = kopieren) · Entf = löschen · Strg+C/X/V · Pfeiltasten · Enter = Name bearbeiten · Typ in der Leiste wählen = Stempel (Esc beendet)</p>
+</main>
+
+<div id="toast" hidden></div>
+
+<dialog id="dlg-cfg" class="cfg">
+  <h2 style="margin-top:0">Konfiguration</h2>
+  <div class="tabs" id="cfg-tabs"></div>
+  <div id="cfg-body"></div>
+  <div class="toolbar" style="margin-top:14px"><span style="flex:1"></span><button id="cfg-close" class="primary">Schließen</button></div>
+</dialog>
+
+<dialog id="dlg-icon" class="small">
+  <h2 style="margin-top:0">Icon wählen</h2>
+  <div class="emojis" id="emojis"></div>
+  <label class="l" for="i-custom" style="display:block;margin-top:12px;color:var(--muted);font-size:.85rem">Eigenes Zeichen / Emoji (max. 4 Zeichen)</label>
+  <div class="toolbar"><input type="text" id="i-custom" maxlength="16" style="flex:1"><button id="i-apply">Übernehmen</button></div>
+  <label class="l" style="display:block;margin-top:12px;color:var(--muted);font-size:.85rem">Eigenes Bild (PNG, JPG, SVG …; wird auf 96×96 verkleinert)</label>
+  <input type="file" id="i-file" accept="image/*">
+  <div class="toolbar" style="margin-top:14px"><button id="i-none">Kein Icon</button><span style="flex:1"></span><button id="i-cancel">Abbrechen</button></div>
+</dialog>
+
+<script src="../shared/storage.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const HEX = /^#[0-9a-f]{6}$/i;
+const IMG = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
+const MAXN = 100;
+const FIELD_TYPES = { text: 'Text', textarea: 'Mehrzeilig', number: 'Zahl', date: 'Datum', select: 'Auswahl', checkbox: 'Ja/Nein' };
+const EMOJIS = '🖥️ 💻 🖨️ 📠 ☎️ 📱 📷 📺 🔌 💡 🌐 📡 🗄️ 🗃️ 🪑 🛋️ 🛏️ 🚪 🪟 🚰 🚽 🚿 🧯 🔥 ❄️ 🌡️ 📦 🧰 🔧 🔒 🔑 🎤 🔊 📽️ 🖱️ ⌨️ 🧱 ⬛ 🟫 🪴 🗑️ 🍽️ ☕ 🛗 🪜 ⚠️ 🚨 🔋 📚 📋 🧪 🔬 ⚙️ 🏷️ ✅ ❌ ⭐ ➡️ ⬆️ ⬇️ ⬅️'.split(' ');
+
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function colName(i) { let s = ''; i++; while (i > 0) { const m = (i - 1) % 26; s = String.fromCharCode(65 + m) + s; i = Math.floor((i - 1) / 26); } return s; }
+const addr = (r, c) => colName(c) + (r + 1);
+const key = (r, c) => r + ',' + c;
+
+/* ---------- Daten ---------- */
+function makeDefaults() {
+  const T = (name, icon, color, o) => Object.assign({ id: uid(), name, icon, color, fill: false, useStatus: true }, o);
+  const wand = T('Wand', '', '#4b5563', { fill: true, useStatus: false });
+  const tuer = T('Tür', '🚪', '#a16207', { useStatus: false });
+  const fenster = T('Fenster', '🪟', '#38bdf8', { useStatus: false });
+  const pc = T('Arbeitsplatz', '🖥️', '#6b7280');
+  const drucker = T('Drucker', '🖨️', '#6b7280');
+  const netz = T('Netzwerk', '🌐', '#6b7280');
+  const schrank = T('Schrank', '🗄️', '#6b7280');
+  const S = (name, color) => ({ id: uid(), name, color });
+  const equip = [pc.id, drucker.id, netz.id, schrank.id];
+  return {
+    room: { name: 'Raum 1', cols: 20, rows: 14, zoom: 48 },
+    types: [wand, tuer, fenster, pc, drucker, netz, schrank],
+    statuses: [S('OK', '#22c55e'), S('Warnung', '#f59e0b'), S('Defekt', '#ef4444'), S('Geplant', '#3b82f6'), S('Inaktiv', '#9ca3af')],
+    fields: [
+      { id: uid(), label: 'Seriennummer', type: 'text', options: [], types: equip },
+      { id: uid(), label: 'Verantwortlich', type: 'text', options: [], types: equip },
+      { id: uid(), label: 'Notiz', type: 'textarea', options: [], types: [] },
+    ],
+    assets: [],
+  };
+}
+
+const store = SimpleStorage.create({
+  name: 'raumplan',
+  defaults: makeDefaults,
+  onChange: () => { normalize(store.data); resetHistory(); tool = { kind: 'select' }; render(); },
+  statusEl: $('status'),
+});
+const D = () => store.data;
+
+// Macht jede (auch handgeschriebene) Datei konsistent, ohne Assets zu verlieren.
+function normalize(d) {
+  const S = (v, def = '') => (typeof v === 'string' ? v : v == null ? def : String(v));
+  const I = (v, def, lo, hi) => { v = parseInt(v, 10); if (!Number.isFinite(v)) v = def; return Math.min(hi, Math.max(lo, v)); };
+  const objs = (a) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x === 'object');
+  const uniq = (set, id) => { id = S(id); if (!id || set.has(id)) id = uid(); set.add(id); return id; };
+  const room = d.room && typeof d.room === 'object' ? d.room : {};
+  d.room = { name: S(room.name, 'Raum 1'), cols: I(room.cols, 20, 1, MAXN), rows: I(room.rows, 14, 1, MAXN), zoom: I(room.zoom, 48, 28, 96) };
+
+  const tIds = new Set(), sIds = new Set(), fIds = new Set(), aIds = new Set();
+  d.types = objs(d.types).map((t) => ({
+    id: uniq(tIds, t.id), name: S(t.name, 'Typ'),
+    icon: IMG.test(t.icon) ? t.icon : Array.from(S(t.icon)).slice(0, 4).join(''),
+    color: HEX.test(t.color) ? t.color : '#6b7280', fill: !!t.fill, useStatus: t.useStatus !== false,
+  }));
+  d.statuses = objs(d.statuses).map((s) => ({ id: uniq(sIds, s.id), name: S(s.name, 'Status'), color: HEX.test(s.color) ? s.color : '#9ca3af' }));
+  d.fields = objs(d.fields).map((f) => ({
+    id: uniq(fIds, f.id), label: S(f.label, 'Feld'), type: Object.hasOwn(FIELD_TYPES, f.type) ? f.type : 'text',
+    options: (Array.isArray(f.options) ? f.options : []).map((o) => S(o)).filter(Boolean),
+    types: (Array.isArray(f.types) ? f.types : []).filter((x) => tIds.has(x)),
+  }));
+
+  const raw = objs(d.assets), pending = [], assets = [], used = new Set();
+  raw.forEach((a) => {
+    let t = S(a.type);
+    if (!tIds.has(t)) { // unbekannter Typ -> Platzhalter, damit nichts verloren geht
+      if (!t) t = uid();
+      tIds.add(t); d.types.push({ id: t, name: 'Unbekannt', icon: '❓', color: '#6b7280', fill: false, useStatus: true });
+    }
+    const type = d.types.find((x) => x.id === t);
+    const vals = {};
+    if (a.values && typeof a.values === 'object') for (const [k, v] of Object.entries(a.values)) if (k !== '__proto__' && ['string', 'number', 'boolean'].includes(typeof v)) vals[k] = v;
+    const st = sIds.has(a.status) ? a.status : null;
+    const asset = { id: uniq(aIds, a.id), type: t, status: type.useStatus ? (st || (d.statuses[0] ? d.statuses[0].id : null)) : null, name: S(a.name), row: parseInt(a.row, 10), col: parseInt(a.col, 10), values: vals };
+    if (Number.isInteger(asset.row) && Number.isInteger(asset.col) && asset.row >= 0 && asset.col >= 0 && asset.row < MAXN && asset.col < MAXN) {
+      d.room.rows = Math.max(d.room.rows, asset.row + 1); d.room.cols = Math.max(d.room.cols, asset.col + 1);
+    }
+    pending.push(asset);
+  });
+  pending.forEach((a) => {
+    const ok = Number.isInteger(a.row) && Number.isInteger(a.col) && a.row >= 0 && a.col >= 0 && a.row < MAXN && a.col < MAXN && !used.has(key(a.row, a.col));
+    if (!ok) { // belegt oder ungültig -> erstes freies Feld
+      let found = false;
+      for (let r = 0; r < d.room.rows && !found; r++) for (let c = 0; c < d.room.cols && !found; c++) if (!used.has(key(r, c))) { a.row = r; a.col = c; found = true; }
+      if (!found) return;
+    }
+    used.add(key(a.row, a.col)); assets.push(a);
+  });
+  d.assets = assets;
+}
+
+let typeById = new Map(), statusById = new Map(), byPos = new Map();
+function rebuild() {
+  const d = D();
+  typeById = new Map(d.types.map((t) => [t.id, t]));
+  statusById = new Map(d.statuses.map((s) => [s.id, s]));
+  byPos = new Map(d.assets.map((a) => [key(a.row, a.col), a]));
+}
+const assetAt = (r, c) => byPos.get(key(r, c));
+function addAsset(a) { D().assets.push(a); byPos.set(key(a.row, a.col), a); }
+function removeAsset(a) { const L = D().assets; L.splice(L.indexOf(a), 1); byPos.delete(key(a.row, a.col)); }
+function newAsset(typeId, r, c, extra) {
+  const t = typeById.get(typeId), first = D().statuses[0];
+  const a = Object.assign({ id: uid(), type: typeId, status: t.useStatus && first ? first.id : null, name: '', row: r, col: c, values: {} }, extra);
+  addAsset(a); return a;
+}
+
+/* ---------- Rückgängig / Wiederholen ---------- */
+let undoStack = [], redoStack = [], last = '';
+function resetHistory() { undoStack = []; redoStack = []; last = JSON.stringify(D()); }
+function commit(opts) {
+  const now = JSON.stringify(D());
+  if (now !== last) { undoStack.push(last); if (undoStack.length > 100) undoStack.shift(); redoStack = []; last = now; }
+  store.changed(); render(opts);
+}
+function restoreSnap(snap) { last = snap; store.data = JSON.parse(snap); normalize(store.data); store.changed(); render(); }
+function undo() { if (undoStack.length) { redoStack.push(last); restoreSnap(undoStack.pop()); } }
+function redo() { if (redoStack.length) { undoStack.push(last); restoreSnap(redoStack.pop()); } }
+
+/* ---------- Auswahl ---------- */
+let anchor = { r: 0, c: 0 }, focus = { r: 0, c: 0 };
+const rect = () => ({ r1: Math.min(anchor.r, focus.r), r2: Math.max(anchor.r, focus.r), c1: Math.min(anchor.c, focus.c), c2: Math.max(anchor.c, focus.c) });
+const inRect = (r, c) => { const x = rect(); return r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2; };
+const isMulti = () => { const x = rect(); return x.r1 !== x.r2 || x.c1 !== x.c2; };
+function assetsInRect() { const x = rect(); return D().assets.filter((a) => a.row >= x.r1 && a.row <= x.r2 && a.col >= x.c1 && a.col <= x.c2); }
+function clampSel() {
+  const R = D().room, cl = (p) => ({ r: Math.min(p.r, R.rows - 1), c: Math.min(p.c, R.cols - 1) });
+  anchor = cl(anchor); focus = cl(focus);
+}
+
+/* ---------- Werkzeug ---------- */
+let tool = { kind: 'select' };
+
+/* ---------- Toast ---------- */
+let toastT;
+function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800); }
+
+/* ---------- Icons ---------- */
+function iconEl(icon, size) {
+  if (IMG.test(icon)) { const i = document.createElement('img'); i.src = icon; i.alt = ''; i.draggable = false; if (size) i.style.width = i.style.height = size + 'px'; return i; }
+  const s = el('span', 'ic', icon); if (size) s.style.fontSize = size + 'px'; return s;
+}
+
+/* ---------- Rendering ---------- */
+let cellEls = [], colHeads = [], rowHeads = [];
+function render(opts) {
+  rebuild(); clampSel();
+  if (tool.kind === 'stamp' && !typeById.has(tool.type)) tool = { kind: 'select' };
+  renderTools(); renderLegend(); renderGrid();
+  if (!opts || !opts.keepPanel) renderSide();
+  $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
+}
+
+function renderTools() {
+  const R = D().room;
+  if (document.activeElement !== $('roomname')) $('roomname').value = R.name;
+  $('zoom').value = R.zoom;
+  const p = $('palette'); p.textContent = '';
+  const mk = (kids, title, on, fn) => { const b = el('button', 'tool' + (on ? ' on' : '')); b.type = 'button'; b.title = title; b.append(...kids); b.onclick = fn; p.append(b); };
+  mk(['↖ Auswahl'], 'Auswählen (Esc)', tool.kind === 'select', () => { tool = { kind: 'select' }; renderTools(); });
+  D().types.forEach((t) => mk([iconEl(t.icon, 18), ' ' + t.name], `Stempel: ${t.name} – klicken oder ziehen zum Platzieren`, tool.kind === 'stamp' && tool.type === t.id, () => { tool = { kind: 'stamp', type: t.id }; renderTools(); }));
+  mk(['⌫ Radierer'], 'Assets löschen – klicken oder ziehen', tool.kind === 'erase', () => { tool = { kind: 'erase' }; renderTools(); });
+}
+
+function renderLegend() {
+  const lg = $('legend'); lg.textContent = '';
+  const d = D(); const counts = new Map();
+  d.assets.forEach((a) => { if (a.status) counts.set(a.status, (counts.get(a.status) || 0) + 1); });
+  d.statuses.forEach((s) => { const x = el('span'); const dot = el('span', 'dot'); dot.style.setProperty('--sc', s.color); x.append(dot, `${s.name}: ${counts.get(s.id) || 0}`); lg.append(x); });
+  lg.append(el('span', null, `Assets gesamt: ${d.assets.length}`));
+}
+
+function tooltip(a) {
+  const t = typeById.get(a.type), s = t && t.useStatus ? statusById.get(a.status) : null;
+  const lines = [`${a.name || t.name} (${t.name}${s ? ', ' + s.name : ''}) – ${addr(a.row, a.col)}`];
+  fieldsFor(t).forEach((f) => { const v = a.values[f.id]; if (v !== undefined && v !== '' && v !== false) lines.push(`${f.label}: ${v === true ? 'Ja' : v}`); });
+  return lines.join('\n');
+}
+const fieldsFor = (t) => D().fields.filter((f) => !f.types.length || f.types.includes(t.id));
+
+function fillCell(div, a) {
+  div.className = 'cell'; div.textContent = ''; div.draggable = false; div.removeAttribute('title');
+  div.style.removeProperty('--sc'); div.style.removeProperty('--fc');
+  if (!a) return;
+  const t = typeById.get(a.type), s = t.useStatus ? statusById.get(a.status) : null;
+  div.classList.add('has'); div.draggable = true;
+  if (t.fill) { div.classList.add('fill'); div.style.setProperty('--fc', t.color); }
+  if (s) { div.classList.add('st'); div.style.setProperty('--sc', s.color); }
+  if (t.icon) div.append(iconEl(t.icon));
+  if (a.name) div.append(el('span', 'nm', a.name));
+  div.title = tooltip(a);
+}
+
+function renderGrid() {
+  const g = $('grid'), R = D().room, cs = R.zoom;
+  g.style.setProperty('--cs', cs + 'px');
+  g.style.gridTemplateColumns = `36px repeat(${R.cols}, ${cs}px)`;
+  g.style.gridTemplateRows = `24px repeat(${R.rows}, ${cs}px)`;
+  g.classList.toggle('small', cs < 40);
+  const frag = document.createDocumentFragment();
+  const corner = el('div', 'h corner', ''); corner.dataset.k = 'all'; frag.append(corner);
+  colHeads = []; rowHeads = []; cellEls = [];
+  for (let c = 0; c < R.cols; c++) { const h = el('div', 'h col', colName(c)); h.dataset.k = 'col'; h.dataset.c = c; colHeads.push(h); frag.append(h); }
+  for (let r = 0; r < R.rows; r++) {
+    const h = el('div', 'h row', String(r + 1)); h.dataset.k = 'row'; h.dataset.r = r; rowHeads.push(h); frag.append(h);
+    const row = [];
+    for (let c = 0; c < R.cols; c++) {
+      const div = document.createElement('div'); div.dataset.r = r; div.dataset.c = c;
+      fillCell(div, assetAt(r, c)); row.push(div); frag.append(div);
+    }
+    cellEls.push(row);
+  }
+  g.textContent = ''; g.append(frag);
+  updateSel();
+}
+function refreshCell(r, c) { if (cellEls[r] && cellEls[r][c]) { fillCell(cellEls[r][c], assetAt(r, c)); applySelClass(r, c); } }
+function applySelClass(r, c) {
+  const x = rect(), d = cellEls[r][c];
+  d.classList.toggle('sel', (x.r1 !== x.r2 || x.c1 !== x.c2) && r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2);
+  d.classList.toggle('act', r === focus.r && c === focus.c);
+}
+function updateSel() {
+  const x = rect();
+  for (let r = 0; r < cellEls.length; r++) for (let c = 0; c < cellEls[r].length; c++) applySelClass(r, c);
+  colHeads.forEach((h, c) => h.classList.toggle('hl', c >= x.c1 && c <= x.c2));
+  rowHeads.forEach((h, r) => h.classList.toggle('hl', r >= x.r1 && r <= x.r2));
+}
+
+/* ---------- Seitenleiste ---------- */
+function lbl(text) { const l = el('label', 'l', text); return l; }
+function renderSide() {
+  const s = $('side'); s.textContent = '';
+  const x = rect(), d = D();
+  if (!isMulti()) {
+    const a = assetAt(x.r1, x.c1);
+    if (a) assetForm(s, a); else emptyPanel(s, x.r1, x.c1);
+    return;
+  }
+  const list = assetsInRect(), n = (x.r2 - x.r1 + 1) * (x.c2 - x.c1 + 1);
+  const h = el('h2'); h.append(el('span', null, `${addr(x.r1, x.c1)} : ${addr(x.r2, x.c2)}`)); s.append(h);
+  s.append(el('p', 'hint', `${n} Zellen ausgewählt, ${list.length} Asset(s).`));
+  if (list.length) {
+    s.append(lbl('Status für alle setzen'));
+    const chips = el('div', 'chips');
+    d.statuses.forEach((st) => {
+      const b = el('button', 'chipb'); b.type = 'button'; b.style.setProperty('--sc', st.color);
+      const dot = el('span', 'dot'); dot.style.setProperty('--sc', st.color); b.append(dot, st.name);
+      b.onclick = () => { let k = 0; list.forEach((a) => { if (typeById.get(a.type).useStatus) { a.status = st.id; k++; } }); if (!k) toast('Diese Typen haben keinen Status'); commit(); };
+      chips.append(b);
+    });
+    s.append(chips);
+    s.append(lbl('Typ für alle ändern'));
+    const sel = el('select'); sel.append(new Option('Typ wählen…', ''));
+    d.types.forEach((t) => sel.append(new Option(t.name, t.id)));
+    sel.onchange = () => { if (!sel.value) return; list.forEach((a) => setType(a, sel.value)); commit(); };
+    s.append(sel);
+    const del = el('button', null, `${list.length} Asset(s) löschen`); del.style.marginTop = '14px'; del.onclick = deleteSel; s.append(del);
+  } else {
+    s.append(el('p', 'hint', 'Keine Assets im Bereich. Strg+V fügt Kopiertes hier ein.'));
+  }
+}
+function setType(a, typeId) {
+  a.type = typeId; const t = typeById.get(typeId);
+  a.status = t.useStatus ? (statusById.has(a.status) ? a.status : (D().statuses[0] ? D().statuses[0].id : null)) : null;
+}
+function emptyPanel(s, r, c) {
+  const h = el('h2'); h.append(el('span', null, `${addr(r, c)} – leer`)); s.append(h);
+  if (!D().types.length) { s.append(el('p', 'hint', 'Noch keine Typen. Unter „Konfiguration“ anlegen.')); return; }
+  s.append(el('p', 'hint', 'Asset anlegen:'));
+  const box = el('div', 'chips');
+  D().types.forEach((t) => {
+    const b = el('button', 'tool'); b.type = 'button'; b.append(iconEl(t.icon, 18), ' ' + t.name);
+    b.onclick = () => { newAsset(t.id, r, c); commit(); focusName(); };
+    box.append(b);
+  });
+  s.append(box);
+}
+function focusName() { const i = $('side').querySelector('[data-name]'); if (i) { i.focus(); i.select(); } }
+
+function assetForm(s, a) {
+  const t = typeById.get(a.type), d = D();
+  const h = el('h2'); h.append(el('span', null, `${addr(a.row, a.col)} – ${t.name}`));
+  const del = el('button', 'small-btn', 'Löschen'); del.onclick = () => { removeAsset(a); commit(); }; h.append(del); s.append(h);
+
+  s.append(lbl('Typ'));
+  const ts = el('select'); d.types.forEach((x) => ts.append(new Option(x.name, x.id))); ts.value = a.type;
+  ts.onchange = () => { setType(a, ts.value); commit(); }; s.append(ts);
+
+  if (t.useStatus) {
+    s.append(lbl('Status'));
+    const chips = el('div', 'chips');
+    d.statuses.forEach((st) => {
+      const b = el('button', 'chipb' + (a.status === st.id ? ' on' : '')); b.type = 'button'; b.style.setProperty('--sc', st.color);
+      const dot = el('span', 'dot'); dot.style.setProperty('--sc', st.color); b.append(dot, st.name);
+      b.onclick = () => { a.status = st.id; commit(); };
+      chips.append(b);
+    });
+    if (!d.statuses.length) chips.append(el('span', 'hint', 'Keine Status definiert'));
+    s.append(chips);
+  }
+
+  s.append(lbl('Name'));
+  const nm = el('input'); nm.type = 'text'; nm.dataset.name = '1'; nm.value = a.name; nm.placeholder = t.name;
+  nm.oninput = () => { a.name = nm.value; store.changed(); refreshCell(a.row, a.col); };
+  nm.onchange = () => commit({ keepPanel: true });
+  nm.onkeydown = (e) => { if (e.key === 'Enter') { nm.blur(); $('gridwrap').focus({ preventScroll: true }); } };
+  s.append(nm);
+
+  fieldsFor(t).forEach((f) => { s.append(lbl(f.label)); s.append(fieldInput(f, a)); });
+}
+function fieldInput(f, a) {
+  const v = a.values[f.id];
+  const set = (val) => { if (val === '' || val === false || val == null) delete a.values[f.id]; else a.values[f.id] = val; store.changed(); refreshCell(a.row, a.col); };
+  let inp;
+  if (f.type === 'textarea') { inp = el('textarea'); inp.value = v == null ? '' : String(v); inp.oninput = () => set(inp.value); }
+  else if (f.type === 'select') {
+    inp = el('select'); inp.append(new Option('', ''));
+    f.options.forEach((o) => inp.append(new Option(o, o)));
+    if (v != null && v !== '' && !f.options.includes(String(v))) inp.append(new Option(String(v), String(v)));
+    inp.value = v == null ? '' : String(v); inp.onchange = () => set(inp.value);
+  } else if (f.type === 'checkbox') {
+    inp = el('input'); inp.type = 'checkbox'; inp.checked = v === true; inp.onchange = () => set(inp.checked);
+  } else {
+    inp = el('input'); inp.type = f.type === 'number' ? 'number' : f.type === 'date' ? 'date' : 'text'; if (f.type === 'number') inp.step = 'any';
+    inp.value = v == null ? '' : String(v); inp.oninput = () => set(inp.value);
+  }
+  inp.addEventListener('change', () => commit({ keepPanel: true }));
+  return inp;
+}
+
+/* ---------- Aktionen ---------- */
+function deleteSel() {
+  const list = assetsInRect(); if (!list.length) return;
+  list.forEach(removeAsset); commit();
+}
+let clip = null;
+function copySel() {
+  const x = rect(), list = assetsInRect();
+  if (!list.length) { toast('Nichts zum Kopieren ausgewählt'); return false; }
+  clip = { w: x.c2 - x.c1 + 1, h: x.r2 - x.r1 + 1, items: list.map((a) => ({ dr: a.row - x.r1, dc: a.col - x.c1, type: a.type, status: a.status, name: a.name, values: JSON.parse(JSON.stringify(a.values)) })) };
+  return true;
+}
+function pasteClip() {
+  if (!clip) return toast('Zwischenablage ist leer');
+  const x = rect(), R = D().room; let skipped = 0;
+  clip.items.forEach((it) => {
+    const r = x.r1 + it.dr, c = x.c1 + it.dc;
+    if (r >= R.rows || c >= R.cols || !typeById.has(it.type)) { skipped++; return; }
+    const old = assetAt(r, c); if (old) removeAsset(old);
+    const t = typeById.get(it.type);
+    newAsset(it.type, r, c, { name: it.name, values: JSON.parse(JSON.stringify(it.values)), status: t.useStatus ? (statusById.has(it.status) ? it.status : (D().statuses[0] ? D().statuses[0].id : null)) : null });
+  });
+  anchor = { r: x.r1, c: x.c1 };
+  focus = { r: Math.min(R.rows - 1, x.r1 + clip.h - 1), c: Math.min(R.cols - 1, x.c1 + clip.w - 1) };
+  if (skipped) toast(`${skipped} Asset(s) lagen außerhalb des Raums und wurden nicht eingefügt`);
+  commit();
+}
+
+/* ---------- Maus ---------- */
+let mode = null, painted = false, drag = null;
+function paint(r, c) {
+  if (tool.kind === 'stamp') {
+    if (assetAt(r, c) || !typeById.has(tool.type)) return;
+    newAsset(tool.type, r, c); painted = true; refreshCell(r, c);
+  } else if (tool.kind === 'erase') {
+    const a = assetAt(r, c); if (!a) return;
+    removeAsset(a); painted = true; refreshCell(r, c);
+  }
+}
+const cellOf = (e) => { const c = e.target.closest && e.target.closest('.cell'); return c && c.dataset.r != null ? { r: +c.dataset.r, c: +c.dataset.c, el: c } : null; };
+
+const gridEl = $('grid');
+gridEl.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return;
+  const h = e.target.closest('.h');
+  if (h) {
+    const R = D().room, k = h.dataset.k;
+    if (k === 'col') { anchor = { r: 0, c: +h.dataset.c }; focus = { r: R.rows - 1, c: +h.dataset.c }; }
+    else if (k === 'row') { anchor = { r: +h.dataset.r, c: 0 }; focus = { r: +h.dataset.r, c: R.cols - 1 }; }
+    else { anchor = { r: 0, c: 0 }; focus = { r: R.rows - 1, c: R.cols - 1 }; }
+    updateSel(); renderSide(); return;
+  }
+  const cell = cellOf(e); if (!cell) return;
+  const { r, c } = cell;
+  if (tool.kind !== 'select') { anchor = { r, c }; focus = { r, c }; mode = 'paint'; paint(r, c); updateSel(); return; }
+  if (e.shiftKey) { focus = { r, c }; updateSel(); renderSide(); e.preventDefault(); return; }
+  const a = assetAt(r, c);
+  if (a && isMulti() && inRect(r, c)) return; // Block bleibt für Drag & Drop erhalten
+  anchor = { r, c }; focus = { r, c }; updateSel();
+  if (a) renderSide(); else mode = 'select';
+});
+gridEl.addEventListener('mouseover', (e) => {
+  if (!mode) return;
+  const cell = cellOf(e); if (!cell) return;
+  if (mode === 'paint') paint(cell.r, cell.c);
+  if (cell.r !== focus.r || cell.c !== focus.c) { focus = { r: cell.r, c: cell.c }; updateSel(); }
+});
+document.addEventListener('mouseup', () => {
+  const m = mode; mode = null;
+  if (m === 'paint' && painted) { painted = false; commit(); }
+  else if (m) renderSide();
+});
+gridEl.addEventListener('dblclick', (e) => { const cell = cellOf(e); if (cell && assetAt(cell.r, cell.c)) focusName(); });
+
+// Drag & Drop: Assets verschieben (Strg = kopieren)
+gridEl.addEventListener('dragstart', (e) => {
+  const cell = cellOf(e); const a = cell && assetAt(cell.r, cell.c);
+  if (!a || tool.kind !== 'select') { e.preventDefault(); return; }
+  let items;
+  if (isMulti() && inRect(cell.r, cell.c)) items = assetsInRect();
+  else { anchor = { r: cell.r, c: cell.c }; focus = { r: cell.r, c: cell.c }; updateSel(); items = [a]; }
+  drag = { items, r: cell.r, c: cell.c };
+  e.dataTransfer.effectAllowed = 'copyMove'; e.dataTransfer.setData('text/plain', 'asset');
+});
+gridEl.addEventListener('dragover', (e) => { if (drag) { e.preventDefault(); e.dataTransfer.dropEffect = e.ctrlKey || e.metaKey ? 'copy' : 'move'; } });
+gridEl.addEventListener('dragend', () => { drag = null; });
+gridEl.addEventListener('drop', (e) => {
+  if (!drag) return; e.preventDefault();
+  const cell = cellOf(e), dg = drag; drag = null; if (!cell) return;
+  const dr = cell.r - dg.r, dc = cell.c - dg.c, copy = e.ctrlKey || e.metaKey, R = D().room;
+  if (!dr && !dc) return;
+  const moving = new Set(dg.items);
+  for (const a of dg.items) {
+    const nr = a.row + dr, nc = a.col + dc;
+    if (nr < 0 || nc < 0 || nr >= R.rows || nc >= R.cols) return toast('Ziel liegt außerhalb des Raums');
+    const o = assetAt(nr, nc);
+    if (o && (copy || !moving.has(o))) return toast('Ziel ist belegt');
+  }
+  if (copy) dg.items.forEach((a) => newAsset(a.type, a.row + dr, a.col + dc, { status: a.status, name: a.name, values: JSON.parse(JSON.stringify(a.values)) }));
+  else {
+    dg.items.forEach((a) => byPos.delete(key(a.row, a.col)));
+    dg.items.forEach((a) => { a.row += dr; a.col += dc; byPos.set(key(a.row, a.col), a); });
+  }
+  anchor = { r: anchor.r + dr, c: anchor.c + dc }; focus = { r: focus.r + dr, c: focus.c + dc };
+  commit();
+});
+
+/* ---------- Tastatur ---------- */
+document.addEventListener('keydown', (e) => {
+  if (document.querySelector('dialog[open]')) return;
+  const tag = e.target.tagName;
+  if (/^(INPUT|TEXTAREA|SELECT)$/.test(tag) || e.target.isContentEditable) return;
+  const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+  if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+  if (mod && k === 'y') { e.preventDefault(); redo(); return; }
+  if (e.target !== document.body && !$('gridwrap').contains(e.target)) return;
+  const R = D().room;
+  if (e.key.startsWith('Arrow')) {
+    e.preventDefault();
+    const d = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+    focus = { r: Math.max(0, Math.min(R.rows - 1, focus.r + d[0])), c: Math.max(0, Math.min(R.cols - 1, focus.c + d[1])) };
+    if (!e.shiftKey) anchor = { ...focus };
+    updateSel(); renderSide();
+    cellEls[focus.r][focus.c].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  } else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSel(); }
+  else if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); focusName(); }
+  else if (e.key === 'Escape') { tool = { kind: 'select' }; renderTools(); }
+  else if (mod && k === 'a') { e.preventDefault(); anchor = { r: 0, c: 0 }; focus = { r: R.rows - 1, c: R.cols - 1 }; updateSel(); renderSide(); }
+  else if (mod && k === 'c') { e.preventDefault(); copySel(); }
+  else if (mod && k === 'x') { e.preventDefault(); if (copySel()) deleteSel(); }
+  else if (mod && k === 'v') { e.preventDefault(); pasteClip(); }
+});
+
+/* ---------- Konfiguration ---------- */
+let cfgTab = 'types';
+const TABS = [['types', 'Typen & Icons'], ['statuses', 'Status'], ['fields', 'Felder'], ['room', 'Raum']];
+function cfgCommit(redraw) { commit({ keepPanel: false }); if (redraw) renderCfg(); }
+function moveIn(arr, i, dir) { const j = i + dir; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; cfgCommit(true); }
+function btn(text, title, fn, cls) { const b = el('button', cls || 'small-btn', text); b.type = 'button'; b.title = title; b.onclick = fn; return b; }
+function textInput(value, ph, onInput) {
+  const i = el('input'); i.type = 'text'; i.value = value; i.placeholder = ph;
+  i.oninput = () => { onInput(i.value); store.changed(); };
+  i.onchange = () => cfgCommit(false);
+  return i;
+}
+function colorInput(value, onInput) {
+  const i = el('input'); i.type = 'color'; i.value = value;
+  i.oninput = () => { onInput(i.value); store.changed(); };
+  i.onchange = () => cfgCommit(false);
+  return i;
+}
+function checkbox(text, checked, onChange) {
+  const l = el('label'); const i = el('input'); i.type = 'checkbox'; i.checked = checked; i.onchange = () => onChange(i.checked);
+  l.append(i, ' ' + text); return l;
+}
+
+function renderCfg() {
+  const tabs = $('cfg-tabs'); tabs.textContent = '';
+  TABS.forEach(([id, name]) => { const b = el('button', cfgTab === id ? 'on' : '', name); b.type = 'button'; b.onclick = () => { cfgTab = id; renderCfg(); }; tabs.append(b); });
+  const box = $('cfg-body'); box.textContent = '';
+  ({ types: cfgTypes, statuses: cfgStatuses, fields: cfgFields, room: cfgRoom })[cfgTab](box);
+}
+
+function cfgTypes(box) {
+  const d = D();
+  box.append(el('p', 'hint', 'Typen erscheinen als Stempel in der Leiste. „Status“ = das Asset hat einen farbigen Status. „Fläche füllen“ färbt die ganze Zelle (z. B. Wand).'));
+  d.types.forEach((t, i) => {
+    const row = el('div', 'cfgrow');
+    const ib = el('button', 'iconpick'); ib.type = 'button'; ib.title = 'Icon ändern'; ib.append(t.icon ? iconEl(t.icon) : document.createTextNode('＋')); ib.onclick = () => openIconPicker(t);
+    row.append(ib, textInput(t.name, 'Name', (v) => { t.name = v; }), colorInput(t.color, (v) => { t.color = v; }),
+      checkbox('Status', t.useStatus, (v) => { t.useStatus = v; d.assets.filter((a) => a.type === t.id).forEach((a) => setType(a, t.id)); cfgCommit(false); }),
+      checkbox('Fläche füllen', t.fill, (v) => { t.fill = v; cfgCommit(false); }),
+      btn('▲', 'Nach oben', () => moveIn(d.types, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.types, i, 1)),
+      btn('✕', 'Typ löschen', () => {
+        const used = d.assets.filter((a) => a.type === t.id);
+        if (!confirm(`Typ „${t.name}“ löschen${used.length ? ` inkl. ${used.length} Asset(s)` : ''}?`)) return;
+        used.forEach(removeAsset); d.types.splice(i, 1); d.fields.forEach((f) => { f.types = f.types.filter((x) => x !== t.id); }); cfgCommit(true);
+      }));
+    box.append(row);
+  });
+  const add = btn('+ Typ', 'Neuen Typ anlegen', () => { d.types.push({ id: uid(), name: 'Neuer Typ', icon: '📦', color: '#6b7280', fill: false, useStatus: true }); cfgCommit(true); }, '');
+  add.style.marginTop = '8px'; box.append(add);
+}
+
+function cfgStatuses(box) {
+  const d = D();
+  box.append(el('p', 'hint', 'Die Farbe wird in der Zelle angezeigt. Neue Assets bekommen den ersten Status der Liste.'));
+  d.statuses.forEach((s, i) => {
+    const row = el('div', 'cfgrow');
+    row.append(colorInput(s.color, (v) => { s.color = v; }), textInput(s.name, 'Name', (v) => { s.name = v; }),
+      btn('▲', 'Nach oben', () => moveIn(d.statuses, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.statuses, i, 1)),
+      btn('✕', 'Status löschen', () => {
+        const used = d.assets.filter((a) => a.status === s.id);
+        if (!confirm(`Status „${s.name}“ löschen${used.length ? `? ${used.length} Asset(s) bekommen den ersten verbleibenden Status` : '?'}`)) return;
+        d.statuses.splice(i, 1);
+        used.forEach((a) => { a.status = d.statuses[0] ? d.statuses[0].id : null; });
+        cfgCommit(true);
+      }));
+    box.append(row);
+  });
+  const add = btn('+ Status', 'Neuen Status anlegen', () => { d.statuses.push({ id: uid(), name: 'Neuer Status', color: '#a855f7' }); cfgCommit(true); }, '');
+  add.style.marginTop = '8px'; box.append(add);
+}
+
+function cfgFields(box) {
+  const d = D();
+  box.append(el('p', 'hint', 'Felder, die jedes Asset zusätzlich zum Namen hat. Optional auf bestimmte Typen beschränkbar.'));
+  d.fields.forEach((f, i) => {
+    const row = el('div', 'cfgrow');
+    const ts = el('select'); Object.entries(FIELD_TYPES).forEach(([k, v]) => ts.append(new Option(v, k))); ts.value = f.type;
+    ts.onchange = () => { f.type = ts.value; cfgCommit(true); };
+    row.append(textInput(f.label, 'Bezeichnung', (v) => { f.label = v; }), ts);
+    if (f.type === 'select') {
+      const o = textInput(f.options.join(', '), 'Optionen, kommagetrennt', (v) => { f.options = v.split(',').map((x) => x.trim()).filter(Boolean); });
+      row.append(o);
+    }
+    row.append(btn('▲', 'Nach oben', () => moveIn(d.fields, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.fields, i, 1)),
+      btn('✕', 'Feld löschen', () => {
+        if (!confirm(`Feld „${f.label}“ löschen? Die eingetragenen Werte gehen verloren.`)) return;
+        d.assets.forEach((a) => { delete a.values[f.id]; }); d.fields.splice(i, 1); cfgCommit(true);
+      }));
+    const det = el('details', 'types');
+    const sum = el('summary', null, f.types.length ? `Gilt für: ${f.types.map((id) => (typeById.get(id) || {}).name).filter(Boolean).join(', ')}` : 'Gilt für: alle Typen');
+    det.append(sum);
+    d.types.forEach((t) => det.append(checkbox(t.name, f.types.includes(t.id), (v) => {
+      f.types = v ? [...f.types, t.id] : f.types.filter((x) => x !== t.id); cfgCommit(false);
+      sum.textContent = f.types.length ? `Gilt für: ${f.types.map((id) => (typeById.get(id) || {}).name).filter(Boolean).join(', ')}` : 'Gilt für: alle Typen';
+    })));
+    det.append(el('div', 'hint', 'Nichts angehakt = gilt für alle Typen.'));
+    row.append(det); box.append(row);
+  });
+  const add = btn('+ Feld', 'Neues Feld anlegen', () => { d.fields.push({ id: uid(), label: 'Neues Feld', type: 'text', options: [], types: [] }); cfgCommit(true); }, '');
+  add.style.marginTop = '8px'; box.append(add);
+}
+
+function cfgRoom(box) {
+  const R = D().room;
+  box.append(el('p', 'hint', `Raumgröße in Zellen (1–${MAXN}). Spalten = A, B, C …, Zeilen = 1, 2, 3 …`));
+  const row = el('div', 'cfgrow');
+  const mk = (label, val) => { const l = el('label', null, label + ' '); const i = el('input'); i.type = 'number'; i.min = 1; i.max = MAXN; i.value = val; i.style.width = '90px'; l.append(i); return [l, i]; };
+  const [lc, ic] = mk('Spalten', R.cols), [lr, ir] = mk('Zeilen', R.rows);
+  const apply = () => {
+    const cols = Math.min(MAXN, Math.max(1, parseInt(ic.value, 10) || R.cols)), rows = Math.min(MAXN, Math.max(1, parseInt(ir.value, 10) || R.rows));
+    const lost = D().assets.filter((a) => a.col >= cols || a.row >= rows);
+    if (lost.length && !confirm(`${lost.length} Asset(s) liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { renderCfg(); return; }
+    lost.forEach(removeAsset); R.cols = cols; R.rows = rows; cfgCommit(true);
+  };
+  ic.onchange = apply; ir.onchange = apply;
+  row.append(lc, lr); box.append(row);
+}
+
+// Icon-Auswahl
+let iconTarget = null;
+function openIconPicker(t) {
+  iconTarget = t; const g = $('emojis'); g.textContent = '';
+  EMOJIS.forEach((e) => { const b = el('button', null, e); b.type = 'button'; b.onclick = () => setIcon(e); g.append(b); });
+  $('i-custom').value = IMG.test(t.icon) ? '' : t.icon;
+  $('dlg-icon').showModal();
+}
+function setIcon(v) { iconTarget.icon = v; $('dlg-icon').close(); cfgCommit(true); }
+$('i-apply').onclick = () => setIcon(Array.from($('i-custom').value.trim()).slice(0, 4).join(''));
+$('i-none').onclick = () => setIcon('');
+$('i-cancel').onclick = () => $('dlg-icon').close();
+function fileToIcon(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error('Datei konnte nicht gelesen werden'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error('Bild konnte nicht gelesen werden'));
+      img.onload = () => {
+        const S = 96, cv = document.createElement('canvas'); cv.width = cv.height = S;
+        const iw = img.naturalWidth || S, ih = img.naturalHeight || S, k = Math.min(S / iw, S / ih), w = iw * k, h = ih * k;
+        cv.getContext('2d').drawImage(img, (S - w) / 2, (S - h) / 2, w, h);
+        res(cv.toDataURL('image/png'));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+$('i-file').onchange = async (e) => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try { setIcon(await fileToIcon(f)); } catch (err) { toast(err.message); }
+};
+$('cfgbtn').onclick = () => { renderCfg(); $('dlg-cfg').showModal(); };
+$('cfg-close').onclick = () => $('dlg-cfg').close();
+
+/* ---------- Toolbar ---------- */
+$('roomname').oninput = (e) => { D().room.name = e.target.value; store.changed(); };
+$('roomname').onchange = () => commit({ keepPanel: true });
+$('zoom').oninput = (e) => { D().room.zoom = +e.target.value; store.changed(); last = JSON.stringify(D()); renderGrid(); };
+$('undo').onclick = undo; $('redo').onclick = redo;
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+normalize(D()); resetHistory(); render();
+store.restore();
+</script>
+</body>
+</html>
