@@ -8,7 +8,7 @@
 <style>
   :root { --on-acc:#fff; }
   @media (prefers-color-scheme: dark) { :root { --on-acc:#0b1220; } }
-  button.primary, .tool.on, .tabs button.on { color:var(--on-acc); }
+  button.primary, .tool.on, .tabs button.on, .rtab.on { color:var(--on-acc); }
   main.wide { max-width:none; }
   .layout { display:flex; gap:12px; align-items:flex-start; }
   .gridwrap { flex:1; min-width:0; overflow:auto; max-height:72vh; border:1px solid var(--line); border-radius:10px; background:var(--card); scroll-padding:28px 40px; outline:none; }
@@ -72,7 +72,23 @@
   details.types label { display:inline-block; margin-right:12px; }
   #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:8px; z-index:50; }
   #toast[hidden] { display:none; }
-  #roomname { width:200px; font-weight:600; }
+  #roomname { width:200px; font-weight:600; max-width:100%; }
+
+  /* Raum-Tabs (Stil wie die Board-Tabs im Kanban) */
+  .roombar { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; margin:8px 0; }
+  .roomtabs, .roomacts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; min-width:0; }
+  .rtab { max-width:min(14rem, 70vw); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rtab.on { background:var(--accent); border-color:var(--accent); }
+  .roomacts button { padding:4px 10px; }
+  button[aria-disabled=true] { opacity:.4; cursor:not-allowed; }
+  button[aria-disabled=true]:hover { border-color:var(--line); }
+  .cfg h3 { font-size:1rem; margin:18px 0 2px; }
+  .cfgrow .rname { flex:1; min-width:120px; font-weight:600; overflow-wrap:anywhere; }
+  .cfgrow .rmeta { color:var(--muted); font-size:.9rem; white-space:nowrap; }
+  .cfgrow.cur .rname::after { content:' (aktiv)'; color:var(--muted); font-weight:400; }
+  dialog label.blk { display:block; font-size:.85rem; color:var(--muted); margin:10px 0 4px; }
+  dialog .two { display:flex; gap:10px; } dialog .two > div { flex:1; min-width:0; }
+  dialog .two input { width:100%; }
 </style>
 </head>
 <body>
@@ -90,18 +106,22 @@
     <button id="cfgbtn">⚙ Konfiguration</button>
   </div>
   <div id="status"></div>
+  <div class="roombar">
+    <div class="roomtabs" id="roomtabs" role="tablist" aria-label="Räume"></div>
+    <div class="roomacts" id="roomacts" role="group" aria-label="Raum-Aktionen"></div>
+  </div>
   <div class="card toolbar tools">
-    <input type="text" id="roomname" aria-label="Raumname" placeholder="Raumname">
+    <input type="text" id="roomname" aria-label="Raumname (aktueller Raum)" placeholder="Raumname">
     <span id="palette" class="toolbar tools"></span>
     <span style="flex:1"></span>
     <label>Zoom <input type="range" id="zoom" min="28" max="96" step="2"></label>
   </div>
   <div class="legend" id="legend"></div>
-  <div class="layout">
+  <div class="layout" id="roompanel" role="tabpanel">
     <div class="gridwrap" id="gridwrap" tabindex="0" aria-label="Raster"><div id="grid" class="grid"></div></div>
     <aside class="side card" id="side"></aside>
   </div>
-  <p class="hint">Klick = auswählen · Ziehen = Bereich · Asset ziehen = verschieben (Strg = kopieren) · Entf = löschen · Strg+C/X/V · Pfeiltasten · Enter = Name bearbeiten · Typ in der Leiste wählen = Stempel (Esc beendet)</p>
+  <p class="hint">Klick = auswählen · Ziehen = Bereich · Asset ziehen = verschieben (Strg = kopieren) · Entf = löschen · Strg+C/X/V · Pfeiltasten · Enter = Name bearbeiten · Typ in der Leiste wählen = Stempel (Esc beendet) · Räume: Tabs oben (←/→ wechseln); Kopiertes lässt sich in einem anderen Raum einfügen</p>
 </main>
 
 <div id="toast" hidden></div>
@@ -111,6 +131,19 @@
   <div class="tabs" id="cfg-tabs"></div>
   <div id="cfg-body"></div>
   <div class="toolbar" style="margin-top:14px"><span style="flex:1"></span><button id="cfg-close" class="primary">Schließen</button></div>
+</dialog>
+
+<dialog id="dlg-room" class="small" aria-labelledby="room-h">
+  <form method="dialog" id="roomform">
+    <h2 id="room-h" style="margin-top:0">Neuer Raum</h2>
+    <label class="blk" for="nr-name">Name</label>
+    <input type="text" id="nr-name" maxlength="80" style="width:100%">
+    <div class="two">
+      <div><label class="blk" for="nr-cols">Spalten (1–100)</label><input type="number" id="nr-cols" min="1" max="100" step="1" required></div>
+      <div><label class="blk" for="nr-rows">Zeilen (1–100)</label><input type="number" id="nr-rows" min="1" max="100" step="1" required></div>
+    </div>
+    <div class="toolbar" style="margin-top:14px"><span style="flex:1"></span><button type="button" id="nr-cancel">Abbrechen</button><button class="primary" id="nr-ok">Anlegen</button></div>
+  </form>
 </dialog>
 
 <dialog id="dlg-icon" class="small">
@@ -127,7 +160,8 @@
 <script src="../shared/storage.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
-const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+let uidN = 0; // Zähler: auch viele IDs in derselben Millisekunde (z. B. beim Duplizieren eines Raums) bleiben eindeutig
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + (++uidN).toString(36);
 const HEX = /^#[0-9a-f]{6}$/i;
 const IMG = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/=]+$/;
 const MAXN = 100;
@@ -165,7 +199,7 @@ function makeDefaults() {
   const S = (name, color) => ({ id: uid(), name, color });
   const equip = [pc.id, drucker.id, netz.id, schrank.id];
   return {
-    room: { name: 'Raum 1', cols: 20, rows: 14, zoom: 48 },
+    rooms: [], // der Standardraum entsteht in normalize() (so lässt sich eine alte Datei mit room + assets verlustfrei übernehmen)
     types: [wand, tuer, fenster, pc, drucker, netz, schrank],
     statuses: [S('OK', '#22c55e'), S('Warnung', '#f59e0b'), S('Defekt', '#ef4444'), S('Geplant', '#3b82f6'), S('Inaktiv', '#9ca3af')],
     fields: [
@@ -173,7 +207,6 @@ function makeDefaults() {
       { id: uid(), label: 'Verantwortlich', type: 'text', options: [], types: equip },
       { id: uid(), label: 'Notiz', type: 'textarea', options: [], types: [] },
     ],
-    assets: [],
   };
 }
 
@@ -181,23 +214,26 @@ const store = SimpleStorage.create({
   name: 'raumplan',
   defaults: makeDefaults,
   onChange: () => {
-    const lost = normalize(store.data); resetHistory(); tool = { kind: 'select' }; render();
-    if (lost) toast(`${lost} Asset(s) passten nicht in den Raum (max. ${MAXN}×${MAXN}) und wurden verworfen`);
+    const rep = [], lost = normalize(store.data, rep);
+    resetHistory(); tool = { kind: 'select' }; curId = null; // nach Laden/Neu: erster Raum aktiv (ensureActive in render), Auswahl A1
+    render();
+    if (lost) toast(`${lost} Asset(s) passten nicht in den Raum (max. ${MAXN}×${MAXN}) und wurden verworfen – ${rep.map((x) => `Raum „${x.name}“: ${x.n}`).join(', ')}`);
   },
   statusEl: $('status'),
 });
 const D = () => store.data;
 
 // Macht jede (auch handgeschriebene) Datei konsistent, ohne Assets zu verlieren.
-function normalize(d) {
+// Datenmodell: { rooms: [{ id, name, cols, rows, zoom, assets }], types, statuses, fields } – Typen/Status/Felder gelten für alle Räume.
+// Alte Dateien (room + assets auf oberster Ebene) werden zum ersten Raum. report (optional): Liste {name, n} der Räume mit verworfenen Assets.
+function normalize(d, report) {
   const S = (v, def = '') => (typeof v === 'string' ? v : v == null ? def : String(v));
   const I = (v, def, lo, hi) => { v = parseInt(v, 10); if (!Number.isFinite(v)) v = def; return Math.min(hi, Math.max(lo, v)); };
+  const isObj = (x) => !!x && typeof x === 'object' && !Array.isArray(x);
   const objs = (a) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x === 'object');
   const uniq = (set, id) => { id = S(id); if (!id || id === '__proto__' || set.has(id)) id = uid(); set.add(id); return id; };
-  const room = d.room && typeof d.room === 'object' ? d.room : {};
-  d.room = { name: S(room.name, 'Raum 1'), cols: I(room.cols, 20, 1, MAXN), rows: I(room.rows, 14, 1, MAXN), zoom: I(room.zoom, 48, 28, 96) };
 
-  const tIds = new Set(), sIds = new Set(), fIds = new Set(), aIds = new Set();
+  const tIds = new Set(), sIds = new Set(), fIds = new Set(), aIds = new Set(), rIds = new Set();
   d.types = objs(d.types).map((t) => ({
     id: uniq(tIds, t.id), name: S(t.name, 'Typ'),
     icon: IMG.test(t.icon) ? t.icon : clipIcon(S(t.icon)),
@@ -210,54 +246,90 @@ function normalize(d) {
     types: [...new Set((Array.isArray(f.types) ? f.types : []).map((x) => S(x)).filter((x) => tIds.has(x)))],
   }));
 
-  const raw = objs(d.assets), pending = [], assets = [], used = new Set();
-  raw.forEach((a) => {
-    let t = S(a.type);
-    if (!tIds.has(t)) { // unbekannter Typ -> Platzhalter, damit nichts verloren geht
-      if (!t) t = uid();
-      tIds.add(t); d.types.push({ id: t, name: 'Unbekannt', icon: '❓', color: '#6b7280', fill: false, useStatus: true });
-    }
-    const type = d.types.find((x) => x.id === t);
-    const vals = {};
-    if (a.values && typeof a.values === 'object') for (const [k, v] of Object.entries(a.values)) if (k !== '__proto__' && ['string', 'number', 'boolean'].includes(typeof v)) vals[k] = v;
-    const sv = S(a.status), st = sIds.has(sv) ? sv : null; // bei Typen ohne Status bleibt ein gültiger Status nur verborgen erhalten
-    const asset = { id: uniq(aIds, a.id), type: t, status: st || (type.useStatus && d.statuses[0] ? d.statuses[0].id : null), name: S(a.name), row: parseInt(a.row, 10), col: parseInt(a.col, 10), values: vals };
-    if (Number.isInteger(asset.row) && Number.isInteger(asset.col) && asset.row >= 0 && asset.col >= 0 && asset.row < MAXN && asset.col < MAXN) {
-      d.room.rows = Math.max(d.room.rows, asset.row + 1); d.room.cols = Math.max(d.room.cols, asset.col + 1);
-    }
-    pending.push(asset);
+  // Räume einsammeln; Altformat (room + assets oben) wird zum ersten Raum – steht daneben schon rooms, bleibt das Alte als zusätzlicher Raum erhalten
+  let raws = objs(d.rooms);
+  const legacy = isObj(d.room) ? d.room : typeof d.room === 'string' ? { name: d.room } : null;
+  const legacyAssets = Array.isArray(d.assets) ? d.assets : [];
+  if (legacy || legacyAssets.length) {
+    if (!raws.length) raws = [Object.assign({}, legacy, { assets: legacyAssets })];
+    else if (legacyAssets.length) raws.push(Object.assign({}, legacy, { id: undefined, assets: legacyAssets }));
+  }
+  delete d.room; delete d.assets;
+  if (!raws.length) raws = [{}];
+
+  let dropped = 0;
+  d.rooms = raws.map((raw, i) => {
+    const R = { id: uniq(rIds, raw.id), name: S(raw.name, 'Raum ' + (i + 1)), cols: I(raw.cols, 20, 1, MAXN), rows: I(raw.rows, 14, 1, MAXN), zoom: I(raw.zoom, 48, 28, 96), assets: [] };
+    const pending = [], used = new Set();
+    objs(raw.assets).forEach((a) => {
+      let t = S(a.type);
+      if (!tIds.has(t)) { // unbekannter Typ -> Platzhalter, damit nichts verloren geht
+        if (!t) t = uid();
+        tIds.add(t); d.types.push({ id: t, name: 'Unbekannt', icon: '❓', color: '#6b7280', fill: false, useStatus: true });
+      }
+      const type = d.types.find((x) => x.id === t);
+      const vals = {};
+      if (a.values && typeof a.values === 'object') for (const [k, v] of Object.entries(a.values)) if (k !== '__proto__' && ['string', 'number', 'boolean'].includes(typeof v)) vals[k] = v;
+      const sv = S(a.status), st = sIds.has(sv) ? sv : null; // bei Typen ohne Status bleibt ein gültiger Status nur verborgen erhalten
+      const asset = { id: uniq(aIds, a.id), type: t, status: st || (type.useStatus && d.statuses[0] ? d.statuses[0].id : null), name: S(a.name), row: parseInt(a.row, 10), col: parseInt(a.col, 10), values: vals };
+      if (Number.isInteger(asset.row) && Number.isInteger(asset.col) && asset.row >= 0 && asset.col >= 0 && asset.row < MAXN && asset.col < MAXN) {
+        R.rows = Math.max(R.rows, asset.row + 1); R.cols = Math.max(R.cols, asset.col + 1);
+      }
+      pending.push(asset);
+    });
+    // Erst alle gültigen, eindeutigen Positionen (pro Raum) reservieren, dann den Rest auf freie Felder verteilen
+    const rest = []; let lost = 0;
+    pending.forEach((a) => {
+      const ok = Number.isInteger(a.row) && Number.isInteger(a.col) && a.row >= 0 && a.col >= 0 && a.row < MAXN && a.col < MAXN && !used.has(key(a.row, a.col));
+      if (ok) { used.add(key(a.row, a.col)); R.assets.push(a); } else rest.push(a);
+    });
+    let cr = 0, cc = 0; // Suchposition (belegte Felder werden nie wieder frei)
+    rest.forEach((a) => { // belegt oder ungültig -> erstes freies Feld, sonst Raum vergrößern
+      let found = false;
+      for (let r = cr; r < R.rows && !found; r++) for (let c = r === cr ? cc : 0; c < R.cols && !found; c++) if (!used.has(key(r, c))) { a.row = r; a.col = c; found = true; cr = r; cc = c; }
+      if (!found) {
+        if (R.rows < MAXN) { a.row = R.rows++; a.col = 0; found = true; }
+        else if (R.cols < MAXN) { a.col = R.cols++; a.row = 0; found = true; cr = 0; cc = 0; }
+      }
+      if (!found) { lost++; return; }
+      used.add(key(a.row, a.col)); R.assets.push(a);
+    });
+    if (lost) { dropped += lost; if (report) report.push({ name: R.name, n: lost }); }
+    return R;
   });
-  // Erst alle gültigen, eindeutigen Positionen reservieren, dann den Rest auf freie Felder verteilen
-  const rest = []; let dropped = 0;
-  pending.forEach((a) => {
-    const ok = Number.isInteger(a.row) && Number.isInteger(a.col) && a.row >= 0 && a.col >= 0 && a.row < MAXN && a.col < MAXN && !used.has(key(a.row, a.col));
-    if (ok) { used.add(key(a.row, a.col)); assets.push(a); } else rest.push(a);
-  });
-  let cr = 0, cc = 0; // Suchposition (belegte Felder werden nie wieder frei)
-  rest.forEach((a) => { // belegt oder ungültig -> erstes freies Feld, sonst Raum vergrößern
-    let found = false;
-    for (let r = cr; r < d.room.rows && !found; r++) for (let c = r === cr ? cc : 0; c < d.room.cols && !found; c++) if (!used.has(key(r, c))) { a.row = r; a.col = c; found = true; cr = r; cc = c; }
-    if (!found) {
-      if (d.room.rows < MAXN) { a.row = d.room.rows++; a.col = 0; found = true; }
-      else if (d.room.cols < MAXN) { a.col = d.room.cols++; a.row = 0; found = true; cr = 0; cc = 0; }
-    }
-    if (!found) { dropped++; return; }
-    used.add(key(a.row, a.col)); assets.push(a);
-  });
-  d.assets = assets;
   return dropped;
 }
+
+/* ---------- Räume ---------- */
+// Der aktive Raum ist reiner Ansichtszustand (nicht in der Datei, kein Undo-Schritt beim Wechseln).
+let curId = null;
+const zoomMemo = new Map(); // zuletzt gesehener Zoom je Raum-ID (für Räume, die per Undo zurückkommen)
+const RM = () => D().rooms.find((r) => r.id === curId) || D().rooms[0];
+const allAssets = () => D().rooms.flatMap((r) => r.assets);
+const roomLabel = (r) => r.name.trim() || 'Raum ' + (D().rooms.indexOf(r) + 1);
+// Raum aktivieren: Auswahl zurück auf A1, Scrollposition zurück (Werkzeug und Zwischenablage bleiben); zeichnet nicht selbst
+function activate(id) { curId = id; anchor = { r: 0, c: 0 }; focus = { r: 0, c: 0 }; $('gridwrap').scrollTo(0, 0); }
+function ensureActive() { // verschwundener aktiver Raum (Undo/Löschen/Laden) -> erster Raum
+  if (!D().rooms.some((r) => r.id === curId)) activate(D().rooms[0].id);
+}
+// Anzahl (und Räume) der Assets, auf die ein Prädikat in ALLEN Räumen zutrifft – für Rückfragen beim Löschen von Typ/Status/Feld
+function usage(pred) {
+  let n = 0, rooms = 0;
+  D().rooms.forEach((r) => { const k = r.assets.filter(pred).length; if (k) { n += k; rooms++; } });
+  return { n, rooms, txt: n ? `${n} Asset(s)${D().rooms.length > 1 ? ` in ${rooms} ${rooms === 1 ? 'Raum' : 'Räumen'}` : ''}` : '' };
+}
+function purgeAssets(pred) { D().rooms.forEach((r) => { r.assets = r.assets.filter((a) => !pred(a)); }); }
 
 let typeById = new Map(), statusById = new Map(), byPos = new Map();
 function rebuild() {
   const d = D();
   typeById = new Map(d.types.map((t) => [t.id, t]));
   statusById = new Map(d.statuses.map((s) => [s.id, s]));
-  byPos = new Map(d.assets.map((a) => [key(a.row, a.col), a]));
+  byPos = new Map(RM().assets.map((a) => [key(a.row, a.col), a]));
 }
 const assetAt = (r, c) => byPos.get(key(r, c));
-function addAsset(a) { D().assets.push(a); byPos.set(key(a.row, a.col), a); }
-function removeAsset(a) { const L = D().assets; L.splice(L.indexOf(a), 1); byPos.delete(key(a.row, a.col)); }
+function addAsset(a) { RM().assets.push(a); byPos.set(key(a.row, a.col), a); }
+function removeAsset(a) { const L = RM().assets, i = L.indexOf(a); if (i >= 0) L.splice(i, 1); byPos.delete(key(a.row, a.col)); }
 function newAsset(typeId, r, c, extra) {
   const t = typeById.get(typeId), first = D().statuses[0];
   const a = Object.assign({ id: uid(), type: typeId, status: t.useStatus && first ? first.id : null, name: '', row: r, col: c, values: {} }, extra);
@@ -266,8 +338,8 @@ function newAsset(typeId, r, c, extra) {
 
 /* ---------- Rückgängig / Wiederholen ---------- */
 let undoStack = [], redoStack = [], last = '';
-// Der Zoom ist Ansichtseinstellung: nicht Teil der Schnappschüsse und bleibt bei Undo/Redo unverändert
-const snap = () => { const d = D(); return JSON.stringify(Object.assign({}, d, { room: Object.assign({}, d.room, { zoom: 0 }) })); };
+// Der Zoom (je Raum) ist Ansichtseinstellung: nicht Teil der Schnappschüsse und bleibt bei Undo/Redo unverändert
+const snap = () => { const d = D(); return JSON.stringify(Object.assign({}, d, { rooms: d.rooms.map((r) => Object.assign({}, r, { zoom: 0 })) })); };
 function resetHistory() { undoStack = []; redoStack = []; last = snap(); }
 function flushPending() { // offene (noch nicht committete) Änderungen als eigenen Undo-Schritt sichern
   const now = snap();
@@ -275,8 +347,9 @@ function flushPending() { // offene (noch nicht committete) Änderungen als eige
 }
 function commit(opts) { flushPending(); store.changed(); render(opts); }
 function restoreSnap(s) {
-  const z = D().room.zoom, d = JSON.parse(s);
-  if (d.room && typeof d.room === 'object') d.room.zoom = z;
+  const zs = new Map(D().rooms.map((r) => [r.id, r.zoom])), d = JSON.parse(s);
+  // bestehende Räume behalten ihren Zoom; ein per Undo zurückkehrender Raum bekommt den zuletzt gesehenen
+  if (Array.isArray(d.rooms)) d.rooms.forEach((r) => { if (r && typeof r === 'object') r.zoom = zs.has(r.id) ? zs.get(r.id) : zoomMemo.get(r.id) || 48; });
   store.data = d; normalize(store.data); last = snap(); store.changed(); render();
 }
 function undo() { if (undoStack.length) { redoStack.push(last); restoreSnap(undoStack.pop()); } }
@@ -287,9 +360,9 @@ let anchor = { r: 0, c: 0 }, focus = { r: 0, c: 0 };
 const rect = () => ({ r1: Math.min(anchor.r, focus.r), r2: Math.max(anchor.r, focus.r), c1: Math.min(anchor.c, focus.c), c2: Math.max(anchor.c, focus.c) });
 const inRect = (r, c) => { const x = rect(); return r >= x.r1 && r <= x.r2 && c >= x.c1 && c <= x.c2; };
 const isMulti = () => { const x = rect(); return x.r1 !== x.r2 || x.c1 !== x.c2; };
-function assetsInRect() { const x = rect(); return D().assets.filter((a) => a.row >= x.r1 && a.row <= x.r2 && a.col >= x.c1 && a.col <= x.c2); }
+function assetsInRect() { const x = rect(); return RM().assets.filter((a) => a.row >= x.r1 && a.row <= x.r2 && a.col >= x.c1 && a.col <= x.c2); }
 function clampSel() {
-  const R = D().room, cl = (p) => ({ r: Math.min(p.r, R.rows - 1), c: Math.min(p.c, R.cols - 1) });
+  const R = RM(), cl = (p) => ({ r: Math.min(p.r, R.rows - 1), c: Math.min(p.c, R.cols - 1) });
   anchor = cl(anchor); focus = cl(focus);
 }
 
@@ -309,9 +382,10 @@ function iconEl(icon, size) {
 /* ---------- Rendering ---------- */
 let cellEls = [], colHeads = [], rowHeads = [];
 function render(opts) {
-  rebuild(); clampSel();
+  ensureActive(); rebuild(); clampSel();
+  D().rooms.forEach((r) => zoomMemo.set(r.id, r.zoom));
   if (tool.kind === 'stamp' && !typeById.has(tool.type)) tool = { kind: 'select' };
-  renderTools(); renderLegend(); renderGrid();
+  renderRoomBar(); renderTools(); renderLegend(); renderGrid();
   if (!opts || !opts.keepPanel) renderSide();
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
 }
@@ -320,7 +394,7 @@ function render(opts) {
 // (so geht ein Klick nicht verloren, wenn gleichzeitig ein Eingabefeld seine Änderung committet).
 let paletteSig = null;
 function renderTools() {
-  const R = D().room;
+  const R = RM();
   if (document.activeElement !== $('roomname')) $('roomname').value = R.name;
   $('zoom').value = R.zoom;
   const p = $('palette'), sig = JSON.stringify(D().types.map((t) => [t.id, t.name, t.icon]));
@@ -341,10 +415,12 @@ function renderTools() {
 
 function renderLegend() {
   const lg = $('legend'); lg.textContent = '';
-  const d = D(); const counts = new Map();
-  d.assets.forEach((a) => { const t = typeById.get(a.type); if (a.status && t && t.useStatus) counts.set(a.status, (counts.get(a.status) || 0) + 1); });
+  const d = D(), R = RM(), counts = new Map();
+  R.assets.forEach((a) => { const t = typeById.get(a.type); if (a.status && t && t.useStatus) counts.set(a.status, (counts.get(a.status) || 0) + 1); });
   d.statuses.forEach((s) => { const x = el('span'); const dot = el('span', 'dot'); dot.style.setProperty('--sc', s.color); x.append(dot, `${s.name}: ${counts.get(s.id) || 0}`); lg.append(x); });
-  lg.append(el('span', null, `Assets gesamt: ${d.assets.length}`));
+  // bei mehreren Räumen: Zahl für den aktiven Raum + Summe über alle Räume
+  lg.append(el('span', null, d.rooms.length > 1 ? `Assets in diesem Raum: ${R.assets.length}` : `Assets gesamt: ${R.assets.length}`));
+  if (d.rooms.length > 1) lg.append(el('span', null, `Alle Räume: ${allAssets().length} Assets`));
 }
 
 function tooltip(a) {
@@ -373,7 +449,7 @@ function fillCell(div, a) {
 }
 
 function renderGrid() {
-  const g = $('grid'), R = D().room, cs = R.zoom;
+  const g = $('grid'), R = RM(), cs = R.zoom;
   g.style.setProperty('--cs', cs + 'px');
   g.style.gridTemplateColumns = `36px repeat(${R.cols}, ${cs}px)`;
   g.style.gridTemplateRows = `24px repeat(${R.rows}, ${cs}px)`;
@@ -406,6 +482,108 @@ function updateSel() {
   colHeads.forEach((h, c) => h.classList.toggle('hl', c >= x.c1 && c <= x.c2));
   rowHeads.forEach((h, r) => h.classList.toggle('hl', r >= x.r1 && r <= x.r2));
 }
+
+/* ---------- Raum-Leiste (Tabs) ---------- */
+let tabSig = null;
+const roomTabs = () => Array.from($('roomtabs').children);
+function renderRoomBar() {
+  const d = D(), cur = RM(), tabs = $('roomtabs'), acts = $('roomacts');
+  const sig = JSON.stringify(d.rooms.map((r) => [r.id, roomLabel(r)])), rebuilt = sig !== tabSig || tabs.children.length !== d.rooms.length;
+  const hadFocus = tabs.contains(document.activeElement);
+  if (rebuilt) { // Tabs nur neu aufbauen, wenn sich Räume/Namen/Reihenfolge ändern (Fokus und Klicks gehen sonst verloren)
+    tabSig = sig; tabs.textContent = '';
+    d.rooms.forEach((r, i) => {
+      const b = el('button', 'rtab', roomLabel(r)); b.type = 'button'; b.id = 'rtab' + i; b.title = roomLabel(r);
+      b.setAttribute('role', 'tab'); b.setAttribute('aria-controls', 'roompanel'); b.dataset.id = r.id;
+      b.onclick = (e) => { switchRoom(r.id); if (e.detail) b.blur(); }; // Mausklick: Fokus zurück an die Seite, damit Strg+V/Pfeile im Raster wirken
+      b.ondblclick = () => renameRoom();
+      tabs.append(b);
+    });
+  }
+  let activeTab = null;
+  roomTabs().forEach((b) => {
+    const on = b.dataset.id === cur.id; if (on) activeTab = b;
+    b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
+  });
+  $('roompanel').setAttribute('aria-labelledby', activeTab.id);
+  if (rebuilt && hadFocus) activeTab.focus({ preventScroll: true });
+
+  if (!acts.children.length) {
+    const mk = (k, text, title, fn) => {
+      const b = el('button', 'small-btn', text); b.type = 'button'; b.dataset.k = k; b.title = title;
+      if (Array.from(text).length <= 1) b.setAttribute('aria-label', title);
+      b.onclick = (e) => { if (b.getAttribute('aria-disabled') === 'true') { if (b._why) toast(b._why); return; } fn(); if (e.detail) b.blur(); };
+      acts.append(b);
+    };
+    mk('add', '+ Raum', 'Neuen Raum anlegen', openNewRoom);
+    mk('rename', 'Umbenennen', 'Aktuellen Raum umbenennen', renameRoom);
+    mk('dup', 'Duplizieren', 'Aktuellen Raum mit allen Assets duplizieren', dupRoom);
+    mk('left', '◀', 'Aktuellen Raum nach links verschieben', () => moveRoom(-1));
+    mk('right', '▶', 'Aktuellen Raum nach rechts verschieben', () => moveRoom(1));
+    mk('del', 'Löschen', 'Aktuellen Raum löschen', () => deleteRoom(RM().id));
+  }
+  const i = d.rooms.indexOf(cur), n = d.rooms.length;
+  const dis = (k, off, why) => { const b = acts.querySelector(`[data-k="${k}"]`); b.setAttribute('aria-disabled', String(off)); b._why = off ? why : ''; };
+  dis('left', i === 0, ''); dis('right', i === n - 1, '');
+  dis('del', n < 2, 'Der letzte Raum kann nicht gelöscht werden');
+  acts.querySelector('[data-k="del"]').title = n < 2 ? 'Der letzte Raum kann nicht gelöscht werden' : `Raum „${roomLabel(cur)}“ löschen`;
+}
+
+// Wechsel: kein Undo-Schritt; Auswahl zurück auf A1, Werkzeug und Zwischenablage bleiben
+function switchRoom(id) {
+  if (id === curId || !D().rooms.some((r) => r.id === id)) return;
+  flushPending(); // noch offene Eingaben gehören zum bisherigen Raum
+  activate(id); render();
+}
+function renameRoom() { const i = $('roomname'); i.focus(); i.select(); }
+function freeRoomName() { const names = new Set(D().rooms.map((r) => r.name)); let n = D().rooms.length + 1; while (names.has('Raum ' + n)) n++; return 'Raum ' + n; }
+function openNewRoom() {
+  const R = RM();
+  $('nr-name').value = freeRoomName(); $('nr-cols').value = R.cols; $('nr-rows').value = R.rows;
+  $('dlg-room').showModal(); $('nr-name').focus(); $('nr-name').select();
+}
+$('nr-cancel').onclick = () => $('dlg-room').close();
+$('roomform').onsubmit = (e) => {
+  e.preventDefault();
+  const clamp = (v, def) => { v = parseInt(v, 10); return Math.min(MAXN, Math.max(1, Number.isFinite(v) ? v : def)); };
+  const R = RM(), room = { id: uid(), name: $('nr-name').value.trim() || freeRoomName(), cols: clamp($('nr-cols').value, R.cols), rows: clamp($('nr-rows').value, R.rows), zoom: R.zoom, assets: [] };
+  $('dlg-room').close();
+  flushPending();
+  D().rooms.push(room); activate(room.id);
+  commit();
+  if ($('dlg-cfg').open) renderCfg();
+};
+function dupRoom() {
+  const src = RM(), copy = JSON.parse(JSON.stringify(src));
+  copy.id = uid(); copy.name = roomLabel(src) + ' (Kopie)'; copy.assets.forEach((a) => { a.id = uid(); });
+  flushPending();
+  D().rooms.splice(D().rooms.indexOf(src) + 1, 0, copy); activate(copy.id);
+  commit();
+}
+function deleteRoom(id) {
+  const d = D(), r = d.rooms.find((x) => x.id === id); if (!r) return;
+  if (d.rooms.length < 2) return toast('Der letzte Raum kann nicht gelöscht werden');
+  const n = r.assets.length;
+  if (!confirm(`Raum „${roomLabel(r)}“ ${n ? `mit allen ${n} Asset(s) ` : ''}löschen?`)) return;
+  d.rooms.splice(d.rooms.indexOf(r), 1);
+  commit(); // war es der aktive Raum, wird der erste Raum aktiv (ensureActive in render)
+}
+function moveRoom(dir) {
+  const rs = D().rooms, i = rs.indexOf(RM()), j = i + dir; if (j < 0 || j >= rs.length) return;
+  [rs[i], rs[j]] = [rs[j], rs[i]]; commit();
+}
+// Name des aktiven Raums: leer -> Standardname, Leerraum außen entfernen
+function fixRoomName(r) { r.name = r.name.trim() || freeRoomName(); return r.name; }
+// Tabs per Tastatur (ARIA-Tab-Muster): ←/→ wechseln (mit Umlauf), Pos1/Ende springen; der Wechsel aktiviert sofort
+$('roomtabs').addEventListener('keydown', (e) => {
+  if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+  const tabs = roomTabs(), i = tabs.indexOf(e.target.closest('[role=tab]')); if (i < 0) return;
+  const n = tabs.length;
+  const j = { ArrowRight: (i + 1) % n, ArrowLeft: (i - 1 + n) % n, Home: 0, End: n - 1 }[e.key];
+  if (j === undefined) return;
+  e.preventDefault();
+  switchRoom(tabs[j].dataset.id); tabs[j].focus({ preventScroll: true });
+});
 
 /* ---------- Seitenleiste ---------- */
 function lbl(text) { const l = el('label', 'l', text); return l; }
@@ -533,7 +711,7 @@ function copySel() {
 }
 function pasteClip() {
   if (!clip) return toast('Zwischenablage ist leer');
-  const x = rect(), R = D().room; let outside = 0, noType = 0;
+  const x = rect(), R = RM(); let outside = 0, noType = 0;
   clip.items.forEach((it) => {
     const r = x.r1 + it.dr, c = x.c1 + it.dc;
     if (r >= R.rows || c >= R.cols) { outside++; return; }
@@ -582,7 +760,7 @@ gridEl.addEventListener('mousedown', (e) => {
   const sel = window.getSelection(); if (sel && !sel.isCollapsed) sel.removeAllRanges(); // veraltete Textauswahl würde Strg+C blockieren
   const h = e.target.closest('.h');
   if (h) {
-    const R = D().room, k = h.dataset.k;
+    const R = RM(), k = h.dataset.k;
     if (k === 'col') { anchor = { r: 0, c: +h.dataset.c }; focus = { r: R.rows - 1, c: +h.dataset.c }; }
     else if (k === 'row') { anchor = { r: +h.dataset.r, c: 0 }; focus = { r: +h.dataset.r, c: R.cols - 1 }; }
     else { anchor = { r: 0, c: 0 }; focus = { r: R.rows - 1, c: R.cols - 1 }; }
@@ -632,7 +810,7 @@ gridEl.addEventListener('dragend', () => { drag = null; pendingCollapse = null; 
 gridEl.addEventListener('drop', (e) => {
   if (!drag) return; e.preventDefault();
   const cell = cellOf(e), dg = drag; drag = null; if (!cell) return;
-  const dr = cell.r - dg.r, dc = cell.c - dg.c, copy = e.ctrlKey || e.metaKey, R = D().room;
+  const dr = cell.r - dg.r, dc = cell.c - dg.c, copy = e.ctrlKey || e.metaKey, R = RM();
   if (!dr && !dc) return;
   const moving = new Set(dg.items);
   for (const a of dg.items) {
@@ -661,9 +839,11 @@ document.addEventListener('keydown', (e) => {
   if (mod && k === 'z') { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
   if (mod && k === 'y') { e.preventDefault(); redo(); return; }
   if (tag === 'INPUT' || tag === 'SELECT') return;
-  if (t !== document.body && !$('gridwrap').contains(t) && !(e.key === 'Escape' && $('palette').contains(t))) return;
+  // Fokus auf einem Raum-Tab: Strg+C/X/V/A und Esc wirken weiter auf das Raster (Kopieren in einen anderen Raum per Tastatur)
+  const onTab = $('roomtabs').contains(t) && (mod || e.key === 'Escape');
+  if (t !== document.body && !$('gridwrap').contains(t) && !(e.key === 'Escape' && $('palette').contains(t)) && !onTab) return;
   if (mod && (k === 'c' || k === 'x') && String(window.getSelection()).trim()) return; // markierter Seitentext: normales Kopieren
-  const R = D().room;
+  const R = RM();
   if (e.key.startsWith('Arrow')) {
     if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+←/→ (Zurück) u. a. bleiben dem Browser
     e.preventDefault();
@@ -732,17 +912,17 @@ function cfgTypes(box) {
     const ci = colorInput(t.color, (v) => { t.color = v; }, 'Füllfarbe');
     ci.disabled = !t.fill; ci.title = t.fill ? 'Füllfarbe' : 'Füllfarbe – wirkt nur mit „Fläche füllen“';
     row.append(ib, textInput(t.name, 'Name', (v) => { t.name = v; }), ci,
-      checkbox('Status', t.useStatus, (v) => { t.useStatus = v; d.assets.filter((a) => a.type === t.id).forEach((a) => setType(a, t.id)); cfgCommit(false); }),
+      checkbox('Status', t.useStatus, (v) => { t.useStatus = v; allAssets().filter((a) => a.type === t.id).forEach((a) => setType(a, t.id)); cfgCommit(false); }),
       checkbox('Fläche füllen', t.fill, (v) => { t.fill = v; cfgCommit(true); }),
       btn('▲', 'Nach oben', () => moveIn(d.types, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.types, i, 1)),
       btn('✕', 'Typ löschen', () => {
-        const used = d.assets.filter((a) => a.type === t.id);
+        const used = usage((a) => a.type === t.id); // Assets in ALLEN Räumen
         // Felder, die nur für diesen Typ galten, würden sonst zu „gilt für alle Typen“ -> mitlöschen
         const orphan = d.fields.filter((f) => f.types.length && f.types.every((x) => x === t.id));
-        const extra = orphan.length ? `${used.length ? ' und' : ' inkl.'} ${orphan.length} nur für diesen Typ geltende(s) Feld(er) mit allen Werten (${orphan.map((f) => '„' + f.label + '“').join(', ')})` : '';
-        if (!confirm(`Typ „${t.name}“ löschen${used.length ? ` inkl. ${used.length} Asset(s)` : ''}${extra}?`)) return;
-        used.forEach(removeAsset);
-        orphan.forEach((f) => d.assets.forEach((a) => { delete a.values[f.id]; }));
+        const extra = orphan.length ? `${used.n ? ' und' : ' inkl.'} ${orphan.length} nur für diesen Typ geltende(s) Feld(er) mit allen Werten (${orphan.map((f) => '„' + f.label + '“').join(', ')})` : '';
+        if (!confirm(`Typ „${t.name}“ löschen${used.n ? ` inkl. ${used.txt}` : ''}${extra}?`)) return;
+        purgeAssets((a) => a.type === t.id);
+        orphan.forEach((f) => allAssets().forEach((a) => { delete a.values[f.id]; }));
         d.fields = d.fields.filter((f) => !orphan.includes(f));
         d.types.splice(i, 1); d.fields.forEach((f) => { f.types = f.types.filter((x) => x !== t.id); }); cfgCommit(true);
       }));
@@ -760,9 +940,9 @@ function cfgStatuses(box) {
     row.append(colorInput(s.color, (v) => { s.color = v; }, 'Statusfarbe'), textInput(s.name, 'Name', (v) => { s.name = v; }),
       btn('▲', 'Nach oben', () => moveIn(d.statuses, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.statuses, i, 1)),
       btn('✕', 'Status löschen', () => {
-        const used = d.assets.filter((a) => a.status === s.id);
-        const vis = used.filter((a) => { const t = typeById.get(a.type); return t && t.useStatus; }).length;
-        if (!confirm(`Status „${s.name}“ löschen${vis ? `? ${vis} Asset(s) ${d.statuses.length === 1 ? 'haben danach keinen Status' : 'bekommen den ersten verbleibenden Status'}` : '?'}`)) return;
+        const used = allAssets().filter((a) => a.status === s.id);
+        const vis = usage((a) => { const t = typeById.get(a.type); return a.status === s.id && t && t.useStatus; });
+        if (!confirm(`Status „${s.name}“ löschen${vis.n ? `? ${vis.txt} ${d.statuses.length === 1 ? 'haben danach keinen Status' : 'bekommen den ersten verbleibenden Status'}` : '?'}`)) return;
         d.statuses.splice(i, 1);
         used.forEach((a) => { a.status = d.statuses[0] ? d.statuses[0].id : null; });
         cfgCommit(true);
@@ -773,7 +953,7 @@ function cfgStatuses(box) {
     const ns = { id: uid(), name: 'Neuer Status', color: '#a855f7' }, valid = new Set(d.statuses.map((x) => x.id));
     d.statuses.push(ns);
     // Assets von Typen mit Status, die (z. B. nach Löschen aller Status) keinen gültigen Status haben, bekommen den neuen
-    d.assets.forEach((a) => { const t = typeById.get(a.type); if (t && t.useStatus && !valid.has(a.status)) a.status = ns.id; });
+    allAssets().forEach((a) => { const t = typeById.get(a.type); if (t && t.useStatus && !valid.has(a.status)) a.status = ns.id; });
     cfgCommit(true); focusNewRow();
   }, '');
   add.style.marginTop = '8px'; box.append(add);
@@ -793,8 +973,8 @@ function cfgFields(box) {
     }
     row.append(btn('▲', 'Nach oben', () => moveIn(d.fields, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.fields, i, 1)),
       btn('✕', 'Feld löschen', () => {
-        if (!confirm(`Feld „${f.label}“ löschen? Die eingetragenen Werte gehen verloren.`)) return;
-        d.assets.forEach((a) => { delete a.values[f.id]; }); d.fields.splice(i, 1); cfgCommit(true);
+        if (!confirm(`Feld „${f.label}“ löschen? Die eingetragenen Werte gehen verloren${D().rooms.length > 1 ? ' (in allen Räumen)' : ''}.`)) return;
+        allAssets().forEach((a) => { delete a.values[f.id]; }); d.fields.splice(i, 1); cfgCommit(true);
       }));
     const det = el('details', 'types');
     const sum = el('summary', null, f.types.length ? `Gilt für: ${f.types.map((id) => (typeById.get(id) || {}).name).filter(Boolean).join(', ')}` : 'Gilt für: alle Typen');
@@ -811,19 +991,36 @@ function cfgFields(box) {
 }
 
 function cfgRoom(box) {
-  const R = D().room;
-  box.append(el('p', 'hint', `Raumgröße in Zellen (1–${MAXN}). Spalten = A, B, C …, Zeilen = 1, 2, 3 …`));
+  const d = D(), R = RM();
+  box.append(el('p', 'hint', `Aktueller Raum: Name und Größe in Zellen (1–${MAXN}). Spalten = A, B, C …, Zeilen = 1, 2, 3 …`));
+  const nrow = el('div', 'cfgrow');
+  const ni = textInput(R.name, 'Name des Raums', (v) => { R.name = v; });
+  ni.onchange = () => { fixRoomName(R); ni.value = R.name; cfgCommit(false); };
+  nrow.append(el('span', 'hint', 'Name'), ni); box.append(nrow);
   const row = el('div', 'cfgrow');
   const mk = (label, val) => { const l = el('label', null, label + ' '); const i = el('input'); i.type = 'number'; i.min = 1; i.max = MAXN; i.value = val; i.style.width = '90px'; l.append(i); return [l, i]; };
   const [lc, ic] = mk('Spalten', R.cols), [lr, ir] = mk('Zeilen', R.rows);
   const apply = () => {
     const cols = Math.min(MAXN, Math.max(1, parseInt(ic.value, 10) || R.cols)), rows = Math.min(MAXN, Math.max(1, parseInt(ir.value, 10) || R.rows));
-    const lost = D().assets.filter((a) => a.col >= cols || a.row >= rows);
-    if (lost.length && !confirm(`${lost.length} Asset(s) liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { renderCfg(); return; }
+    const lost = R.assets.filter((a) => a.col >= cols || a.row >= rows);
+    if (lost.length && !confirm(`${lost.length} Asset(s) in „${roomLabel(R)}“ liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { renderCfg(); return; }
     lost.forEach(removeAsset); R.cols = cols; R.rows = rows; cfgCommit(true);
   };
   ic.onchange = apply; ir.onchange = apply;
   row.append(lc, lr); box.append(row);
+
+  box.append(el('h3', null, `Alle Räume (${d.rooms.length}) – ${allAssets().length} Asset(s)`));
+  d.rooms.forEach((r) => {
+    const cur = r === R, only = d.rooms.length < 2;
+    const line = el('div', 'cfgrow' + (cur ? ' cur' : ''));
+    const go = btn('Wechseln', `Zu Raum „${roomLabel(r)}“ wechseln`, () => { if (cur) return; switchRoom(r.id); renderCfg(); });
+    const del = btn('Löschen', only ? 'Der letzte Raum kann nicht gelöscht werden' : `Raum „${roomLabel(r)}“ löschen`, () => { if (only) return toast('Der letzte Raum kann nicht gelöscht werden'); deleteRoom(r.id); renderCfg(); });
+    if (cur) go.setAttribute('aria-disabled', 'true'); if (only) del.setAttribute('aria-disabled', 'true');
+    line.append(el('span', 'rname', roomLabel(r)), el('span', 'rmeta', `${r.cols} × ${r.rows} · ${r.assets.length} Asset(s)`), go, del);
+    box.append(line);
+  });
+  const add = btn('+ Raum', 'Neuen Raum anlegen', openNewRoom, '');
+  add.style.marginTop = '8px'; box.append(add);
 }
 
 // Icon-Auswahl
@@ -869,9 +1066,10 @@ $('cfgbtn').onclick = () => { renderCfg(); $('dlg-cfg').showModal(); };
 $('cfg-close').onclick = () => $('dlg-cfg').close();
 
 /* ---------- Toolbar ---------- */
-$('roomname').oninput = (e) => { D().room.name = e.target.value; store.changed(); };
-$('roomname').onchange = () => commit({ keepPanel: true });
-$('zoom').oninput = (e) => { D().room.zoom = +e.target.value; store.changed(); renderGrid(); };
+$('roomname').oninput = (e) => { RM().name = e.target.value; store.changed(); renderRoomBar(); };
+$('roomname').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); $('gridwrap').focus({ preventScroll: true }); } };
+$('roomname').onchange = (e) => { fixRoomName(RM()); e.target.value = RM().name; commit({ keepPanel: true }); };
+$('zoom').oninput = (e) => { const R = RM(); R.zoom = +e.target.value; zoomMemo.set(R.id, R.zoom); store.changed(); renderGrid(); };
 $('undo').onclick = undo; $('redo').onclick = redo;
 $('new').onclick = () => store.new();
 $('open').onclick = () => store.open();
