@@ -1127,6 +1127,11 @@ lpEl.addEventListener('focusout', (e) => { // Fokus verlässt das Menü (Tab, Kl
 });
 document.addEventListener('pointerdown', (e) => { if (LP.open && !lpEl.contains(e.target) && !(e.target.closest && e.target.closest('.ln-menu'))) closeLinePanel(false); }, true);
 document.addEventListener('keydown', (e) => { if (LP.open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeLinePanel(true); } }, true);
+document.addEventListener('scroll', (e) => { // Menü am Kopf verankert: beim Scrollen schließen (ohne Fokus zu verschieben); mobil bleibt das Bottom-Sheet offen (Adressleiste löst scroll aus)
+  if (!LP.open || lpEl.contains(e.target)) return;
+  if (matchMedia('(max-width:600px)').matches) return;
+  closeLinePanel(false);
+}, true);
 window.addEventListener('resize', () => { if (LP.open && LP.place) LP.place(); }); // nicht schließen: mobile Browser lösen beim Ein-/Ausblenden der Adressleiste resize aus
 
 // Rechtsklick auf einen Zeilen-/Spaltenkopf (nur dort wird das Browser-Menü unterdrückt): Kopf markieren, sofern nicht schon in der Auswahl
