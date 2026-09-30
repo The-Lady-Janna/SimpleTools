@@ -64,7 +64,6 @@
     <button id="open">Öffnen…</button>
     <button id="save" class="primary">Speichern</button>
     <button id="saveas">Speichern unter…</button>
-    <button id="resume" hidden>Zuletzt geöffnete Datei</button>
     <span style="flex:1"></span>
     <button id="undo" title="Rückgängig (Strg+Z)">↶</button>
     <button id="redo" title="Wiederholen (Strg+Y)">↷</button>
@@ -560,9 +559,8 @@ $('new').onclick = () => store.new();
 $('open').onclick = () => store.open();
 $('save').onclick = () => store.save();
 $('saveas').onclick = () => store.saveAs();
-$('resume').onclick = () => store.resume && store.resume();
 normalize(D()); resetHistory(); render();
-store.restore().then(() => { $('resume').hidden = !store.resume; });
+store.restore();
 </script>
 </body>
 </html>

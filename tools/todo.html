@@ -20,7 +20,6 @@
     <button id="open">Öffnen…</button>
     <button id="save" class="primary">Speichern</button>
     <button id="saveas">Speichern unter…</button>
-    <button id="resume" hidden>Zuletzt geöffnete Datei</button>
   </div>
   <div id="status"></div>
   <form id="form" class="card toolbar">
@@ -64,8 +63,7 @@
   $('open').onclick = () => store.open();
   $('save').onclick = () => store.save();
   $('saveas').onclick = () => store.saveAs();
-  $('resume').onclick = () => store.resume && store.resume();
-  store.restore().then(() => { $('resume').hidden = !store.resume; });
+  store.restore();
   render();
 </script>
 </body>
