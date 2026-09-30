@@ -70,7 +70,7 @@
   .small-btn { padding:2px 8px; }
   details.types { flex-basis:100%; color:var(--muted); font-size:.9rem; }
   details.types label { display:inline-block; margin-right:12px; }
-  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:8px; z-index:50; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); pointer-events:none; width:max-content; max-width:min(92vw, 560px); overflow-wrap:anywhere; background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:8px; z-index:50; }
   #toast[hidden] { display:none; }
   #roomname { width:200px; font-weight:600; max-width:100%; }
 
@@ -86,6 +86,31 @@
   .cfgrow .rname { flex:1; min-width:120px; font-weight:600; overflow-wrap:anywhere; }
   .cfgrow .rmeta { color:var(--muted); font-size:.9rem; white-space:nowrap; }
   .cfgrow.cur .rname::after { content:' (aktiv)'; color:var(--muted); font-weight:400; }
+  /* Zeilen/Spalten einfügen und entfernen */
+  .gridcol { flex:1 1 0; min-width:0; }
+  @media (max-width:900px) { .gridcol { flex:none; } }
+  .endbar { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; margin:8px 0 0; }
+  .endbar .grp { display:inline-flex; gap:6px; }
+  .endbar button { padding:4px 10px; }
+  .endbar .hint { margin-left:auto; }
+  #linepanel { position:fixed; z-index:40; left:8px; top:8px; width:min(340px, calc(100vw - 16px)); max-height:calc(100vh - 16px); max-height:calc(100dvh - 16px); overflow:auto; padding:10px 12px 12px; background:var(--card); color:var(--fg); border:1px solid var(--line); border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,.28); outline:none; }
+  #linepanel[hidden] { display:none; }
+  #linepanel p { margin:4px 0 0; }
+  .lp-head strong { display:block; padding-right:40px; line-height:30px; }
+  #lp-close { position:absolute; top:8px; right:8px; } /* steht im DOM zuletzt: Tab erreicht zuerst die Eingaben */
+  .lp-grp { margin-top:10px; padding-top:8px; border-top:1px solid var(--line); }
+  .lp-grp h3 { font-size:.95rem; margin:0 0 6px; }
+  .lp-count { display:flex; align-items:center; gap:8px; margin:0 0 4px; }
+  .lp-count input { width:5.5em; }
+  #linepanel .item { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; margin-top:4px; text-align:left; }
+  #linepanel .item.del { color:var(--err); }
+  #linepanel .item .cnt { color:var(--muted); font-size:.85rem; white-space:nowrap; }
+  .lp-info, .lp-note { color:var(--muted); font-size:.85rem; }
+  .lp-note:empty { display:none; }
+  @media (max-width:600px) { #linepanel { left:8px !important; right:8px !important; top:auto !important; bottom:8px !important; width:auto; } }
+  @media (pointer:coarse) { .endbar button, #linepanel button, #linepanel input { min-height:40px; } }
+  .endbar button, #linepanel button, .ln-menu { -webkit-tap-highlight-color:transparent; }
+  .sr { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   dialog label.blk { display:block; font-size:.85rem; color:var(--muted); margin:10px 0 4px; }
   dialog .two { display:flex; gap:10px; } dialog .two > div { flex:1; min-width:0; }
   dialog .two input { width:100%; }
@@ -114,17 +139,55 @@
     <input type="text" id="roomname" aria-label="Raumname (aktueller Raum)" placeholder="Raumname">
     <span id="palette" class="toolbar tools"></span>
     <span style="flex:1"></span>
+    <button type="button" class="ln-menu" id="ln-menu-top" aria-haspopup="dialog" aria-expanded="false" aria-controls="linepanel" data-title="Zeilen oder Spalten an der Auswahl einfügen oder löschen (auch: Rechtsklick auf einen Zeilen- oder Spaltenkopf)">Zeilen/Spalten ▾</button>
     <label>Zoom <input type="range" id="zoom" min="28" max="96" step="2"></label>
   </div>
   <div class="legend" id="legend"></div>
   <div class="layout" id="roompanel" role="tabpanel">
-    <div class="gridwrap" id="gridwrap" tabindex="0" aria-label="Raster"><div id="grid" class="grid"></div></div>
+    <div class="gridcol">
+      <div class="gridwrap" id="gridwrap" tabindex="0" aria-label="Raster"><div id="grid" class="grid"></div></div>
+      <div class="endbar" id="endbar" role="group" aria-label="Zeilen und Spalten ändern">
+        <button type="button" class="ln-menu" id="ln-menu" aria-haspopup="dialog" aria-expanded="false" aria-controls="linepanel" data-title="Zeilen oder Spalten an der Auswahl einfügen oder löschen (auch: Rechtsklick auf einen Zeilen- oder Spaltenkopf)">Einfügen/Löschen ▾</button>
+        <span class="grp" role="group" aria-label="Zeilen am Ende">
+          <button type="button" id="ln-addrow" data-title="Eine Zeile unten anhängen">+ Zeile</button>
+          <button type="button" id="ln-delrow" data-title="Die letzte Zeile entfernen">− Zeile</button>
+        </span>
+        <span class="grp" role="group" aria-label="Spalten am Ende">
+          <button type="button" id="ln-addcol" data-title="Eine Spalte rechts anhängen">+ Spalte</button>
+          <button type="button" id="ln-delcol" data-title="Die letzte Spalte entfernen">− Spalte</button>
+        </span>
+        <span class="hint" id="ln-size"></span>
+      </div>
+      <div id="linepanel" role="dialog" aria-labelledby="lp-h" tabindex="-1" hidden>
+        <div class="lp-head"><strong id="lp-h">Zeilen und Spalten</strong></div>
+        <p class="lp-info" id="lp-sel"></p>
+        <div class="lp-grp" role="group" aria-labelledby="lp-hr">
+          <h3 id="lp-hr">Zeilen</h3>
+          <div class="lp-count"><label for="lp-nrow">Anzahl</label><input type="number" id="lp-nrow" min="1" max="100" step="1" inputmode="numeric" aria-label="Anzahl Zeilen"></div>
+          <button type="button" class="item" data-op="row-above"><span>Zeile(n) oberhalb einfügen</span><span class="cnt" aria-hidden="true"></span></button>
+          <button type="button" class="item" data-op="row-below"><span>Zeile(n) unterhalb einfügen</span><span class="cnt" aria-hidden="true"></span></button>
+          <button type="button" class="item del" data-op="row-del"><span>Zeile(n) löschen</span><span class="cnt" aria-hidden="true"></span></button>
+          <p class="lp-note" id="lp-note-row"></p>
+        </div>
+        <div class="lp-grp" role="group" aria-labelledby="lp-hc">
+          <h3 id="lp-hc">Spalten</h3>
+          <div class="lp-count"><label for="lp-ncol">Anzahl</label><input type="number" id="lp-ncol" min="1" max="100" step="1" inputmode="numeric" aria-label="Anzahl Spalten"></div>
+          <button type="button" class="item" data-op="col-left"><span>Spalte(n) links einfügen</span><span class="cnt" aria-hidden="true"></span></button>
+          <button type="button" class="item" data-op="col-right"><span>Spalte(n) rechts einfügen</span><span class="cnt" aria-hidden="true"></span></button>
+          <button type="button" class="item del" data-op="col-del"><span>Spalte(n) löschen</span><span class="cnt" aria-hidden="true"></span></button>
+          <p class="lp-note" id="lp-note-col"></p>
+        </div>
+        <p class="lp-info">Die Anzahl ist mit den markierten Zeilen/Spalten vorbelegt (mindestens 1, höchstens 100). Gelöscht wird ab dem Beginn der Auswahl.</p>
+        <button type="button" id="lp-close" class="small-btn" aria-label="Schließen" title="Schließen (Esc)">✕</button>
+      </div>
+    </div>
     <aside class="side card" id="side"></aside>
   </div>
-  <p class="hint">Klick = auswählen · Ziehen = Bereich · Asset ziehen = verschieben (Strg = kopieren) · Entf = löschen · Strg+C/X/V · Pfeiltasten · Enter = Name bearbeiten · Typ in der Leiste wählen = Stempel (Esc beendet) · Räume: Tabs oben (←/→ wechseln); Kopiertes lässt sich in einem anderen Raum einfügen</p>
+  <p class="hint">Klick = auswählen · Ziehen = Bereich · Asset ziehen = verschieben (Strg = kopieren) · Entf = löschen · Strg+C/X/V · Pfeiltasten · Enter = Name bearbeiten · Typ in der Leiste wählen = Stempel (Esc beendet) · Räume: Tabs oben (←/→ wechseln); Kopiertes lässt sich in einem anderen Raum einfügen · Zeilen/Spalten: Rechtsklick auf einen Zeilen-/Spaltenkopf (Umschalt+Klick oder Ziehen markiert mehrere) oder Schaltfläche „Zeilen/Spalten“ unter dem Raster zum Einfügen und Löschen an beliebiger Stelle (Kontextmenü-Taste / Umschalt+F10 öffnet sie für die Auswahl); „+ Zeile“, „+ Spalte“, „− Zeile“, „− Spalte“ wirken am Ende · alles ist mit Strg+Z/Y umkehrbar</p>
 </main>
 
 <div id="toast" hidden></div>
+<div id="sr" class="sr" role="status" aria-live="polite"></div>
 
 <dialog id="dlg-cfg" class="cfg">
   <h2 style="margin-top:0">Konfiguration</h2>
@@ -217,7 +280,7 @@ const store = SimpleStorage.create({
     const rep = [], lost = normalize(store.data, rep);
     resetHistory(); tool = { kind: 'select' }; curId = null; // nach Laden/Neu: erster Raum aktiv (ensureActive in render), Auswahl A1
     render();
-    if (lost) toast(`${lost} Asset(s) passten nicht in den Raum (max. ${MAXN}×${MAXN}) und wurden verworfen – ${rep.map((x) => `Raum „${x.name}“: ${x.n}`).join(', ')}`);
+    if (lost) toast(`${lost} Asset(s) passten nicht in den Raum (max. ${MAXN}×${MAXN}) und wurden verworfen – ${rep.map((x) => `Raum „${x.name}“: ${x.n}`).join(', ')}`, 7000);
   },
   statusEl: $('status'),
 });
@@ -294,7 +357,10 @@ function normalize(d, report) {
       if (!found) { lost++; return; }
       used.add(key(a.row, a.col)); R.assets.push(a);
     });
-    if (lost) { dropped += lost; if (report) report.push({ name: R.name, n: lost }); }
+    if (lost) { // Anzeigename wie in der Tab-Leiste (leer -> „Raum N“), lange Namen gekürzt
+      dropped += lost;
+      if (report) { const nm = Array.from(R.name.trim() || 'Raum ' + (i + 1)); report.push({ name: nm.length > 40 ? nm.slice(0, 39).join('') + '…' : nm.join(''), n: lost }); }
+    }
     return R;
   });
   return dropped;
@@ -352,8 +418,8 @@ function restoreSnap(s) {
   if (Array.isArray(d.rooms)) d.rooms.forEach((r) => { if (r && typeof r === 'object') r.zoom = zs.has(r.id) ? zs.get(r.id) : zoomMemo.get(r.id) || 48; });
   store.data = d; normalize(store.data); last = snap(); store.changed(); render();
 }
-function undo() { if (undoStack.length) { redoStack.push(last); restoreSnap(undoStack.pop()); } }
-function redo() { if (redoStack.length) { undoStack.push(last); restoreSnap(redoStack.pop()); } }
+function undo() { closeLinePanel(false); if (undoStack.length) { redoStack.push(last); restoreSnap(undoStack.pop()); } }
+function redo() { closeLinePanel(false); if (redoStack.length) { undoStack.push(last); restoreSnap(redoStack.pop()); } }
 
 /* ---------- Auswahl ---------- */
 let anchor = { r: 0, c: 0 }, focus = { r: 0, c: 0 };
@@ -371,7 +437,11 @@ let tool = { kind: 'select' };
 
 /* ---------- Toast ---------- */
 let toastT;
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800); }
+let srT;
+function toast(msg, ms) {
+  const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms || 2800);
+  const sr = $('sr'); sr.textContent = ''; clearTimeout(srT); srT = setTimeout(() => { sr.textContent = msg; }, 60); // gleiche Meldung wird so erneut vorgelesen
+}
 
 /* ---------- Icons ---------- */
 function iconEl(icon, size) {
@@ -387,6 +457,7 @@ function render(opts) {
   if (tool.kind === 'stamp' && !typeById.has(tool.type)) tool = { kind: 'select' };
   renderRoomBar(); renderTools(); renderLegend(); renderGrid();
   if (!opts || !opts.keepPanel) renderSide();
+  updateLineUi();
   $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
 }
 
@@ -455,11 +526,11 @@ function renderGrid() {
   g.style.gridTemplateRows = `24px repeat(${R.rows}, ${cs}px)`;
   g.classList.toggle('small', cs < 40);
   const frag = document.createDocumentFragment();
-  const corner = el('div', 'h corner', ''); corner.dataset.k = 'all'; frag.append(corner);
+  const corner = el('div', 'h corner', ''); corner.dataset.k = 'all'; corner.title = 'Alles markieren – Rechtsklick: Zeilen/Spalten einfügen/löschen'; frag.append(corner);
   colHeads = []; rowHeads = []; cellEls = [];
-  for (let c = 0; c < R.cols; c++) { const h = el('div', 'h col', colName(c)); h.dataset.k = 'col'; h.dataset.c = c; colHeads.push(h); frag.append(h); }
+  for (let c = 0; c < R.cols; c++) { const h = el('div', 'h col', colName(c)); h.dataset.k = 'col'; h.dataset.c = c; h.title = `Spalte ${colName(c)} – Rechtsklick: Spalten einfügen/löschen`; colHeads.push(h); frag.append(h); }
   for (let r = 0; r < R.rows; r++) {
-    const h = el('div', 'h row', String(r + 1)); h.dataset.k = 'row'; h.dataset.r = r; rowHeads.push(h); frag.append(h);
+    const h = el('div', 'h row', String(r + 1)); h.dataset.k = 'row'; h.dataset.r = r; h.title = `Zeile ${r + 1} – Rechtsklick: Zeilen einfügen/löschen`; rowHeads.push(h); frag.append(h);
     const row = [];
     for (let c = 0; c < R.cols; c++) {
       const div = document.createElement('div'); div.dataset.r = r; div.dataset.c = c;
@@ -488,9 +559,9 @@ let tabSig = null;
 const roomTabs = () => Array.from($('roomtabs').children);
 function renderRoomBar() {
   const d = D(), cur = RM(), tabs = $('roomtabs'), acts = $('roomacts');
-  const sig = JSON.stringify(d.rooms.map((r) => [r.id, roomLabel(r)])), rebuilt = sig !== tabSig || tabs.children.length !== d.rooms.length;
+  const sig = JSON.stringify(d.rooms.map((r) => r.id)), rebuilt = sig !== tabSig || tabs.children.length !== d.rooms.length;
   const hadFocus = tabs.contains(document.activeElement);
-  if (rebuilt) { // Tabs nur neu aufbauen, wenn sich Räume/Namen/Reihenfolge ändern (Fokus und Klicks gehen sonst verloren)
+  if (rebuilt) { // Tabs nur neu aufbauen, wenn sich die Räume oder ihre Reihenfolge ändern; Namen werden unten an Ort und Stelle aktualisiert (sonst geht ein Klick mitten im Blur des Namensfelds verloren)
     tabSig = sig; tabs.textContent = '';
     d.rooms.forEach((r, i) => {
       const b = el('button', 'rtab', roomLabel(r)); b.type = 'button'; b.id = 'rtab' + i; b.title = roomLabel(r);
@@ -501,7 +572,8 @@ function renderRoomBar() {
     });
   }
   let activeTab = null;
-  roomTabs().forEach((b) => {
+  roomTabs().forEach((b, i) => {
+    const lbl = roomLabel(d.rooms[i]); if (b.textContent !== lbl) b.textContent = lbl; b.title = lbl;
     const on = b.dataset.id === cur.id; if (on) activeTab = b;
     b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
   });
@@ -551,7 +623,7 @@ $('roomform').onsubmit = (e) => {
   flushPending();
   D().rooms.push(room); activate(room.id);
   commit();
-  if ($('dlg-cfg').open) renderCfg();
+  if ($('dlg-cfg').open) { renderCfg(); const a = $('cfg-body').querySelector('[data-k="addroom"]'); if (a) a.focus(); } // renderCfg stellt den Fokus nur per Index wieder her – die Liste ist aber gewachsen
 };
 function dupRoom() {
   const src = RM(), copy = JSON.parse(JSON.stringify(src));
@@ -572,8 +644,14 @@ function moveRoom(dir) {
   const rs = D().rooms, i = rs.indexOf(RM()), j = i + dir; if (j < 0 || j >= rs.length) return;
   [rs[i], rs[j]] = [rs[j], rs[i]]; commit();
 }
-// Name des aktiven Raums: leer -> Standardname, Leerraum außen entfernen
-function fixRoomName(r) { r.name = r.name.trim() || freeRoomName(); return r.name; }
+// Name eines Raums: Leerraum außen entfernen; leer -> Standardname. Der Ersatzname ist die Tab-Beschriftung („Raum N“ nach Position),
+// damit das Label beim Verlassen des Feldes nicht springt; nur wenn ein anderer Raum schon so heißt, der nächste freie Name.
+function fixRoomName(r) {
+  const t = r.name.trim(); if (t) return (r.name = t);
+  const l = roomLabel(r);
+  r.name = D().rooms.some((x) => x !== r && x.name.trim() === l) ? freeRoomName() : l;
+  return r.name;
+}
 // Tabs per Tastatur (ARIA-Tab-Muster): ←/→ wechseln (mit Umlauf), Pos1/Ende springen; der Wechsel aktiviert sofort
 $('roomtabs').addEventListener('keydown', (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -761,8 +839,9 @@ gridEl.addEventListener('mousedown', (e) => {
   const h = e.target.closest('.h');
   if (h) {
     const R = RM(), k = h.dataset.k;
-    if (k === 'col') { anchor = { r: 0, c: +h.dataset.c }; focus = { r: R.rows - 1, c: +h.dataset.c }; }
-    else if (k === 'row') { anchor = { r: +h.dataset.r, c: 0 }; focus = { r: +h.dataset.r, c: R.cols - 1 }; }
+    // Umschalt+Klick erweitert von der Anker-Zeile/-Spalte, Ziehen über weitere Köpfe (mode hrow/hcol) ebenfalls
+    if (k === 'col') { const c = +h.dataset.c; anchor = { r: 0, c: e.shiftKey ? anchor.c : c }; focus = { r: R.rows - 1, c }; mode = 'hcol'; }
+    else if (k === 'row') { const r = +h.dataset.r; anchor = { r: e.shiftKey ? anchor.r : r, c: 0 }; focus = { r, c: R.cols - 1 }; mode = 'hrow'; }
     else { anchor = { r: 0, c: 0 }; focus = { r: R.rows - 1, c: R.cols - 1 }; }
     updateSel(); renderSide(); return;
   }
@@ -777,6 +856,12 @@ gridEl.addEventListener('mousedown', (e) => {
 });
 gridEl.addEventListener('mouseover', (e) => {
   if (!mode) return;
+  if (mode === 'hcol' || mode === 'hrow') { // Kopfauswahl: ganze Spalten bzw. Zeilen bis zur Zeigerposition
+    const R = RM(), n = e.target.closest && e.target.closest(mode === 'hcol' ? '[data-c]' : '[data-r]'); if (!n) return;
+    if (mode === 'hcol') { const c = +n.dataset.c; if (c !== focus.c) { focus = { r: R.rows - 1, c }; updateSel(); } }
+    else { const r = +n.dataset.r; if (r !== focus.r) { focus = { r, c: R.cols - 1 }; updateSel(); } }
+    return;
+  }
   const cell = cellOf(e); if (!cell) return;
   if (mode === 'paint') { const l = lastPaint || cell; paintLine(l.r, l.c, cell.r, cell.c); lastPaint = { r: cell.r, c: cell.c }; }
   if (cell.r !== focus.r || cell.c !== focus.c) { focus = { r: cell.r, c: cell.c }; updateSel(); }
@@ -844,6 +929,7 @@ document.addEventListener('keydown', (e) => {
   if (t !== document.body && !$('gridwrap').contains(t) && !(e.key === 'Escape' && $('palette').contains(t)) && !onTab) return;
   if (mod && (k === 'c' || k === 'x') && String(window.getSelection()).trim()) return; // markierter Seitentext: normales Kopieren
   const R = RM();
+  if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); openLinesFromKey(); return; }
   if (e.key.startsWith('Arrow')) {
     if (e.altKey || e.ctrlKey || e.metaKey) return; // Alt+←/→ (Zurück) u. a. bleiben dem Browser
     e.preventDefault();
@@ -861,6 +947,208 @@ document.addEventListener('keydown', (e) => {
   else if (mod && k === 'x') { e.preventDefault(); if (copySel()) deleteSel(); }
   else if (mod && k === 'v') { e.preventDefault(); pasteClip(); }
 });
+
+/* ---------- Zeilen und Spalten einfügen / entfernen ---------- */
+// Wirkt auf den aktiven Raum. Die Assets rutschen mit. Jede Aktion läuft über applyLines() und ist damit genau ein Undo-Schritt.
+const pl = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const AX = { row: { dim: 'rows', pos: 'row', one: 'Zeile', many: 'Zeilen' }, col: { dim: 'cols', pos: 'col', one: 'Spalte', many: 'Spalten' } };
+const lineLabel = (axis, i) => (axis === 'row' ? String(i + 1) : colName(i));
+const lineRange = (axis, at, n) => (n === 1 ? `${AX[axis].one} ${lineLabel(axis, at)}` : `${AX[axis].many} ${lineLabel(axis, at)}–${lineLabel(axis, at + n - 1)}`);
+const readCount = (inp) => { const v = parseInt(inp.value, 10); return Number.isFinite(v) ? Math.min(MAXN, Math.max(1, v)) : 1; };
+function resetInteraction() { mode = null; painted = false; drag = null; lastPaint = null; pendingCollapse = null; } // keine Zustände mit alten Positionen behalten
+
+// Voreinstellung der Anzahl: markierte Zeilen bzw. Spalten. Ist eine ganze Zeile/Spalte markiert (Kopfauswahl), zählt die andere Richtung 1.
+function selCounts() {
+  const R = RM(), x = rect();
+  let nr = x.r2 - x.r1 + 1, nc = x.c2 - x.c1 + 1;
+  const fullW = nc === R.cols, fullH = nr === R.rows;
+  if (fullW || fullH) { if (!fullH) nc = 1; else if (!fullW) nr = 1; else { nr = 1; nc = 1; } }
+  return { row: nr, col: nc };
+}
+function selText() {
+  const x = rect();
+  const rr = x.r1 === x.r2 ? `Zeile ${x.r1 + 1}` : `Zeilen ${x.r1 + 1}–${x.r2 + 1}`;
+  const cc = x.c1 === x.c2 ? `Spalte ${colName(x.c1)}` : `Spalten ${colName(x.c1)}–${colName(x.c2)}`;
+  return `Auswahl: ${rr} · ${cc}`;
+}
+// Plan für eine Aktion an der Auswahl (kind: row-above | row-below | row-del | col-left | col-right | col-del); ok:false + why bei Grenzen
+function planLines(kind, count) {
+  const R = RM(), x = rect(), axis = kind.slice(0, 3), a = AX[axis], total = R[a.dim];
+  const s1 = axis === 'row' ? x.r1 : x.c1, s2 = axis === 'row' ? x.r2 : x.c2, n = Math.min(MAXN, Math.max(1, count | 0));
+  if (kind.endsWith('-del')) {
+    const k = Math.min(total, s1 + n) - s1; // gelöscht wird ab dem Beginn der Auswahl, höchstens bis zum Ende
+    if (k >= total) return { ok: false, why: `Mindestens 1 ${a.one} muss bleiben` };
+    return { ok: true, axis, del: true, at: s1, n: k };
+  }
+  if (total >= MAXN) return { ok: false, why: `Maximal ${pl(MAXN, a.one, a.many)} erreicht` };
+  if (total + n > MAXN) return { ok: false, why: `Es passen nur noch ${pl(MAXN - total, a.one, a.many)} dazu (Maximum ${MAXN})` };
+  const before = kind.endsWith('-above') || kind.endsWith('-left');
+  return { ok: true, axis, del: false, before, at: before ? s1 : s2 + 1, n };
+}
+function planEnd(axis, del) { // „+ Zeile“ / „− Zeile“ usw.: genau eine Zeile/Spalte am Ende
+  const a = AX[axis], total = RM()[a.dim];
+  if (!del) return total >= MAXN ? { ok: false, why: `Maximal ${pl(MAXN, a.one, a.many)} erreicht` } : { ok: true, axis, del: false, before: false, at: total, n: 1 };
+  return total <= 1 ? { ok: false, why: `Mindestens 1 ${a.one} muss bleiben` } : { ok: true, axis, del: true, at: total - 1, n: 1 };
+}
+function describePlan(p) {
+  const a = AX[p.axis];
+  if (p.del) return `${lineRange(p.axis, p.at, p.n)} löschen`;
+  const dir = p.axis === 'row' ? (p.before ? 'oberhalb' : 'unterhalb') : (p.before ? 'links' : 'rechts');
+  return `${pl(p.n, a.one, a.many)} ${dir} von ${lineRange(p.axis, p.before ? p.at : p.at - 1, 1)} einfügen`;
+}
+
+// Führt einen Plan aus: Rückfrage bei betroffenen Assets, Verschieben/Entfernen, Auswahl, genau ein Undo-Schritt, Meldung. true = ausgeführt.
+function applyLines(p) {
+  if (!p.ok) { toast(p.why); return false; }
+  const R = RM(), a = AX[p.axis], P = a.pos, x = rect();
+  const hit = p.del ? R.assets.filter((s) => s[P] >= p.at && s[P] < p.at + p.n) : [];
+  if (hit.length) {
+    const one = p.n === 1;
+    LP.busy = true;
+    const yes = confirm(`${D().rooms.length > 1 ? `Raum „${roomLabel(R)}“: ` : ''}${lineRange(p.axis, p.at, p.n)} löschen? ${pl(hit.length, 'Asset', 'Assets')} in ${one ? 'dieser' : 'diesen'} ${one ? a.one : a.many} ${hit.length === 1 ? 'wird' : 'werden'} ebenfalls entfernt.`);
+    LP.busy = false;
+    if (!yes) return false;
+  }
+  resetInteraction(); flushPending(); // offene Eingaben bleiben ein eigener Schritt
+  if (p.del) {
+    const gone = new Set(hit);
+    R.assets = R.assets.filter((s) => !gone.has(s));
+    R.assets.forEach((s) => { if (s[P] >= p.at + p.n) s[P] -= p.n; });
+    R[a.dim] -= p.n;
+  } else {
+    R.assets.forEach((s) => { if (s[P] >= p.at) s[P] += p.n; });
+    R[a.dim] += p.n;
+  }
+  const cl = (v, len) => Math.max(0, Math.min(len - 1, v));
+  if (p.axis === 'row') {
+    if (p.del) { anchor = { r: cl(p.at, R.rows), c: cl(x.c1, R.cols) }; focus = { ...anchor }; } // nach dem Löschen: an der Löschstelle
+    else { anchor = { r: p.at, c: 0 }; focus = { r: p.at + p.n - 1, c: R.cols - 1 }; } // eingefügte Zeilen sind markiert
+  } else if (p.del) { anchor = { r: cl(x.r1, R.rows), c: cl(p.at, R.cols) }; focus = { ...anchor }; }
+  else { anchor = { r: 0, c: p.at }; focus = { r: R.rows - 1, c: p.at + p.n - 1 }; }
+  commit();
+  if ($('dlg-cfg').open) renderCfg();
+  revealCell(anchor.r, anchor.c);
+  toast(`${pl(p.n, a.one, a.many)}${p.del ? `${hit.length ? ` und ${pl(hit.length, 'Asset', 'Assets')}` : ''} entfernt` : ' eingefügt'}`);
+  return true;
+}
+// Zelle im Raster sichtbar machen, ohne die ganze Seite zu scrollen (sticky Köpfe: 36px breit, 24px hoch)
+function revealCell(r, c) {
+  const w = $('gridwrap'), e = cellEls[r] && cellEls[r][c]; if (!e) return;
+  const wr = w.getBoundingClientRect(), er = e.getBoundingClientRect();
+  const top = wr.top + w.clientTop + 24, bottom = wr.top + w.clientTop + w.clientHeight, left = wr.left + w.clientLeft + 36, right = wr.left + w.clientLeft + w.clientWidth;
+  if (er.top < top) w.scrollTop -= top - er.top; else if (er.bottom > bottom) w.scrollTop += er.bottom - bottom;
+  if (er.left < left) w.scrollLeft -= left - er.left; else if (er.right > right) w.scrollLeft += er.right - right;
+}
+
+/* --- Schaltflächen am Rasterende und Menü --- */
+const lpEl = $('linepanel'), LP = { open: false, opener: null, viaKey: false, roomId: null, busy: false };
+function setDisabled(b, why, title) { b.setAttribute('aria-disabled', String(!!why)); b._why = why || ''; b.title = why || title || b.dataset.title || ''; }
+function updateLineUi() {
+  const R = RM();
+  [['ln-addrow', 'row', false], ['ln-delrow', 'row', true], ['ln-addcol', 'col', false], ['ln-delcol', 'col', true]].forEach(([id, axis, del]) => {
+    const p = planEnd(axis, del), b = $(id); setDisabled(b, p.ok ? '' : p.why, del ? `${lineRange(axis, p.at, 1)} entfernen (die letzte)` : b.dataset.title);
+  });
+  document.querySelectorAll('.ln-menu').forEach((b) => { b.title = b.dataset.title; });
+  $('ln-size').textContent = `${pl(R.cols, 'Spalte', 'Spalten')} × ${pl(R.rows, 'Zeile', 'Zeilen')}`;
+  if (LP.open) updateLinePanel();
+}
+function updateLinePanel() {
+  if (RM().id !== LP.roomId) return closeLinePanel(false); // anderer Raum (Undo, Laden …): Menü gehört nicht mehr dazu
+  $('lp-sel').textContent = selText();
+  const notes = { row: new Set(), col: new Set() };
+  lpEl.querySelectorAll('button[data-op]').forEach((b) => {
+    const axis = b.dataset.op.slice(0, 3), p = planLines(b.dataset.op, readCount($(axis === 'row' ? 'lp-nrow' : 'lp-ncol')));
+    setDisabled(b, p.ok ? '' : p.why, p.ok ? describePlan(p) : '');
+    b.querySelector('.cnt').textContent = p.ok ? `× ${p.n}` : '';
+    if (!p.ok) notes[axis].add(p.why);
+  });
+  $('lp-note-row').textContent = Array.from(notes.row).join(' '); $('lp-note-col').textContent = Array.from(notes.col).join(' ');
+}
+const menuBtns = () => Array.from(document.querySelectorAll('.ln-menu'));
+const setExpanded = (on) => menuBtns().forEach((b) => b.setAttribute('aria-expanded', String(on)));
+function openLinePanel(o) { // o: { opener, viaKey, pt } – pt = Bildschirmposition (Rechtsklick), sonst unter dem Opener
+  const c = selCounts();
+  $('lp-nrow').value = c.row; $('lp-ncol').value = c.col; // Standard: Anzahl der markierten Zeilen/Spalten
+  Object.assign(LP, { open: true, opener: o.opener || null, viaKey: !!o.viaKey, roomId: RM().id });
+  lpEl.hidden = false; setExpanded(true);
+  updateLinePanel();
+  LP.place = () => { // Position am Mauszeiger bzw. unter dem Opener, immer innerhalb des Fensters (schmale Fenster: Blatt am unteren Rand per CSS)
+    const vw = document.documentElement.clientWidth, vh = window.innerHeight, w = lpEl.offsetWidth, h = lpEl.offsetHeight;
+    let left, top;
+    if (o.pt) { left = o.pt.x; top = o.pt.y; }
+    else { const b = o.opener.getBoundingClientRect(); left = b.left; top = b.bottom + 4; if (top + h > vh - 8) top = b.top - h - 4; }
+    lpEl.style.left = Math.max(8, Math.min(left, vw - w - 8)) + 'px'; lpEl.style.top = Math.max(8, Math.min(top, vh - h - 8)) + 'px';
+  };
+  LP.place();
+  lpEl.focus({ preventScroll: true });
+}
+function closeLinePanel(ret) { // ret: Fokus zurückgeben (Tastatur: an die Schaltfläche, sonst ans Raster)
+  if (!LP.open) return;
+  LP.open = false; lpEl.hidden = true; setExpanded(false);
+  if (!ret) return;
+  const o = LP.opener;
+  (LP.viaKey && o && o.isConnected ? o : $('gridwrap')).focus({ preventScroll: true });
+}
+function openLinesFromKey() { // Kontextmenü-Taste / Umschalt+F10 im Raster: Menü an der aktiven Zelle
+  const wr = $('gridwrap').getBoundingClientRect(), e = cellEls[anchor.r] && cellEls[anchor.r][anchor.c];
+  let pt = { x: wr.left + 60, y: wr.top + 40 };
+  if (e) { const b = e.getBoundingClientRect(); if (b.bottom > wr.top + 24 && b.top < wr.bottom && b.right > wr.left + 36 && b.left < wr.right) pt = { x: b.left + b.width / 2, y: b.top + b.height / 2 }; }
+  openLinePanel({ opener: $('gridwrap'), viaKey: true, pt });
+}
+menuBtns().forEach((b) => {
+  b.onclick = (e) => { if (LP.open && LP.opener === b) closeLinePanel(true); else openLinePanel({ opener: b, viaKey: e.detail === 0 }); };
+});
+$('lp-close').onclick = () => closeLinePanel(true);
+[['ln-addrow', 'row', false], ['ln-delrow', 'row', true], ['ln-addcol', 'col', false], ['ln-delcol', 'col', true]].forEach(([id, axis, del]) => {
+  const b = $(id);
+  b.onclick = (e) => {
+    if (b.getAttribute('aria-disabled') === 'true') { toast(b._why); return; }
+    applyLines(planEnd(axis, del));
+    if (e.detail) b.blur(); // Mausklick: Fokus zurück an die Seite, damit Pfeile/Strg+V im Raster wirken
+  };
+});
+lpEl.addEventListener('click', (e) => {
+  const b = e.target.closest && e.target.closest('button[data-op]'); if (!b) return;
+  const p = planLines(b.dataset.op, readCount($(b.dataset.op.startsWith('row') ? 'lp-nrow' : 'lp-ncol')));
+  if (!p.ok) { toast(p.why); return; }
+  if (applyLines(p)) closeLinePanel(true);
+});
+['lp-nrow', 'lp-ncol'].forEach((id) => {
+  const i = $(id);
+  i.addEventListener('input', updateLinePanel);
+  i.addEventListener('change', () => { i.value = readCount(i); updateLinePanel(); });
+});
+lpEl.addEventListener('contextmenu', (e) => { if (!(e.target instanceof HTMLInputElement)) e.preventDefault(); });
+lpEl.addEventListener('focusout', (e) => { // Fokus verlässt das Menü (Tab, Klick daneben): schließen, ohne den Fokus zu verschieben
+  if (!LP.open || LP.busy) return;
+  const n = e.relatedTarget; if (n && lpEl.contains(n)) return;
+  if (!n && !document.hasFocus()) return; // Fenster verlor den Fokus (z. B. Nachfrage-Dialog)
+  closeLinePanel(false);
+});
+document.addEventListener('pointerdown', (e) => { if (LP.open && !lpEl.contains(e.target) && !(e.target.closest && e.target.closest('.ln-menu'))) closeLinePanel(false); }, true);
+document.addEventListener('keydown', (e) => { if (LP.open && e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeLinePanel(true); } }, true);
+document.addEventListener('scroll', (e) => { // Menü am Kopf verankert: beim Scrollen schließen (ohne Fokus zu verschieben); mobil bleibt das Bottom-Sheet offen (Adressleiste löst scroll aus)
+  if (!LP.open || lpEl.contains(e.target)) return;
+  if (matchMedia('(max-width:600px)').matches) return;
+  closeLinePanel(false);
+}, true);
+window.addEventListener('resize', () => { if (LP.open && LP.place) LP.place(); }); // nicht schließen: mobile Browser lösen beim Ein-/Ausblenden der Adressleiste resize aus
+
+// Rechtsklick auf einen Zeilen-/Spaltenkopf (nur dort wird das Browser-Menü unterdrückt): Kopf markieren, sofern nicht schon in der Auswahl
+gridEl.addEventListener('contextmenu', (e) => {
+  const h = e.target.closest && e.target.closest('.h'); if (!h) return;
+  e.preventDefault();
+  const R = RM(), x = rect(), k = h.dataset.k, hr = h.getBoundingClientRect();
+  const allRows = x.r1 === 0 && x.r2 === R.rows - 1 && R.rows > 1, allCols = x.c1 === 0 && x.c2 === R.cols - 1 && R.cols > 1; // „alles markiert“ zählt nicht als Zeilen-/Spaltenauswahl
+  let pt = { x: e.clientX, y: e.clientY };
+  if (k === 'row') { const i = +h.dataset.r; if (!(x.c1 === 0 && x.c2 === R.cols - 1 && i >= x.r1 && i <= x.r2 && !allRows)) { anchor = { r: i, c: 0 }; focus = { r: i, c: R.cols - 1 }; } pt = { x: hr.right + 4, y: e.clientY }; }
+  else if (k === 'col') { const i = +h.dataset.c; if (!(x.r1 === 0 && x.r2 === R.rows - 1 && i >= x.c1 && i <= x.c2 && !allCols)) { anchor = { r: 0, c: i }; focus = { r: R.rows - 1, c: i }; } pt = { x: e.clientX, y: hr.bottom + 4 }; }
+  else { anchor = { r: 0, c: 0 }; focus = { r: R.rows - 1, c: R.cols - 1 }; pt = { x: hr.right + 4, y: hr.bottom + 4 }; }
+  resetInteraction(); updateSel(); renderSide();
+  openLinePanel({ opener: $('gridwrap'), viaKey: false, pt }); // neben dem Kopf, damit die übrigen Köpfe erreichbar bleiben
+});
+// Tastatur-Auslösung des Kontextmenüs (Menü-Taste, Umschalt+F10) meldet sich als contextmenu auf dem Raster selbst
+$('gridwrap').addEventListener('contextmenu', (e) => { if (e.target !== $('gridwrap') || e.button === 2) return; e.preventDefault(); openLinesFromKey(); });
 
 /* ---------- Konfiguration ---------- */
 let cfgTab = 'types';
@@ -973,7 +1261,8 @@ function cfgFields(box) {
     }
     row.append(btn('▲', 'Nach oben', () => moveIn(d.fields, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.fields, i, 1)),
       btn('✕', 'Feld löschen', () => {
-        if (!confirm(`Feld „${f.label}“ löschen? Die eingetragenen Werte gehen verloren${D().rooms.length > 1 ? ' (in allen Räumen)' : ''}.`)) return;
+        const used = usage((a) => Object.hasOwn(a.values, f.id) && a.values[f.id] !== '' && a.values[f.id] !== false); // Assets mit Wert – in ALLEN Räumen
+        if (!confirm(`Feld „${f.label}“ löschen?${used.n ? ` Die eingetragenen Werte gehen${D().rooms.length > 1 ? ' in allen Räumen' : ''} verloren (${used.txt}).` : ''}`)) return;
         allAssets().forEach((a) => { delete a.values[f.id]; }); d.fields.splice(i, 1); cfgCommit(true);
       }));
     const det = el('details', 'types');
@@ -992,10 +1281,18 @@ function cfgFields(box) {
 
 function cfgRoom(box) {
   const d = D(), R = RM();
+  // Änderungen an Name/Größe aktualisieren die Raumliste nur an Ort und Stelle (kein renderCfg): Ein Neuaufbau mitten in Blur/Klick
+  // würde das Element unter der Maus ersetzen (der Klick ginge verloren) und den Tastaturfokus auf <body> werfen.
+  let relabel = () => {}; const metas = []; let heading = null;
+  const upd = () => {
+    heading.textContent = `Alle Räume (${d.rooms.length}) – ${allAssets().length} Asset(s)`;
+    metas.forEach(([r, m]) => { m.textContent = `${r.cols} × ${r.rows} · ${r.assets.length} Asset(s)`; });
+  };
   box.append(el('p', 'hint', `Aktueller Raum: Name und Größe in Zellen (1–${MAXN}). Spalten = A, B, C …, Zeilen = 1, 2, 3 …`));
+  box.append(el('p', 'hint', 'Kleiner stellen schneidet am rechten und unteren Rand ab. Zeilen und Spalten an beliebiger Stelle einfügen oder entfernen: Schaltfläche „Zeilen/Spalten“ unter dem Raster oder Rechtsklick auf einen Zeilen-/Spaltenkopf.'));
   const nrow = el('div', 'cfgrow');
-  const ni = textInput(R.name, 'Name des Raums', (v) => { R.name = v; });
-  ni.onchange = () => { fixRoomName(R); ni.value = R.name; cfgCommit(false); };
+  const ni = textInput(R.name, 'Name des Raums', (v) => { R.name = v; relabel(); });
+  ni.onchange = () => { fixRoomName(R); ni.value = R.name; cfgCommit(false); relabel(); };
   nrow.append(el('span', 'hint', 'Name'), ni); box.append(nrow);
   const row = el('div', 'cfgrow');
   const mk = (label, val) => { const l = el('label', null, label + ' '); const i = el('input'); i.type = 'number'; i.min = 1; i.max = MAXN; i.value = val; i.style.width = '90px'; l.append(i); return [l, i]; };
@@ -1003,24 +1300,29 @@ function cfgRoom(box) {
   const apply = () => {
     const cols = Math.min(MAXN, Math.max(1, parseInt(ic.value, 10) || R.cols)), rows = Math.min(MAXN, Math.max(1, parseInt(ir.value, 10) || R.rows));
     const lost = R.assets.filter((a) => a.col >= cols || a.row >= rows);
-    if (lost.length && !confirm(`${lost.length} Asset(s) in „${roomLabel(R)}“ liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { renderCfg(); return; }
-    lost.forEach(removeAsset); R.cols = cols; R.rows = rows; cfgCommit(true);
+    if (lost.length && !confirm(`${lost.length} Asset(s) in „${roomLabel(R)}“ liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { ic.value = R.cols; ir.value = R.rows; return; }
+    lost.forEach(removeAsset); R.cols = cols; R.rows = rows; ic.value = cols; ir.value = rows;
+    cfgCommit(false); upd();
   };
   ic.onchange = apply; ir.onchange = apply;
   row.append(lc, lr); box.append(row);
 
-  box.append(el('h3', null, `Alle Räume (${d.rooms.length}) – ${allAssets().length} Asset(s)`));
+  heading = el('h3'); box.append(heading);
   d.rooms.forEach((r) => {
     const cur = r === R, only = d.rooms.length < 2;
     const line = el('div', 'cfgrow' + (cur ? ' cur' : ''));
     const go = btn('Wechseln', `Zu Raum „${roomLabel(r)}“ wechseln`, () => { if (cur) return; switchRoom(r.id); renderCfg(); });
     const del = btn('Löschen', only ? 'Der letzte Raum kann nicht gelöscht werden' : `Raum „${roomLabel(r)}“ löschen`, () => { if (only) return toast('Der letzte Raum kann nicht gelöscht werden'); deleteRoom(r.id); renderCfg(); });
     if (cur) go.setAttribute('aria-disabled', 'true'); if (only) del.setAttribute('aria-disabled', 'true');
-    line.append(el('span', 'rname', roomLabel(r)), el('span', 'rmeta', `${r.cols} × ${r.rows} · ${r.assets.length} Asset(s)`), go, del);
+    const rn = el('span', 'rname', roomLabel(r)), meta = el('span', 'rmeta');
+    metas.push([r, meta]);
+    if (cur) relabel = () => { const n = roomLabel(r); rn.textContent = n; go.title = `Zu Raum „${n}“ wechseln`; if (!only) del.title = `Raum „${n}“ löschen`; };
+    line.append(rn, meta, go, del);
     box.append(line);
   });
+  upd();
   const add = btn('+ Raum', 'Neuen Raum anlegen', openNewRoom, '');
-  add.style.marginTop = '8px'; box.append(add);
+  add.dataset.k = 'addroom'; add.style.marginTop = '8px'; box.append(add);
 }
 
 // Icon-Auswahl

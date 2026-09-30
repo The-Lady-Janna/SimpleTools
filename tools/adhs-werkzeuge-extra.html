@@ -10,10 +10,13 @@
     --soft: color-mix(in srgb, var(--accent) 9%, var(--card));
     --soft2: color-mix(in srgb, var(--accent) 18%, var(--card));
     --c-a: #5b86d6; --c-b: #d9962b; --c-c: #3a9d8c;
+    --on-accent: #fff; --on-ok: #fff; /* Schriftfarbe auf Akzent- bzw. Grün-Flächen (im Dunkelmodus helle Flächen -> dunkle Schrift) */
+    color-scheme: light dark; /* native Steuerelemente (Datum-/Uhrzeit-Symbole, Zahlenpfeile, Scrollbars) passend zum Modus */
   }
-  @media (prefers-color-scheme: dark) { :root { --c-a: #7fa6f5; --c-b: #f0b252; --c-c: #5fcdb9; } }
+  @media (prefers-color-scheme: dark) { :root { --c-a: #7fa6f5; --c-b: #f0b252; --c-c: #5fcdb9; --on-accent: #0b1220; --on-ok: #0b1220; } }
+  button.primary { color: var(--on-accent); }
   html { -webkit-text-size-adjust: 100%; }
-  main { max-width: 900px; padding: 12px 16px 90px; }
+  main { max-width: 900px; padding: 12px 16px 90px; overflow-wrap: anywhere; } /* lange Wörter/URLs sprengen nie die Seitenbreite */
   h1 { margin: .3em 0 .1em; }
   h2 { font-size: 1.15rem; margin: .1em 0 .4em; }
   h3 { font-size: 1rem; margin: 1em 0 .35em; }
@@ -22,12 +25,13 @@
   .toolbar button { min-height: 40px; }
   .toolbar .sp { flex: 1; }
   .opt { display: inline-flex; align-items: center; gap: 6px; font-size: .9rem; color: var(--muted); cursor: pointer; min-height: 36px; }
-  .opt input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .opt input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); }
+  .opt input:not([type=checkbox]) { width: auto; height: auto; min-height: 36px; } /* Uhrzeit-/Zahlenfelder in Labels: normale Größe (Inline-Breite, z. B. 70px, gewinnt) */
   .pts { font-size: .95rem; background: var(--soft2); border-radius: 99px; padding: 4px 12px; white-space: nowrap; }
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
   .tab { min-height: 46px; padding: 8px 14px; border-radius: 99px; font-size: 1rem; display: inline-flex; gap: 6px; align-items: center; }
-  .tab[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .tab[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .panel[hidden], [hidden] { display: none !important; }
   .hint { color: var(--muted); font-size: .9rem; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -39,9 +43,10 @@
   button.ghost:hover { color: var(--fg); border-color: var(--line); }
   .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
   .grow { flex: 1; min-width: 0; }
+  .row > input.grow { flex: 1 1 150px; min-width: 150px; } /* Textfeld in Formularzeilen: bricht bei schmalen Bildschirmen auf eine eigene Zeile um */
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
-  .chip { border-radius: 99px; padding: 6px 14px; min-height: 40px; }
-  .chip[aria-pressed=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip { border-radius: 99px; padding: 6px 14px; min-height: 40px; max-width: 100%; }
+  .chip[aria-pressed=true] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .list { list-style: none; margin: 0; padding: 0; }
   .item { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .item:last-child { border-bottom: 0; }
@@ -53,14 +58,17 @@
   input[type=checkbox].big { width: 28px; height: 28px; accent-color: var(--accent); flex: none; cursor: pointer; margin: 0; }
   input[type=time], input[type=search], input[type=password] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
   .hide-num .num { display: none; }
-  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 12px; z-index: 50; display: flex; gap: 12px; align-items: center; max-width: min(92vw, 560px); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
-  #toast button { background: transparent; color: inherit; border-color: currentColor; min-height: 34px; white-space: nowrap; }
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 12px; z-index: 50; display: flex; gap: 12px; align-items: center; width: max-content; max-width: min(92vw, 560px); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  #toast span { min-width: 0; overflow-wrap: anywhere; }
+  #toast button { background: transparent; color: inherit; border-color: currentColor; min-height: 34px; white-space: nowrap; flex: none; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: .85rem; color: var(--muted); margin-top: 4px; }
   .lg { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; }
   .lg-a { background: var(--c-a); } .lg-b { background: var(--c-b); }
   .chart-wrap { overflow-x: auto; }
   .chart-wrap svg { display: block; }
   .chart-wrap svg.fluid { width: 100%; min-width: 520px; height: auto; }
+  .chart-swipe { display: none; margin: 4px 0 0; }
+  @media (max-width: 580px) { .chart-swipe { display: block; } }
   svg text { fill: var(--muted); font-family: inherit; }
   svg .grid { stroke: var(--line); stroke-width: 1; }
   @media (max-width: 480px) { main { padding: 10px 12px 90px; } .tab { padding: 8px 12px; } .card { padding: 12px; } }
@@ -81,7 +89,7 @@
   .pl-block.short .tm { flex: none; }
   .pl-block.ov { outline: 2px dashed var(--warn); outline-offset: -2px; }
   .pl-now { position: absolute; left: 0; right: 0; height: 0; border-top: 2px solid var(--accent); z-index: 3; pointer-events: none; }
-  .pl-now span { position: absolute; right: 6px; top: -12px; background: var(--accent); color: #fff; font-size: .7rem; padding: 0 7px; border-radius: 99px; }
+  .pl-now span { position: absolute; right: 6px; top: -12px; background: var(--accent); color: var(--on-accent); font-size: .7rem; padding: 0 7px; border-radius: 99px; }
   .pl-gap { position: absolute; right: 2px; z-index: 2; font-size: .7rem; line-height: 1.3; background: var(--card); color: var(--muted); border: 1px dashed var(--line); border-radius: 99px; padding: 0 8px; transform: translateY(-50%); pointer-events: none; white-space: nowrap; }
   .sw { width: 40px; height: 40px; border-radius: 50%; padding: 0; border: 3px solid transparent; background: var(--bc); }
   .sw[aria-checked=true] { border-color: var(--fg); }
@@ -93,7 +101,7 @@
   .hb-big .nm { flex: 1; overflow-wrap: anywhere; }
   .hb-big .ck { width: 36px; height: 36px; border-radius: 50%; border: 2px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex: none; }
   .hb-big[aria-pressed=true] { background: color-mix(in srgb, var(--ok) 16%, var(--card)); border-color: var(--ok); }
-  .hb-big[aria-pressed=true] .ck { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .hb-big[aria-pressed=true] .ck { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
   .hb-habit { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .hb-habit:last-child { border-bottom: 0; }
   .hb-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 6px; }
@@ -102,8 +110,8 @@
   @media (min-width: 640px) { .hb-days { grid-template-columns: repeat(14, 1fr); } }
   .hb-cell { padding: 2px 0; min-height: 48px; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; font-size: .8rem; color: var(--muted); }
   .hb-cell b { font-size: 1rem; color: var(--fg); font-weight: 600; }
-  .hb-cell[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: #fff; }
-  .hb-cell[aria-pressed=true] b { color: #fff; }
+  .hb-cell[aria-pressed=true] { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
+  .hb-cell[aria-pressed=true] b { color: var(--on-ok); }
   .hb-cell.freeze { border-style: dashed; border-color: var(--c-a); background: color-mix(in srgb, var(--c-a) 12%, var(--card)); }
   .hb-cell.today { box-shadow: 0 0 0 2px var(--accent); }
   .hb-edit { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); }
@@ -113,8 +121,8 @@
   .scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
   .scale button { min-height: 64px; border-radius: 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 1.4rem; padding: 6px 2px; }
   .scale button small { font-size: .72rem; color: var(--muted); font-weight: 400; }
-  .scale button[aria-pressed=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
-  .scale button[aria-pressed=true] small { color: #fff; }
+  .scale button[aria-pressed=true] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+  .scale button[aria-pressed=true] small { color: var(--on-accent); }
   .en-row { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
   .en-row button.linkish { background: none; border: 0; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; }
   .ln-a { stroke: var(--c-a); fill: none; stroke-width: 2.5; stroke-linejoin: round; }
@@ -138,7 +146,7 @@
   .bo-what { font-size: 1.1rem; margin: .2em 0; overflow-wrap: anywhere; }
   .bo-time { font-size: clamp(2rem, 9vw, 3rem); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--muted); }
   .bo-run .soft { text-align: left; margin: 10px 0; }
-  .bo-checkin input { flex: 1 1 100%; }
+  .bo-checkin input, .bo-checkin .row > input.grow { flex: 1 1 100%; }
   .bo-run .list { text-align: left; }
   .bo-run .row { justify-content: center; }
   /* Ablage */
@@ -268,6 +276,7 @@
       <h2>Die letzten 30 Tage</h2>
       <div class="chart-wrap" id="en-chart"></div>
       <div class="legend"><span class="lg lg-a"></span> Energie <span class="lg lg-b"></span> Stimmung <span>· Lücken = kein Eintrag</span></div>
+      <p class="hint chart-swipe">← Nach links wischen für ältere Tage</p>
     </div>
     <div class="card">
       <h2>Was fällt auf?</h2>
@@ -336,7 +345,7 @@
     <div class="card bo-run" id="bo-run" hidden>
       <div class="bo-circle-wrap"><div class="bo-circle" aria-hidden="true"></div></div>
       <p class="bo-hello">Ich bin bei dir. 💛</p>
-      <p id="bo-what-run" class="bo-what"></p>
+      <p id="bo-what-run" class="bo-what" tabindex="-1"></p>
       <div id="bo-time" class="bo-time" aria-live="off"></div>
       <p id="bo-plan" class="meta"></p>
       <div id="bo-over" class="soft" hidden>Die geplante Zeit ist um 🎉 – du kannst beenden oder in Ruhe weitermachen.</div>
@@ -434,10 +443,13 @@ function fixIds(list) {
   return list;
 }
 const isoNow = () => new Date().toISOString();
+const TS_MIN = Date.UTC(1901, 0, 1), TS_MAX = Date.UTC(2199, 11, 31); // Bereich, den die Tagesanzeige (parseKey: 1900–2200) verarbeiten kann
 function ts(v, fallback) { // Zeitpunkt (ISO) – nur für Momente, nie für Kalendertage
   if (typeof v === 'string' || typeof v === 'number') {
-    const t = typeof v === 'number' ? v : Date.parse(v);
-    if (Number.isFinite(t) && Math.abs(t) < 8.64e15) return new Date(t).toISOString();
+    let t = NaN;
+    if (typeof v === 'number') t = v;
+    else { const dk = parseKey(v.trim()); t = dk ? dk.getTime() : Date.parse(v); } // reines 'YYYY-MM-DD' = lokaler Kalendertag (mittags), nicht UTC
+    if (Number.isFinite(t)) return new Date(Math.min(TS_MAX, Math.max(TS_MIN, t))).toISOString();
   }
   return fallback === undefined ? isoNow() : fallback;
 }
@@ -496,12 +508,14 @@ function ago(iso) { // freundliche, neutrale Zeitangabe
   if (min < 1) return 'gerade eben';
   if (min < 60) return 'vor ' + min + ' Min';
   const k = dayOfIso(iso), tk = today();
+  if (!parseKey(k)) return '';
   if (k === tk) return 'heute ' + clock(iso);
   if (k === addDays(tk, -1)) return 'gestern ' + clock(iso);
   return dayShort(k) + ' ' + clock(iso);
 }
 const pick1 = (list) => list[rnd(list.length)];
 const hideNum = () => !!(store && store.data && store.data.ui && store.data.ui.hideNumbers);
+const pluralPts = (n) => n + (n === 1 ? ' Punkt' : ' Punkte'); // „1 Punkt“, sonst „n Punkte“
 
 function svgEl(tag, attrs, parent) {
   const n = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -512,7 +526,7 @@ function svgEl(tag, attrs, parent) {
 
 /* ---------- Meldungen mit Rückgängig ---------- */
 let toastTimer = null;
-function hideToast() { $('toast').hidden = true; }
+function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
 function toast(msg, undo, ms) {
   const t = $('toast');
   t.textContent = '';
@@ -628,21 +642,43 @@ function renderChrome() {
   $('hideNum').checked = hideNum();
   document.body.classList.toggle('hide-num', hideNum());
   const p = $('pts');
-  if (p) p.textContent = hideNum() ? '🏆 Punkte ✨' : '🏆 ' + balance() + ' Punkte';
+  if (p) p.textContent = hideNum() ? '🏆 Punkte ✨' : '🏆 ' + pluralPts(balance());
 }
 function renderAll() {
   renderChrome();
   PAGE.modules.forEach((m) => m.render());
 }
-function uiRender() { // neu zeichnen, Fokus auf dasselbe Element zurückgeben
+const focusOk = (n) => !!(n && n.isConnected && n.getClientRects().length); // vorhanden und sichtbar (nicht in verstecktem/eingeklapptem Bereich)
+const focusLost = () => { const a = document.activeElement; return !a || a === document.body || !focusOk(a); };
+const isTouch = () => !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+const fkEl = (k) => () => document.querySelector('[data-fk="' + k + '"]');
+function uiRender(after) { // neu zeichnen, Fokus auf dasselbe Element zurückgeben
   const a = document.activeElement, k = a && a.dataset ? a.dataset.fk : null;
+  const pn = a && a !== document.body && a.closest ? a.closest('.panel') : null;
   renderAll();
   if (k) {
     const n = document.querySelector('[data-fk="' + k + '"]');
     if (n && n !== document.activeElement) n.focus({ preventScroll: true });
   }
+  // Ging der Fokus mit einem entfernten/versteckten Element verloren, auf ein sinnvolles Ziel setzen (nie Fokus aus einem Feld stehlen)
+  if ((pn || after) && focusLost()) {
+    const m = PAGE.modules.find((x) => x.id === PAGE.active);
+    for (const f of [after, m && m.focusFallback]) {
+      const n = typeof f === 'function' ? f() : null;
+      if (!focusOk(n)) continue;
+      if (f !== after && isTouch() && n.matches('input, textarea')) continue; // Ersatzziel: am Handy keine Bildschirmtastatur aufpoppen lassen
+      n.focus({ preventScroll: true });
+      if (document.activeElement === n) break; // (ein deaktiviertes Element nimmt keinen Fokus an)
+    }
+  }
 }
-function commit() { store.changed(); uiRender(); }
+function commit(after) { store.changed(); uiRender(after); }
+// Vor dem Löschen einer Listenzeile: Fokusziel in der Nachbarzeile merken (nächste, sonst vorherige); null -> Ersatzziel des Moduls
+function nbAfter(ul, prefix, id) {
+  const rows = Array.from(ul.children), i = rows.findIndex((r) => r.querySelector('[data-fk="' + prefix + id + '"]'));
+  const nb = i >= 0 ? rows[i + 1] || rows[i - 1] : null, t = nb && nb.querySelector('[data-fk^="' + prefix + '"]');
+  return t ? fkEl(t.dataset.fk) : null;
+}
 
 function selectTab(id, focus, initial) {
   PAGE.active = id;
@@ -655,7 +691,7 @@ function selectTab(id, focus, initial) {
     if (on && focus) tb.focus();
   });
   const m = PAGE.modules.find((x) => x.id === id);
-  if (m && m.onShow) m.onShow(!!initial);
+  if (m && m.onShow) m.onShow(!!initial || !!focus); // focus = Tastaturnavigation (Pfeile/Home/End): Fokus bleibt auf dem Tab
 }
 function buildTabs() {
   const bar = $('tabs');
@@ -699,7 +735,7 @@ function boot(pageStoreName) {
   const s = SimpleStorage.create({
     name: pageStoreName,
     defaults: makeDefaults,
-    onChange: () => { normalize(s.data); afterLoad(); },
+    onChange: () => { hideToast(); normalize(s.data); afterLoad(); }, // neue Daten (Öffnen/Neu/Neuladen): Toast samt Rückgängig gehört zu den alten Daten
     statusEl: $('status'),
   });
   return s;
@@ -708,7 +744,8 @@ function boot(pageStoreName) {
 /* ================= 📅 TAGESPLAN ================= */
 const PL_COLORS = [['#5b86d6', 'Blau'], ['#3a9d8c', 'Grün'], ['#d9962b', 'Gelb'], ['#9b7fd1', 'Violett'], ['#d97a9c', 'Rosa'], ['#8a94a6', 'Grau']];
 const PPM = 1.3; // Pixel pro Minute
-const PL = { date: today(), editing: null, color: PL_COLORS[0][0], rs: 7, needScroll: true, lastMinute: -1 };
+const PL_MAX = 3000; // Obergrenze beim Laden; bei Überschreitung fallen die ältesten Tage weg
+const PL = { date: today(), editing: null, color: PL_COLORS[0][0], rs: 7, re: 22, opener: null, needScroll: true, lastMinute: -1 };
 
 function normPlan(d) {
   const src = isObj(d.plan) ? d.plan : {};
@@ -730,7 +767,9 @@ function normPlan(d) {
       blocks.push(mk(addDays(date, 1), 0, e, undefined));
     } else blocks.push(mk(date, s, e, raw.id));
   });
-  d.plan = { dayStart: ds, dayEnd: de, blocks: fixIds(blocks.slice(0, 3000)) };
+  // zu viele Blöcke: die ältesten (nach Datum) verwerfen, nie die neuesten; Reihenfolge innerhalb eines Tages bleibt (stabiles Sortieren)
+  const kept = blocks.length > PL_MAX ? blocks.slice().sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)).slice(-PL_MAX) : blocks;
+  d.plan = { dayStart: ds, dayEnd: de, blocks: fixIds(kept) };
 }
 function plBlocks(date) {
   return D().plan.blocks.filter((b) => b.date === date).map((b) => Object.assign({}, b, { s: toMin(b.start), e: toMin(b.end) }))
@@ -771,6 +810,16 @@ function renderPlColors() {
     host.append(b);
   });
 }
+function plNow() { // Jetzt-Linie setzen/verschieben, ohne den Zeitstrahl neu zu bauen (Fokus und laufende Klicks auf Blöcke bleiben erhalten)
+  const line = $('pl-line'), old = line.querySelector('.pl-now');
+  if (old) old.remove();
+  if (PL.date !== today()) return;
+  const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
+  if (nm < PL.rs * 60 || nm > PL.re * 60) return;
+  const nl = el('div', 'pl-now'); nl.style.top = ((nm - PL.rs * 60) * PPM) + 'px';
+  nl.append(el('span', null, 'Jetzt ' + pad(now.getHours()) + ':' + pad(now.getMinutes())));
+  line.append(nl);
+}
 function renderPlan() {
   const P = D().plan, t = today();
   $('pl-date').textContent = dayLong(PL.date);
@@ -785,7 +834,7 @@ function renderPlan() {
     rs = Math.min(rs, Math.floor(Math.min(...list.map((b) => b.s)) / 60));
     re = Math.max(re, Math.ceil(Math.max(...list.map((b) => b.e)) / 60));
   }
-  PL.rs = rs;
+  PL.rs = rs; PL.re = re;
   const line = $('pl-line'); line.textContent = '';
   line.style.height = ((re - rs) * 60 * PPM) + 'px';
   for (let h = rs; h <= re; h++) {
@@ -814,14 +863,7 @@ function renderPlan() {
     p.title = 'Nur ' + (g.to - g.from) + ' Min zwischen „' + g.before.title + '“ und „' + g.after.title + '“';
     layer.append(p);
   });
-  if (PL.date === t) {
-    const now = new Date(), nm = now.getHours() * 60 + now.getMinutes();
-    if (nm >= rs * 60 && nm <= re * 60) {
-      const nl = el('div', 'pl-now'); nl.style.top = ((nm - rs * 60) * PPM) + 'px';
-      nl.append(el('span', null, 'Jetzt ' + pad(now.getHours()) + ':' + pad(now.getMinutes())));
-      line.append(nl);
-    }
-  }
+  plNow();
   // Hinweise (neutral)
   const hl = $('pl-hint-list'); hl.textContent = '';
   overlaps.forEach(([a, b, from, to]) => hl.append(el('li', null, '↔ „' + a.title + '“ und „' + b.title + '“ überschneiden sich (' + fromMin(from) + '–' + fromMin(to) + '). Nur zur Info – du kannst eins verschieben.')));
@@ -840,6 +882,8 @@ function renderPlan() {
 function plGo(date) { PL.date = date; PL.needScroll = true; plClose(); uiRender(); }
 function plOpen(id, pre) {
   const b = id ? D().plan.blocks.find((x) => x.id === id) : null;
+  const fa = document.activeElement, fk = fa && fa.dataset ? fa.dataset.fk : null;
+  PL.opener = fk && /^pl-b-/.test(fk) ? fk : null; // Auslöser (Block-Button) merken; sonst geht der Fokus später auf „+ Block“
   PL.editing = b ? b.id : 'new';
   const v = b || pre || { start: '09:00', end: '10:00' };
   $('pl-form').hidden = false;
@@ -856,6 +900,12 @@ function plOpen(id, pre) {
   $('pl-title').focus();
 }
 function plClose() { PL.editing = null; $('pl-form').hidden = true; }
+const plBack = () => (PL.opener && document.querySelector('[data-fk="' + PL.opener + '"]')) || $('pl-add'); // Fokusziel nach Speichern/Löschen/Abbrechen
+function plCancel() { // Formular schließen und den Fokus zurückgeben (sonst bliebe er auf dem ausgeblendeten Titelfeld)
+  plClose();
+  const n = plBack();
+  if (focusOk(n)) n.focus({ preventScroll: true });
+}
 function plSave() {
   const err = (m) => { $('pl-err').textContent = m; };
   const date = $('pl-fdate').value, s = toMin($('pl-start').value);
@@ -872,14 +922,14 @@ function plSave() {
   Object.assign(b, { date, start: fromMin(s), end: fromMin(e), title, color: PL.color });
   if (date !== PL.date) { PL.date = date; PL.needScroll = true; }
   plClose();
-  commit();
+  commit(plBack);
 }
 function plDelete() {
   const i = D().plan.blocks.findIndex((x) => x.id === PL.editing);
-  if (i < 0) { plClose(); return; }
+  if (i < 0) { plCancel(); return; }
   const [b] = D().plan.blocks.splice(i, 1);
   plClose();
-  commit();
+  commit(plBack);
   toast('Block „' + short(b.title, 30) + '“ gelöscht.', () => { if (!D().plan.blocks.some((x) => x.id === b.id)) { D().plan.blocks.splice(Math.min(i, D().plan.blocks.length), 0, b); commit(); } });
 }
 function plCopy() {
@@ -904,9 +954,9 @@ $('pl-add').onclick = () => {
   plOpen(null, { start: fromMin(m), end: fromMin(Math.min(1440, m + 60)) });
 };
 $('pl-save').onclick = plSave;
-$('pl-cancel').onclick = plClose;
+$('pl-cancel').onclick = plCancel;
 $('pl-del').onclick = plDelete;
-$('pl-form').onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.isComposing) { e.preventDefault(); plSave(); } else if (e.key === 'Escape') plClose(); };
+$('pl-form').onkeydown = (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !e.isComposing) { e.preventDefault(); if (!e.repeat) plSave(); } else if (e.key === 'Escape') plCancel(); };
 $('pl-line').onclick = (e) => {
   if (e.target.closest('.pl-block')) return;
   const y = e.clientY - $('pl-line').getBoundingClientRect().top;
@@ -921,7 +971,8 @@ registerModule({
   onLoad: () => { PL.needScroll = true; if (PL.editing && PL.editing !== 'new' && !D().plan.blocks.some((x) => x.id === PL.editing)) plClose(); },
   onShow: () => { PL.needScroll = true; renderPlan(); },
   dayChange: (t, old) => { if (PL.date === old) { PL.date = t; PL.needScroll = true; } },
-  tick: () => { const m = Math.floor(Date.now() / 60000); if (m !== PL.lastMinute) { PL.lastMinute = m; if (PL.date === today()) renderPlan(); } },
+  tick: () => { const m = Math.floor(Date.now() / 60000); if (m !== PL.lastMinute) { PL.lastMinute = m; plNow(); } }, // nur die Jetzt-Linie verschieben
+  focusFallback: () => $('pl-add'),
 });
 
 /* ================= 🌱 GEWOHNHEITEN ================= */
@@ -930,13 +981,17 @@ const HB_STARTERS = [['💧', 'Wasser trinken'], ['🦷', 'Zähne putzen'], ['�
 const HB = { editing: null };
 function normHabits(d) {
   const src = isObj(d.habits) ? d.habits : {};
+  const idStr = (x) => (typeof x === 'number' && Number.isFinite(x) ? String(x) : x); // alte/handgeschriebene Dateien: numerische IDs -> Text
   const list = fixIds((Array.isArray(src.habits) ? src.habits : []).filter(isObj).slice(0, 50)
-    .map((h) => ({ id: h.id, name: str(h.name, 60) || 'Gewohnheit', icon: str(h.icon, 8) || '🌱', points: int(h.points, 1, 0, 20) })));
+    .map((h) => ({ id: idStr(h.id), old: idStr(h.id), name: str(h.name, 60) || 'Gewohnheit', icon: str(h.icon, 8) || '🌱', points: int(h.points, 1, 0, 20) })));
+  // Bekommt eine Gewohnheit eine neue ID (ungültig/doppelt), wandern ihre Haken mit; bei doppelten IDs behält die erste ihre Historie
+  const keep = new Set(list.map((h) => h.id)), remap = new Map();
+  list.forEach((h) => { if (typeof h.old === 'string' && h.old !== h.id && !keep.has(h.old) && !remap.has(h.old)) remap.set(h.old, h.id); delete h.old; });
   const checks = {};
   if (isObj(src.checks)) {
     for (const k of Object.keys(src.checks)) {
       if (!parseKey(k)) continue;
-      const ids = [...new Set((Array.isArray(src.checks[k]) ? src.checks[k] : []).filter((x) => typeof x === 'string'))];
+      const ids = [...new Set((Array.isArray(src.checks[k]) ? src.checks[k] : []).map(idStr).filter((x) => typeof x === 'string').map((x) => (remap.has(x) ? remap.get(x) : x)))];
       if (ids.length) checks[k] = ids;
     }
   }
@@ -953,7 +1008,7 @@ function hbSet(id, date, on) {
   if (on && !arr.includes(id)) {
     arr.push(id);
     const p = pointsAward(hbRef(id, date), h.points, h.icon + ' ' + h.name + (date !== today() ? ' (' + dayShort(date) + ')' : ''), 'habit');
-    msg = 'Haken gesetzt – schön! 🌱' + (p && !hideNum() ? '  +' + p + (p === 1 ? ' Punkt' : ' Punkte') : '');
+    msg = 'Haken gesetzt – schön! 🌱' + (p && !hideNum() ? '  +' + pluralPts(p) : '');
   } else if (!on && arr.includes(id)) {
     arr.splice(arr.indexOf(id), 1);
     pointsRevoke(hbRef(id, date));
@@ -1030,8 +1085,8 @@ function renderHabits() {
   list.forEach((h) => {
     if (HB.editing === h.id) { ul.append(hbEditRow(h)); return; }
     const li = el('li', 'hb-edit');
-    li.append(el('span', 'nm', h.icon + ' ' + h.name), el('span', 'meta', '+' + h.points + ' Punkt' + (h.points === 1 ? '' : 'e')));
-    const e = btn('✎ Ändern', 'mini', () => { HB.editing = h.id; uiRender(); }); e.dataset.fk = 'hb-e-' + h.id; e.setAttribute('aria-label', 'Ändern: ' + h.name);
+    li.append(el('span', 'nm', h.icon + ' ' + h.name), el('span', 'meta', '+' + pluralPts(h.points)));
+    const e = btn('✎ Ändern', 'mini', () => { HB.editing = h.id; uiRender(fkEl('hb-edit-name')); }); e.dataset.fk = 'hb-e-' + h.id; e.setAttribute('aria-label', 'Ändern: ' + h.name);
     const x = btn('Löschen', 'mini ghost', () => hbDelete(h.id)); x.setAttribute('aria-label', 'Löschen: ' + h.name);
     li.append(e, x); ul.append(li);
   });
@@ -1048,10 +1103,12 @@ function hbEditRow(h) {
   const name = el('input', 'big-in'); name.type = 'text'; name.maxLength = 60; name.value = h.name; name.setAttribute('aria-label', 'Name'); name.style.flex = '1'; name.style.minWidth = '140px';
   const ic = iconSelect(h.icon);
   const pts = el('input', 'big-in'); pts.type = 'number'; pts.min = 0; pts.max = 20; pts.value = h.points; pts.style.width = '84px'; pts.setAttribute('aria-label', 'Punkte');
-  const save = () => { h.name = str(name.value, 60) || h.name; h.icon = ic.value; h.points = int(pts.value, h.points, 0, 20); HB.editing = null; commit(); };
-  name.onkeydown = pts.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) save(); else if (e.key === 'Escape') { HB.editing = null; uiRender(); } };
+  const back = fkEl('hb-e-' + h.id); // nach Speichern/Abbrechen: zurück zum „Ändern“-Button dieser Gewohnheit
+  const save = () => { h.name = str(name.value, 60) || h.name; h.icon = ic.value; h.points = int(pts.value, h.points, 0, 20); HB.editing = null; commit(back); };
+  const cancel = () => { HB.editing = null; uiRender(back); };
+  name.onkeydown = pts.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); if (!e.repeat) save(); } else if (e.key === 'Escape') cancel(); };
   name.dataset.fk = 'hb-edit-name';
-  li.append(name, ic, pts, btn('Speichern', 'primary mini', save), btn('Abbrechen', 'mini', () => { HB.editing = null; uiRender(); }));
+  li.append(name, ic, pts, btn('Speichern', 'primary mini', save), btn('Abbrechen', 'mini', cancel));
   return li;
 }
 function hbAdd(name, icon, points) {
@@ -1065,6 +1122,7 @@ function hbAdd(name, icon, points) {
 function hbDelete(id) {
   const H = D().habits, i = H.habits.findIndex((h) => h.id === id);
   if (i < 0) return;
+  const after = nbAfter($('hb-manage'), 'hb-e-', id); // vor dem Entfernen: Nachbarzeile merken
   const [h] = H.habits.splice(i, 1);
   const removed = {};
   for (const k of Object.keys(H.checks)) {
@@ -1074,7 +1132,7 @@ function hbDelete(id) {
       if (!H.checks[k].length) delete H.checks[k];
     }
   }
-  commit(); // Punkte bleiben im Konto – sie wurden ja verdient
+  commit(after); // Punkte bleiben im Konto – sie wurden ja verdient
   toast('Gewohnheit „' + short(h.name, 30) + '“ gelöscht.', () => {
     if (hbList().some((x) => x.id === h.id)) return;
     hbList().splice(Math.min(i, hbList().length), 0, h);
@@ -1088,10 +1146,11 @@ const hbAddFromForm = () => {
   $('hb-name').focus();
 };
 $('hb-add').onclick = hbAddFromForm;
-$('hb-name').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); hbAddFromForm(); } };
+$('hb-name').onkeydown = $('hb-pts').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); hbAddFromForm(); } };
 registerModule({
   id: 'habits', key: 'habits', icon: '🌱', label: 'Gewohnheiten',
   defaults: () => ({ habits: [], checks: {} }), normalize: normHabits, render: renderHabits,
+  focusFallback: () => $('hb-name'),
 });
 
 /* ================= ⚡ ENERGIE-TAGEBUCH ================= */
@@ -1213,6 +1272,7 @@ function enInsight() {
   return 'Sobald du an mindestens je 5 Tagen mit und ohne 7 Stunden Schlaf Energie und Schlaf eingetragen hast, zeige ich dir hier einen Vergleich.' +
     (hideNum() ? '' : ' Bisher: ' + hi.length + ' Tage mit ≥7 h, ' + lo.length + ' Tage mit weniger.');
 }
+function enScrollEnd() { const cw = $('en-chart'); cw.scrollLeft = cw.scrollWidth; } // neueste Tage (rechts) zuerst zeigen
 function renderEnergy() {
   const t = today();
   if (EN.date > t) EN.date = t;
@@ -1234,7 +1294,7 @@ function renderEnergy() {
   if (document.activeElement !== $('en-medstime')) $('en-medstime').value = e ? e.medsTime : '';
   if (document.activeElement !== $('en-note')) $('en-note').value = e ? e.note : '';
   $('en-del').hidden = !e;
-  const ch = $('en-chart'); ch.textContent = ''; ch.append(enChart());
+  const ch = $('en-chart'); ch.textContent = ''; ch.append(enChart()); // Wischposition bleibt erhalten; ans Ende scrollt nur onShow
   $('en-insight').textContent = enInsight();
   const ul = $('en-list'); ul.textContent = '';
   enEntries().slice(-8).reverse().forEach((x) => {
@@ -1270,7 +1330,9 @@ $('en-del').onclick = () => {
 registerModule({
   id: 'energy', key: 'energy', icon: '⚡', label: 'Energie-Tagebuch',
   defaults: () => ({ entries: [] }), normalize: normEnergy, render: renderEnergy,
+  onShow: enScrollEnd, // beim Einblenden (vorher war der Bereich versteckt, scrollWidth = 0)
   dayChange: (t, old) => { if (EN.date === old) EN.date = t; },
+  focusFallback: fkEl('en-energy-1'),
 });
 
 /* ================= 🏆 BELOHNUNGEN ================= */
@@ -1278,10 +1340,10 @@ const RW = { editing: null };
 function renderRewards() {
   const R = D().rewards, bal = balance();
   const b = $('rw-bal'); b.textContent = '';
-  if (hideNum()) b.append('Dein Konto ✨'); else b.append('🏆 ', el('span', 'num', String(bal)), ' Punkte');
+  if (hideNum()) b.append('Dein Konto ✨'); else b.append('🏆 ', el('span', 'num', String(bal)), bal === 1 ? ' Punkt' : ' Punkte');
   const cheapest = R.menu.filter((m) => m.cost > bal).sort((x, y) => x.cost - y.cost)[0];
   $('rw-sub').textContent = !R.menu.length ? 'Lege unten eine Belohnung an, die dir Freude macht.'
-    : cheapest ? (hideNum() ? 'Bald gibt es die nächste Belohnung: ' + cheapest.name : 'Nächste Belohnung: ' + cheapest.name + ' – noch ' + (cheapest.cost - bal) + ' Punkte.')
+    : cheapest ? (hideNum() ? 'Bald gibt es die nächste Belohnung: ' + cheapest.name : 'Nächste Belohnung: ' + cheapest.name + ' – noch ' + pluralPts(cheapest.cost - bal) + '.')
       : 'Du kannst dir alles auf der Liste gönnen. 💛';
   if (RW.editing && !R.menu.some((m) => m.id === RW.editing)) RW.editing = null;
   const ul = $('rw-menu'); ul.textContent = '';
@@ -1290,16 +1352,18 @@ function renderRewards() {
     if (RW.editing === m.id) {
       const name = el('input', 'big-in'); name.type = 'text'; name.maxLength = 80; name.value = m.name; name.setAttribute('aria-label', 'Name'); name.style.flex = '1'; name.style.minWidth = '140px'; name.dataset.fk = 'rw-edit-name';
       const cost = el('input', 'big-in'); cost.type = 'number'; cost.min = 1; cost.max = 9999; cost.value = m.cost; cost.style.width = '96px'; cost.setAttribute('aria-label', 'Kosten');
-      const save = () => { m.name = str(name.value, 80) || m.name; m.cost = int(cost.value, m.cost, 1, 9999); RW.editing = null; commit(); };
-      name.onkeydown = cost.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) save(); else if (e.key === 'Escape') { RW.editing = null; uiRender(); } };
-      li.append(name, cost, btn('Speichern', 'primary mini', save), btn('Abbrechen', 'mini', () => { RW.editing = null; uiRender(); }));
+      const back = fkEl('rw-e-' + m.id); // nach Speichern/Abbrechen: zurück zum „Ändern“-Button dieser Belohnung
+      const save = () => { m.name = str(name.value, 80) || m.name; m.cost = int(cost.value, m.cost, 1, 9999); RW.editing = null; commit(back); };
+      const cancel = () => { RW.editing = null; uiRender(back); };
+      name.onkeydown = cost.onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); if (!e.repeat) save(); } else if (e.key === 'Escape') cancel(); };
+      li.append(name, cost, btn('Speichern', 'primary mini', save), btn('Abbrechen', 'mini', cancel));
     } else {
-      li.append(el('span', 'nm', m.name), el('span', 'meta', m.cost + ' Punkte'));
+      li.append(el('span', 'nm', m.name), el('span', 'meta', pluralPts(m.cost)));
       const can = m.cost <= bal;
       const r = btn('Einlösen', can ? 'primary' : '', () => rwRedeem(m.id));
       r.disabled = !can; r.dataset.fk = 'rw-r-' + m.id; r.setAttribute('aria-label', 'Einlösen: ' + m.name);
-      if (!can) r.title = 'Noch ' + (m.cost - bal) + ' Punkte';
-      const e = btn('✎', 'mini', () => { RW.editing = m.id; uiRender(); }); e.setAttribute('aria-label', 'Ändern: ' + m.name);
+      if (!can) r.title = 'Noch ' + pluralPts(m.cost - bal);
+      const e = btn('✎', 'mini', () => { RW.editing = m.id; uiRender(fkEl('rw-edit-name')); }); e.dataset.fk = 'rw-e-' + m.id; e.setAttribute('aria-label', 'Ändern: ' + m.name);
       const x = btn('✕', 'mini ghost', () => rwDeleteMenu(m.id)); x.setAttribute('aria-label', 'Löschen: ' + m.name);
       li.append(r, e, x);
     }
@@ -1323,14 +1387,15 @@ function rwRedeem(id) {
   const e = { id: uid(), at: isoNow(), day: today(), pts: -m.cost, reason: 'Belohnung: ' + m.name, kind: 'redeem', ref: '' };
   D().rewards.ledger.push(e);
   compactLedger(D().rewards);
-  commit();
+  commit(fkEl('rw-e-' + id)); // wird „Einlösen“ dadurch deaktiviert, geht der Fokus auf „Ändern“ derselben Belohnung
   toast('Eingelöst: ' + m.name + ' – genieß es! 💛', () => { D().rewards.ledger = D().rewards.ledger.filter((x) => x.id !== e.id); commit(); });
 }
 function rwDeleteMenu(id) {
   const M = D().rewards.menu, i = M.findIndex((x) => x.id === id);
   if (i < 0) return;
+  const after = nbAfter($('rw-menu'), 'rw-e-', id); // vor dem Entfernen: Nachbarzeile merken
   const [m] = M.splice(i, 1);
-  commit();
+  commit(after);
   toast('Belohnung „' + short(m.name, 30) + '“ gelöscht.', () => { if (!D().rewards.menu.some((x) => x.id === m.id)) { D().rewards.menu.splice(Math.min(i, D().rewards.menu.length), 0, m); commit(); } });
 }
 $('rw-addmenu').onclick = () => {
@@ -1342,21 +1407,22 @@ $('rw-addmenu').onclick = () => {
   commit();
   $('rw-name').focus();
 };
-$('rw-name').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('rw-addmenu').click(); } };
+$('rw-name').onkeydown = $('rw-cost').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('rw-addmenu').click(); } };
 $('rw-manual').onclick = () => {
   const pts = int($('rw-mpts').value, 1, 1, 100), reason = str($('rw-mreason').value, 120) || 'Manuell vergeben';
   D().rewards.ledger.push({ id: uid(), at: isoNow(), day: today(), pts, reason, kind: 'manual', ref: '' });
   compactLedger(D().rewards);
   $('rw-mreason').value = '';
   commit();
-  toast('+' + pts + ' Punkte – verdient! 🌟', null, 2500);
+  toast('+' + pluralPts(pts) + ' – verdient! 🌟', null, 2500);
 };
-$('rw-mreason').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('rw-manual').click(); } };
+$('rw-mpts').onkeydown = $('rw-mreason').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); $('rw-manual').click(); } };
 $('rw-taskpts').onchange = (e) => { D().rewards.taskPoints = int(e.target.value, 2, 0, 20); commit(); };
 registerModule({
   id: 'rewards', key: 'rewards', icon: '🏆', label: 'Belohnungen',
   defaults: defaultsRewards, normalize: () => {}, // rewards wird zentral normalisiert
   render: renderRewards,
+  focusFallback: () => $('rw-name'),
 });
 
 /* ================= 🤝 BODY DOUBLING ================= */
@@ -1413,7 +1479,7 @@ function boNote(text) {
   const s = D().body.session;
   text = str(text, 200);
   if (s && text) { s.notes.push(text); }
-  BO.acked = BO.checkinIdx;
+  BO.acked = Math.max(BO.checkinIdx, Math.floor(boElapsed() / 600000)); // den aktuellen 10-Min-Abschnitt abhaken (auch wenn der Check-in länger offen war)
   $('bo-note').value = '';
   $('bo-checkin').hidden = true;
   commit();
@@ -1455,7 +1521,7 @@ function boTick() {
 BO_CHIPS.forEach((m) => { const b = btn(m + ' Min', 'chip', () => { $('bo-min').value = m; renderBody(); }); b.dataset.m = m; $('bo-chips').append(b); });
 $('bo-min').oninput = () => renderBody();
 $('bo-start').onclick = boStart;
-$('bo-what').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); boStart(); } };
+$('bo-what').onkeydown = $('bo-min').onkeydown = (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); boStart(); } };
 $('bo-end').onclick = boEnd;
 $('bo-cancel').onclick = () => {
   const s = D().body.session;
@@ -1474,6 +1540,7 @@ registerModule({
   id: 'body', key: 'body', icon: '🤝', label: 'Body Doubling',
   defaults: () => ({ session: null, log: [] }), normalize: normBody, render: renderBody, tick: boTick,
   onLoad: () => { BO.acked = Math.floor(boElapsed() / 600000); $('bo-checkin').hidden = true; },
+  focusFallback: () => (D().body.session ? $('bo-what-run') : $('bo-what')),
 });
 
 /* ================= 🔑 ABLAGE-MERKER ================= */
@@ -1512,8 +1579,9 @@ function fdAdd(what, where) {
 function fdDelete(id) {
   const L = fdList(), i = L.findIndex((e) => e.id === id);
   if (i < 0) return;
+  const after = nbAfter($('fd-list'), 'fd-e-', id); // vor dem Entfernen: Nachbarzeile merken
   const [e] = L.splice(i, 1);
-  commit();
+  commit(after);
   toast('Gelöscht: ' + short(e.what, 30), () => { if (!fdList().some((x) => x.id === e.id)) { fdList().splice(Math.min(i, fdList().length), 0, e); commit(); } });
 }
 function renderFinds() {
@@ -1533,14 +1601,16 @@ function renderFinds() {
       const box = el('div', 'fd-edit');
       const w1 = el('input', 'big-in'); w1.type = 'text'; w1.maxLength = 80; w1.value = e.what; w1.setAttribute('aria-label', 'Was'); w1.dataset.fk = 'fd-edit-what';
       const w2 = el('input', 'big-in'); w2.type = 'text'; w2.maxLength = 120; w2.value = e.where; w2.setAttribute('aria-label', 'Wo');
-      const save = () => { e.what = str(w1.value, 80) || e.what; e.where = str(w2.value, 120) || e.where; FD.editing = null; commit(); };
-      w1.onkeydown = w2.onkeydown = (ev) => { if (ev.key === 'Enter' && !ev.isComposing) save(); else if (ev.key === 'Escape') { FD.editing = null; uiRender(); } };
-      box.append(w1, w2, btn('Speichern', 'primary mini', save), btn('Abbrechen', 'mini', () => { FD.editing = null; uiRender(); }));
+      const back = fkEl('fd-e-' + e.id); // nach Speichern/Abbrechen: zurück zum „Ändern“-Button dieses Eintrags
+      const save = () => { e.what = str(w1.value, 80) || e.what; e.where = str(w2.value, 120) || e.where; FD.editing = null; commit(back); };
+      const cancel = () => { FD.editing = null; uiRender(back); };
+      w1.onkeydown = w2.onkeydown = (ev) => { if (ev.key === 'Enter' && !ev.isComposing) { ev.preventDefault(); if (!ev.repeat) save(); } else if (ev.key === 'Escape') cancel(); };
+      box.append(w1, w2, btn('Speichern', 'primary mini', save), btn('Abbrechen', 'mini', cancel));
       li.append(box);
     } else {
       const row = el('div', 'fd-row');
       row.append(el('span', 'w', e.what), el('span', 'wh', '→ ' + e.where), el('span', 'meta', ago(e.at)));
-      const ed = btn('✎', 'mini', () => { FD.editing = e.id; uiRender(); }); ed.setAttribute('aria-label', 'Ändern: ' + e.what); ed.dataset.fk = 'fd-e-' + e.id;
+      const ed = btn('✎', 'mini', () => { FD.editing = e.id; uiRender(fkEl('fd-edit-what')); }); ed.setAttribute('aria-label', 'Ändern: ' + e.what); ed.dataset.fk = 'fd-e-' + e.id;
       const x = btn('✕', 'mini ghost', () => fdDelete(e.id)); x.setAttribute('aria-label', 'Löschen: ' + e.what);
       row.append(ed, x);
       li.append(row);
@@ -1558,6 +1628,7 @@ $('fd-search').oninput = () => renderFinds();
 registerModule({
   id: 'finds', key: 'finds', icon: '🔑', label: 'Ablage-Merker',
   defaults: () => ({ entries: [] }), normalize: normFinds, render: renderFinds,
+  focusFallback: () => $('fd-what'),
 });
 
 /* ================= Start ================= */
