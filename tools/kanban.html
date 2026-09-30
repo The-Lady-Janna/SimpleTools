@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanban</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  main.wide { max-width:none; }
+  .board { overflow-x:auto; padding-bottom:12px; }
+  .grid { display:grid; gap:8px; min-width:max-content; }
+  .colhead { display:flex; gap:6px; align-items:center; font-weight:600; padding:6px 8px; background:var(--card); border:1px solid var(--line); border-radius:8px; position:sticky; top:0; z-index:1; }
+  .colhead .name { flex:1; }
+  .colhead .wip { font-weight:400; font-size:.85rem; color:var(--muted); }
+  .colhead.over { border-color:var(--err); } .colhead.over .wip { color:var(--err); font-weight:700; }
+  .lanehead { --c:transparent; grid-column:1 / -1; display:flex; gap:6px; align-items:center; font-weight:600; background:color-mix(in srgb, var(--c) 35%, var(--line)); border-radius:8px; padding:4px 10px; margin-top:8px; }
+  .lanehead .title { flex:1; cursor:pointer; }
+  .lanehead .count { color:var(--muted); font-weight:400; font-size:.85rem; }
+  .cell { min-height:56px; min-width:260px; border:1px dashed var(--line); border-radius:8px; padding:6px; display:flex; flex-direction:column; gap:6px; }
+  .cell.over { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+  .card.k { --c:transparent; background:color-mix(in srgb, var(--c) 16%, var(--card)); border-left:5px solid var(--c); margin:0; padding:8px 10px; cursor:grab; }
+  .card.k h3 { margin:0 0 4px; font-size:1rem; }
+  .card.k.dragging { opacity:.4; }
+  .card.k.isdone h3 { text-decoration:line-through; color:var(--muted); }
+  .card.k.archived { opacity:.55; border-style:dashed; }
+  .meta { display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px; }
+  .chip { font-size:.75rem; padding:0 7px; border-radius:99px; background:var(--line); color:var(--fg); }
+  .chip.due.today { background:#f59e0b; color:#000; } .chip.due.late { background:var(--err); color:#fff; }
+  .md { font-size:.9rem; overflow-wrap:anywhere; }
+  .md > :first-child { margin-top:0; } .md > :last-child { margin-bottom:0; }
+  .md h1,.md h2,.md h3,.md h4 { margin:.6em 0 .3em; font-size:1rem; }
+  .md p, .md ul, .md ol, .md pre, .md blockquote { margin:.4em 0; }
+  .md ul, .md ol { padding-left:1.3em; } .md ul.tasks { list-style:none; padding-left:0; }
+  .md code { background:var(--line); padding:0 4px; border-radius:4px; }
+  .md pre { background:var(--line); padding:8px; border-radius:6px; overflow-x:auto; } .md pre code { padding:0; background:none; }
+  .md blockquote { border-left:3px solid var(--line); padding-left:10px; color:var(--muted); }
+  .iconbtn { padding:0 6px; border:none; background:none; color:var(--muted); }
+  .addbtn { align-self:flex-start; border:none; background:none; color:var(--muted); padding:2px 4px; }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:8px 0; }
+  .tabs button.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
+  .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:.85rem; color:var(--muted); margin-bottom:6px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; background:var(--c); margin-right:4px; }
+  dialog { border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--fg); width:min(640px, 94vw); }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  dialog label { display:block; margin:10px 0 4px; font-size:.85rem; color:var(--muted); }
+  dialog input[type=text], dialog input[type=number], dialog input[type=date], dialog textarea, dialog select { width:100%; }
+  dialog textarea { min-height:140px; font-family:ui-monospace, monospace; }
+  .swatches { display:flex; gap:6px; flex-wrap:wrap; }
+  .sw { width:26px; height:26px; border-radius:50%; border:2px solid transparent; padding:0; background:var(--c); }
+  .sw.sel { border-color:var(--fg); }
+  .sw.none { background:repeating-linear-gradient(45deg,var(--line),var(--line) 4px,transparent 4px,transparent 8px); }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .preview { border:1px solid var(--line); border-radius:8px; padding:8px; min-height:40px; }
+  .colorrow { display:flex; align-items:center; gap:8px; margin:6px 0; } .colorrow .dot { width:18px; height:18px; margin:0; }
+</style>
+</head>
+<body>
+<main class="wide">
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Kanban</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+    <button id="resume" hidden>Zuletzt geöffnete Datei</button>
+    <span style="flex:1"></span>
+    <button id="undo" title="Rückgängig (Strg+Z)">↶</button>
+    <button id="redo" title="Wiederholen (Strg+Y)">↷</button>
+    <button id="export">Export (Markdown)</button>
+    <button id="exportjson" title="Aktuelles Board als JSON-Datei">Export (JSON)</button>
+    <button id="importjson" title="Board aus JSON-Datei als neues Board hinzufügen">Board importieren</button>
+  </div>
+  <div id="status"></div>
+  <div class="tabs" id="tabs"></div>
+  <div class="filters">
+    <input type="text" id="q" placeholder="Suchen…">
+    <select id="fcolor" title="Farbe"></select>
+    <select id="ftag" title="Tag"></select>
+    <label><input type="checkbox" id="farch"> Archiv anzeigen</label>
+    <span style="flex:1"></span>
+    <button id="addlane">+ Swimlane</button>
+    <button id="addcol">+ Spalte</button>
+    <button id="colornames">Farben benennen</button>
+    <button id="archdone" title="Alle Aufgaben in „Erledigt“-Spalten archivieren">Erledigte archivieren</button>
+  </div>
+  <div class="legend" id="legend"></div>
+  <div class="board"><div id="grid" class="grid"></div></div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="cardform">
+    <label for="f-title">Titel</label>
+    <input type="text" id="f-title" required>
+    <label for="f-text">Aufgabe (Markdown)</label>
+    <textarea id="f-text" placeholder="**fett**, *kursiv*, `code`, - Liste, - [ ] Checkbox, [Link](https://…)"></textarea>
+    <label>Vorschau</label>
+    <div class="preview md" id="f-preview"></div>
+    <label>Farbe</label>
+    <div class="swatches" id="f-colors"></div>
+    <div class="row">
+      <div><label for="f-due">Fällig am</label><input type="date" id="f-due"></div>
+      <div><label for="f-tags">Tags (Komma getrennt)</label><input type="text" id="f-tags"></div>
+    </div>
+    <div class="row">
+      <div><label for="f-lane">Swimlane</label><select id="f-lane"></select></div>
+      <div><label for="f-col">Spalte</label><select id="f-col"></select></div>
+    </div>
+    <div class="toolbar" style="margin-top:14px">
+      <button type="button" id="f-del">Löschen</button>
+      <button type="button" id="f-arch">Archivieren</button>
+      <span style="flex:1"></span>
+      <button type="button" id="f-cancel">Abbrechen</button>
+      <button class="primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dlg-col">
+  <form method="dialog" id="colform">
+    <h2 id="col-h" style="margin-top:0"></h2>
+    <label for="c-name">Name</label><input type="text" id="c-name" required>
+    <label for="c-wip">WIP-Limit (0 = unbegrenzt)</label><input type="number" id="c-wip" min="0" value="0">
+    <label><input type="checkbox" id="c-done"> „Erledigt“-Spalte (Titel werden durchgestrichen, keine Fälligkeitswarnung)</label>
+    <div class="toolbar" style="margin-top:14px"><span style="flex:1"></span><button type="button" class="cancel">Abbrechen</button><button class="primary">OK</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-lane">
+  <form method="dialog" id="laneform">
+    <h2 id="lane-h" style="margin-top:0"></h2>
+    <label for="l-name">Name</label><input type="text" id="l-name" required>
+    <label>Farbe</label><div class="swatches" id="l-colors"></div>
+    <div class="toolbar" style="margin-top:14px"><span style="flex:1"></span><button type="button" class="cancel">Abbrechen</button><button class="primary">OK</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlg-names">
+  <form method="dialog" id="namesform">
+    <h2 style="margin-top:0">Farben benennen</h2>
+    <p style="color:var(--muted);margin-top:0">z. B. Rot = Dringend. Gilt für dieses Board.</p>
+    <div id="names"></div>
+    <div class="toolbar" style="margin-top:14px"><span style="flex:1"></span><button type="button" class="cancel">Abbrechen</button><button class="primary">OK</button></div>
+  </form>
+</dialog>
+
+<script src="../shared/storage.js"></script>
+<script>
+const COLORS = [null, '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899'];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const $ = (id) => document.getElementById(id);
+
+const newBoard = (name) => ({
+  id: uid(), name, colorNames: {},
+  columns: [{ id: uid(), name: 'Offen', wip: 0, done: false }, { id: uid(), name: 'In Arbeit', wip: 0, done: false }, { id: uid(), name: 'Erledigt', wip: 0, done: true }],
+  lanes: [{ id: uid(), name: 'Allgemein', collapsed: false, color: null }],
+  cards: [],
+});
+
+/* Daten: { boards: [ {id,name,colorNames,columns,lanes,cards} ] }  – mehrere Boards in einer Datei */
+const store = SimpleStorage.create({
+  name: 'kanban',
+  defaults: () => ({ boards: [newBoard('Board 1')] }),
+  onChange: () => { normalize(store.data); resetHistory(); render(); },
+  statusEl: $('status'),
+});
+const D = () => store.data;
+let curId = null;
+const B = () => D().boards.find((b) => b.id === curId) || (curId = D().boards[0].id, D().boards[0]);
+
+function normalize(d) {
+  if (!d.boards) { // altes Format (ein Board) übernehmen
+    const b = newBoard('Board 1');
+    if (d.columns) b.columns = d.columns; if (d.lanes) b.lanes = d.lanes; if (d.cards) b.cards = d.cards;
+    d.boards = [b]; delete d.columns; delete d.lanes; delete d.cards;
+  }
+  if (!d.boards.length) d.boards.push(newBoard('Board 1'));
+  d.boards.forEach((b) => {
+    b.colorNames = b.colorNames || {};
+    b.columns.forEach((c) => { c.wip = c.wip || 0; c.done = !!c.done; });
+    b.lanes.forEach((l) => { l.color = l.color || null; });
+    b.cards.forEach((k) => { k.due = k.due || ''; k.tags = k.tags || []; k.archived = !!k.archived; k.color = k.color || null; k.text = k.text || ''; });
+  });
+  if (!d.boards.some((b) => b.id === curId)) curId = d.boards[0].id;
+}
+
+/* ---------- Rückgängig / Wiederholen ---------- */
+let undoStack = [], redoStack = [], last = '';
+function resetHistory() { undoStack = []; redoStack = []; last = JSON.stringify(D()); }
+function commit() {
+  const now = JSON.stringify(D());
+  if (now !== last) { undoStack.push(last); if (undoStack.length > 100) undoStack.shift(); redoStack = []; last = now; }
+  store.changed(); render();
+}
+function restoreSnap(snap) { last = snap; store.data = JSON.parse(snap); normalize(store.data); store.changed(); render(); }
+function undo() { if (undoStack.length) { redoStack.push(last); restoreSnap(undoStack.pop()); } }
+function redo() { if (redoStack.length) { undoStack.push(last); restoreSnap(redoStack.pop()); } }
+document.addEventListener('keydown', (e) => {
+  if (!(e.ctrlKey || e.metaKey) || document.querySelector('dialog[open]') || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (k === 'z' && !e.shiftKey) { e.preventDefault(); undo(); }
+  else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); redo(); }
+});
+
+/* ---------- Filter (nur Ansicht, wird nicht gespeichert) ---------- */
+const F = { q: '', color: '', tag: '', archive: false };
+const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+const fmtDate = (s) => s.split('-').reverse().join('.');
+const colorName = (b, c) => (c && b.colorNames[c]) || c || 'Keine Farbe';
+function matches(k) {
+  if (k.archived && !F.archive) return false;
+  if (F.color && (F.color === 'none' ? k.color : k.color !== F.color)) return false;
+  if (F.tag && !k.tags.includes(F.tag)) return false;
+  if (F.q && !(k.title + '\n' + k.text + '\n' + k.tags.join(' ')).toLowerCase().includes(F.q.toLowerCase())) return false;
+  return true;
+}
+
+/* ---------- Markdown (klein, ohne Abhängigkeiten, HTML wird escaped) ---------- */
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function inline(s) {
+  const stash = [];
+  s = esc(s).replace(/`([^`]+)`/g, (_, c) => { stash.push('<code>' + c + '</code>'); return '\u0000' + (stash.length - 1) + '\u0000'; });
+  s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+       .replace(/\*\*(.+?)\*\*|__(.+?)__/g, (_, a, b) => '<strong>' + (a || b) + '</strong>')
+       .replace(/(^|[^\w*])\*(?!\s)(.+?)\*(?!\w)/g, '$1<em>$2</em>')
+       .replace(/(^|[^\w])_(?!\s)(.+?)_(?!\w)/g, '$1<em>$2</em>')
+       .replace(/~~(.+?)~~/g, '<del>$1</del>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[i]);
+}
+function markdown(src) {
+  const lines = src.replace(/\r/g, '').split('\n');
+  let out = '', i = 0, para = [], cb = 0;
+  const flush = () => { if (para.length) { out += '<p>' + para.map(inline).join('<br>') + '</p>'; para = []; } };
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) {
+      flush(); const code = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
+      i++; out += '<pre><code>' + esc(code.join('\n')) + '</code></pre>'; continue;
+    }
+    let m;
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))) { flush(); out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; i++; continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { flush(); out += '<hr>'; i++; continue; }
+    if (/^>\s?/.test(l)) {
+      flush(); const q = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, ''));
+      out += '<blockquote>' + q.map(inline).join('<br>') + '</blockquote>'; continue;
+    }
+    if (/^\s*([-*+]|\d+\.)\s+/.test(l)) {
+      flush(); const ordered = /^\s*\d+\./.test(l); const items = []; let tasks = false;
+      while (i < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[i])) {
+        let t = lines[i++].replace(/^\s*([-*+]|\d+\.)\s+/, '');
+        const c = t.match(/^\[([ xX])\]\s+(.*)/);
+        if (c) { tasks = true; t = `<input type="checkbox" data-cb="${cb++}"${c[1] !== ' ' ? ' checked' : ''}> ` + inline(c[2]); } else t = inline(t);
+        items.push('<li>' + t + '</li>');
+      }
+      const tag = ordered ? 'ol' : 'ul';
+      out += `<${tag}${tasks ? ' class="tasks"' : ''}>` + items.join('') + `</${tag}>`; continue;
+    }
+    if (!l.trim()) flush(); else para.push(l);
+    i++;
+  }
+  flush(); return out;
+}
+function toggleCheckbox(card, n) {
+  let k = 0;
+  card.text = card.text.replace(/^(\s*(?:[-*+]|\d+\.)\s+)\[([ xX])\]/gm, (all, p, s) => k++ === n ? p + (s === ' ' ? '[x]' : '[ ]') : all);
+}
+
+/* ---------- Rendering ---------- */
+let dragId = null;
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function btn(label, title, fn) { const b = el('button', 'iconbtn', label); b.title = title; b.onclick = fn; return b; }
+function swatches(box, getColor, setColor, b) {
+  const draw = () => {
+    box.textContent = '';
+    COLORS.forEach((c) => {
+      const x = el('button', 'sw' + (c ? '' : ' none') + (c === getColor() ? ' sel' : '')); x.type = 'button';
+      if (c) x.style.setProperty('--c', c);
+      x.title = colorName(b, c); x.onclick = () => { setColor(c); draw(); };
+      box.append(x);
+    });
+  };
+  draw();
+}
+
+function renderChrome() {
+  const d = D(), b = B();
+  const tabs = $('tabs'); tabs.textContent = '';
+  d.boards.forEach((x) => {
+    const t = el('button', x.id === b.id ? 'active' : '', x.name); t.onclick = () => { curId = x.id; render(); };
+    tabs.append(t);
+  });
+  const add = el('button', null, '+ Board'); add.onclick = () => { const n = prompt('Name des neuen Boards'); if (n && n.trim()) { const nb = newBoard(n.trim()); d.boards.push(nb); curId = nb.id; commit(); } };
+  tabs.append(add,
+    btn('✎', 'Board umbenennen', () => { const n = prompt('Boardname', b.name); if (n && n.trim()) { b.name = n.trim(); commit(); } }),
+    btn('✕', 'Board löschen', () => {
+      if (d.boards.length < 2) return alert('Mindestens ein Board nötig.');
+      if (confirm(`Board „${b.name}“ mit allen ${b.cards.length} Aufgaben löschen?`)) { d.boards.splice(d.boards.indexOf(b), 1); curId = d.boards[0].id; commit(); }
+    }));
+  const fc = $('fcolor'); fc.textContent = '';
+  [['', 'Alle Farben'], ['none', 'Keine Farbe'], ...COLORS.filter(Boolean).map((c) => [c, colorName(b, c)])].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; fc.append(o); });
+  fc.value = F.color;
+  const tags = [...new Set(b.cards.flatMap((k) => k.tags))].sort();
+  if (F.tag && !tags.includes(F.tag)) F.tag = '';
+  const ft = $('ftag'); ft.textContent = '';
+  [['', 'Alle Tags'], ...tags.map((t) => [t, '#' + t])].forEach(([v, t]) => { const o = el('option', null, t); o.value = v; ft.append(o); });
+  ft.value = F.tag;
+  const lg = $('legend'); lg.textContent = '';
+  COLORS.filter((c) => c && b.colorNames[c]).forEach((c) => { const s = el('span'); const dot = el('span', 'dot'); dot.style.setProperty('--c', c); s.append(dot, b.colorNames[c]); lg.append(s); });
+  $('undo').disabled = !undoStack.length; $('redo').disabled = !redoStack.length;
+}
+
+function render() {
+  renderChrome();
+  const g = $('grid'); g.textContent = '';
+  const b = B();
+  g.style.gridTemplateColumns = `repeat(${b.columns.length}, minmax(260px, 1fr))`;
+  b.columns.forEach((c, ci) => {
+    const n = b.cards.filter((k) => k.col === c.id && !k.archived).length;
+    const h = el('div', 'colhead' + (c.wip && n > c.wip ? ' over' : ''));
+    h.append(el('span', 'name', c.name), el('span', 'wip', c.wip ? `${n}/${c.wip}` : String(n)),
+      btn('◀', 'Nach links', () => moveItem(b.columns, ci, -1)), btn('▶', 'Nach rechts', () => moveItem(b.columns, ci, 1)),
+      btn('✎', 'Bearbeiten', () => editColumn(c)),
+      btn('✕', 'Spalte löschen', () => {
+        const m = b.cards.filter((k) => k.col === c.id).length;
+        if (b.columns.length < 2) return alert('Mindestens eine Spalte nötig.');
+        if (confirm(`Spalte „${c.name}“ löschen${m ? ` inkl. ${m} Aufgabe(n)` : ''}?`)) { b.cards = b.cards.filter((k) => k.col !== c.id); b.columns.splice(ci, 1); commit(); }
+      }));
+    g.append(h);
+  });
+  b.lanes.forEach((lane, li) => {
+    const count = b.cards.filter((k) => k.lane === lane.id && !k.archived).length;
+    const lh = el('div', 'lanehead'); if (lane.color) lh.style.setProperty('--c', lane.color);
+    const t = el('span', 'title', (lane.collapsed ? '▸ ' : '▾ ') + lane.name);
+    t.onclick = () => { lane.collapsed = !lane.collapsed; commit(); };
+    lh.append(t, el('span', 'count', count + ' Aufgabe(n)'),
+      btn('▲', 'Nach oben', () => moveItem(b.lanes, li, -1)), btn('▼', 'Nach unten', () => moveItem(b.lanes, li, 1)),
+      btn('✎', 'Bearbeiten', () => editLane(lane)),
+      btn('✕', 'Swimlane löschen', () => {
+        if (b.lanes.length < 2) return alert('Mindestens eine Swimlane nötig.');
+        const m = b.cards.filter((k) => k.lane === lane.id).length;
+        if (confirm(`Swimlane „${lane.name}“ löschen${m ? ` inkl. ${m} Aufgabe(n)` : ''}?`)) { b.cards = b.cards.filter((k) => k.lane !== lane.id); b.lanes.splice(li, 1); commit(); }
+      }));
+    g.append(lh);
+    if (lane.collapsed) return;
+    b.columns.forEach((c) => {
+      const cell = el('div', 'cell');
+      cell.ondragover = (e) => { if (dragId) { e.preventDefault(); cell.classList.add('over'); } };
+      cell.ondragleave = () => cell.classList.remove('over');
+      cell.ondrop = (e) => { e.preventDefault(); cell.classList.remove('over'); dropCard(lane.id, c.id, null, false); };
+      b.cards.filter((k) => k.lane === lane.id && k.col === c.id && matches(k)).forEach((k) => cell.append(cardEl(k, c)));
+      const add = el('button', 'addbtn', '+ Aufgabe'); add.onclick = () => openCard(null, lane.id, c.id);
+      cell.append(add); g.append(cell);
+    });
+  });
+}
+function cardEl(k, col) {
+  const b = B();
+  const c = el('div', 'card k' + (col.done ? ' isdone' : '') + (k.archived ? ' archived' : '')); c.draggable = true;
+  if (k.color) { c.style.setProperty('--c', k.color); }
+  c.append(el('h3', null, k.title));
+  const due = k.due && !k.archived ? k.due : '';
+  if (due || k.tags.length || (k.color && b.colorNames[k.color])) {
+    const m = el('div', 'meta');
+    if (k.color && b.colorNames[k.color]) m.append(el('span', 'chip', b.colorNames[k.color]));
+    if (due) {
+      const late = !col.done && due < today(), now = !col.done && due === today();
+      m.append(el('span', 'chip due' + (late ? ' late' : now ? ' today' : ''), '📅 ' + fmtDate(due) + (late ? ' (überfällig)' : now ? ' (heute)' : '')));
+    }
+    k.tags.forEach((t) => m.append(el('span', 'chip', '#' + t)));
+    c.append(m);
+  }
+  if (k.text.trim()) {
+    const md = el('div', 'md'); md.innerHTML = markdown(k.text); c.append(md);
+    md.querySelectorAll('input[data-cb]').forEach((i) => {
+      i.onclick = (e) => e.stopPropagation();
+      i.onchange = () => { toggleCheckbox(k, +i.dataset.cb); commit(); };
+    });
+    md.querySelectorAll('a').forEach((a) => a.onclick = (e) => e.stopPropagation());
+  }
+  c.ondblclick = () => openCard(k);
+  c.title = 'Doppelklick zum Bearbeiten';
+  c.ondragstart = (e) => { dragId = k.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', k.id); setTimeout(() => c.classList.add('dragging')); };
+  c.ondragend = () => { dragId = null; c.classList.remove('dragging'); };
+  c.ondragover = (e) => { if (dragId) e.preventDefault(); };
+  c.ondrop = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const r = c.getBoundingClientRect();
+    dropCard(k.lane, k.col, k.id, e.clientY > r.top + r.height / 2);
+  };
+  return c;
+}
+function dropCard(lane, col, targetId, after) {
+  const b = B(); const card = b.cards.find((k) => k.id === dragId);
+  dragId = null; if (!card || card.id === targetId) return render();
+  b.cards.splice(b.cards.indexOf(card), 1);
+  card.lane = lane; card.col = col;
+  let idx = b.cards.length;
+  if (targetId) idx = b.cards.findIndex((k) => k.id === targetId) + (after ? 1 : 0);
+  b.cards.splice(idx, 0, card); commit();
+}
+function moveItem(arr, i, dir) {
+  const j = i + dir; if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]]; commit();
+}
+
+/* ---------- Dialoge ---------- */
+document.querySelectorAll('dialog .cancel').forEach((x) => x.onclick = () => x.closest('dialog').close());
+
+let editing = null, color = null;
+function openCard(card, lane, col) {
+  const b = B(); editing = card;
+  $('f-title').value = card ? card.title : '';
+  $('f-text').value = card ? card.text : '';
+  $('f-due').value = card ? card.due : '';
+  $('f-tags').value = card ? card.tags.join(', ') : '';
+  color = card ? card.color : null;
+  swatches($('f-colors'), () => color, (c) => { color = c; }, b);
+  const fill = (sel, items, val) => { sel.textContent = ''; items.forEach((x) => { const o = el('option', null, x.name); o.value = x.id; sel.append(o); }); sel.value = val; };
+  fill($('f-lane'), b.lanes, card ? card.lane : lane);
+  fill($('f-col'), b.columns, card ? card.col : col);
+  $('f-del').hidden = !card; $('f-arch').hidden = !card;
+  $('f-arch').textContent = card && card.archived ? 'Wiederherstellen' : 'Archivieren';
+  updatePreview(); $('dlg').showModal(); $('f-title').focus();
+}
+const updatePreview = () => { $('f-preview').innerHTML = markdown($('f-text').value); };
+$('f-text').oninput = updatePreview;
+$('f-cancel').onclick = () => $('dlg').close();
+$('f-del').onclick = () => {
+  if (!confirm('Aufgabe löschen?')) return;
+  B().cards = B().cards.filter((k) => k !== editing); $('dlg').close(); commit();
+};
+$('f-arch').onclick = () => { editing.archived = !editing.archived; $('dlg').close(); commit(); };
+$('cardform').onsubmit = (e) => {
+  e.preventDefault();
+  const tags = [...new Set($('f-tags').value.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean))];
+  const v = { title: $('f-title').value.trim(), text: $('f-text').value, color, due: $('f-due').value, tags, lane: $('f-lane').value, col: $('f-col').value };
+  if (!v.title) return;
+  if (editing) Object.assign(editing, v); else B().cards.push({ id: uid(), archived: false, ...v });
+  $('dlg').close(); commit();
+};
+
+let editingCol = null;
+function editColumn(c) {
+  editingCol = c;
+  $('col-h').textContent = c.id ? 'Spalte bearbeiten' : 'Neue Spalte';
+  $('c-name').value = c.name; $('c-wip').value = c.wip; $('c-done').checked = c.done;
+  $('dlg-col').showModal(); $('c-name').focus();
+}
+$('colform').onsubmit = (e) => {
+  e.preventDefault();
+  const c = editingCol; c.name = $('c-name').value.trim(); c.wip = Math.max(0, +$('c-wip').value || 0); c.done = $('c-done').checked;
+  if (!c.id) { c.id = uid(); B().columns.push(c); }
+  $('dlg-col').close(); commit();
+};
+
+let editingLane = null, laneColor = null;
+function editLane(l) {
+  editingLane = l; laneColor = l.color;
+  $('lane-h').textContent = l.id ? 'Swimlane bearbeiten' : 'Neue Swimlane';
+  $('l-name').value = l.name;
+  swatches($('l-colors'), () => laneColor, (c) => { laneColor = c; }, B());
+  $('dlg-lane').showModal(); $('l-name').focus();
+}
+$('laneform').onsubmit = (e) => {
+  e.preventDefault();
+  const l = editingLane; l.name = $('l-name').value.trim(); l.color = laneColor;
+  if (!l.id) { l.id = uid(); B().lanes.push(l); }
+  $('dlg-lane').close(); commit();
+};
+
+$('colornames').onclick = () => {
+  const b = B(), box = $('names'); box.textContent = '';
+  COLORS.filter(Boolean).forEach((c) => {
+    const r = el('div', 'colorrow'), dot = el('span', 'dot'), i = el('input'); dot.style.setProperty('--c', c);
+    i.type = 'text'; i.value = b.colorNames[c] || ''; i.dataset.c = c; i.placeholder = 'Bedeutung…'; i.style.flex = '1';
+    r.append(dot, i); box.append(r);
+  });
+  $('dlg-names').showModal();
+};
+$('namesform').onsubmit = (e) => {
+  e.preventDefault(); const b = B(); b.colorNames = {};
+  $('names').querySelectorAll('input').forEach((i) => { if (i.value.trim()) b.colorNames[i.dataset.c] = i.value.trim(); });
+  $('dlg-names').close(); commit();
+};
+
+/* ---------- Export als Markdown ---------- */
+function exportMarkdown() {
+  const b = B(); let o = `# ${b.name}\n`;
+  const line = (k) => {
+    let t = `- **${k.title}**` + (k.due ? ` (fällig ${fmtDate(k.due)})` : '') + (k.tags.length ? ' ' + k.tags.map((x) => '#' + x).join(' ') : '') + (k.color && b.colorNames[k.color] ? ` [${b.colorNames[k.color]}]` : '');
+    if (k.text.trim()) t += '\n' + k.text.trim().split('\n').map((l) => '  ' + l).join('\n');
+    return t + '\n';
+  };
+  b.lanes.forEach((l) => {
+    o += `\n## ${l.name}\n`;
+    b.columns.forEach((c) => {
+      const ks = b.cards.filter((k) => k.lane === l.id && k.col === c.id && !k.archived);
+      if (ks.length) o += `\n### ${c.name}\n\n` + ks.map(line).join('');
+    });
+  });
+  const arch = b.cards.filter((k) => k.archived);
+  if (arch.length) o += `\n## Archiv\n\n` + arch.map(line).join('');
+  download(fileBase(b.name) + '.md', o, 'text/markdown');
+}
+
+function download(name, text, type) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const fileBase = (n) => n.replace(/[^\w\-äöüÄÖÜß ]/g, '_');
+function exportJson() {
+  const b = B();
+  download(fileBase(b.name) + '.board.json', JSON.stringify({ app: 'kanban-board', version: 1, board: b }, null, 2), 'application/json');
+}
+function importJson() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = async () => {
+    try {
+      const obj = JSON.parse(await inp.files[0].text());
+      const src = obj.board || (obj.boards && obj.boards[0]);
+      if (!src || !src.columns || !src.lanes || !src.cards) throw new Error('Keine Board-Datei');
+      // neue IDs vergeben, damit nichts mit vorhandenen Boards kollidiert
+      const nb = JSON.parse(JSON.stringify(src)), map = {};
+      nb.id = uid();
+      [...nb.columns, ...nb.lanes].forEach((x) => { const n = uid(); map[x.id] = n; x.id = n; });
+      nb.cards.forEach((k) => { k.id = uid(); k.col = map[k.col]; k.lane = map[k.lane]; });
+      nb.cards = nb.cards.filter((k) => k.col && k.lane);
+      nb.name = (nb.name || 'Import') + ' (Import)';
+      const d = { boards: [nb] }; normalize(d);
+      D().boards.push(d.boards[0]); curId = nb.id; commit();
+    } catch (e) { alert('Import fehlgeschlagen: ' + e.message); }
+  };
+  inp.click();
+}
+
+/* ---------- Toolbar ---------- */
+$('addlane').onclick = () => editLane({ name: '', collapsed: false, color: null });
+$('addcol').onclick = () => editColumn({ name: '', wip: 0, done: false });
+$('archdone').onclick = () => {
+  const b = B(), done = new Set(b.columns.filter((c) => c.done).map((c) => c.id));
+  const ks = b.cards.filter((k) => done.has(k.col) && !k.archived);
+  if (!done.size) return alert('Keine Spalte ist als „Erledigt“ markiert (Spalte bearbeiten ✎).');
+  if (!ks.length) return alert('Nichts zu archivieren.');
+  if (confirm(`${ks.length} Aufgabe(n) archivieren?`)) { ks.forEach((k) => k.archived = true); commit(); }
+};
+$('q').oninput = (e) => { F.q = e.target.value; render(); };
+$('fcolor').onchange = (e) => { F.color = e.target.value; render(); };
+$('ftag').onchange = (e) => { F.tag = e.target.value; render(); };
+$('farch').onchange = (e) => { F.archive = e.target.checked; render(); };
+$('undo').onclick = undo; $('redo').onclick = redo;
+$('export').onclick = exportMarkdown;
+$('exportjson').onclick = exportJson;
+$('importjson').onclick = importJson;
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+$('resume').onclick = () => store.resume && store.resume();
+normalize(D()); resetHistory(); render();
+store.restore().then(() => { $('resume').hidden = !store.resume; });
+</script>
+</body>
+</html>

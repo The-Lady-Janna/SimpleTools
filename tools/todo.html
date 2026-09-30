@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aufgabenliste</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  li { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); list-style:none; }
+  li.done span { text-decoration:line-through; color:var(--muted); }
+  li span { flex:1; } ul { padding:0; margin:8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Aufgabenliste</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+    <button id="resume" hidden>Zuletzt geöffnete Datei</button>
+  </div>
+  <div id="status"></div>
+  <form id="form" class="card toolbar">
+    <input type="text" id="text" placeholder="Neue Aufgabe…" required style="flex:1">
+    <button class="primary">Hinzufügen</button>
+  </form>
+  <div class="card"><ul id="list"></ul></div>
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+  const store = SimpleStorage.create({
+    name: 'aufgabenliste',
+    defaults: () => ({ todos: [] }),
+    onChange: render,
+    statusEl: document.getElementById('status'),
+  });
+  const $ = (id) => document.getElementById(id);
+
+  function render() {
+    const list = $('list');
+    list.textContent = '';
+    for (const t of store.data.todos) {
+      const li = document.createElement('li');
+      if (t.done) li.className = 'done';
+      const cb = Object.assign(document.createElement('input'), { type: 'checkbox', checked: t.done });
+      cb.onchange = () => { t.done = cb.checked; store.changed(); render(); };
+      const span = document.createElement('span'); span.textContent = t.text;
+      const del = document.createElement('button'); del.textContent = '✕';
+      del.onclick = () => { store.data.todos = store.data.todos.filter((x) => x !== t); store.changed(); render(); };
+      li.append(cb, span, del);
+      list.append(li);
+    }
+  }
+  $('form').onsubmit = (e) => {
+    e.preventDefault();
+    store.data.todos.push({ text: $('text').value.trim(), done: false });
+    $('text').value = '';
+    store.changed(); render();
+  };
+  $('new').onclick = () => store.new();
+  $('open').onclick = () => store.open();
+  $('save').onclick = () => store.save();
+  $('saveas').onclick = () => store.saveAs();
+  $('resume').onclick = () => store.resume && store.resume();
+  store.restore().then(() => { $('resume').hidden = !store.resume; });
+  render();
+</script>
+</body>
+</html>
