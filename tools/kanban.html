@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kanban</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  main.wide { max-width:none; }
+  .board { overflow-x:auto; padding-bottom:12px; }
+  .grid { display:grid; gap:8px; min-width:max-content; }
+  .colhead { display:flex; gap:6px; align-items:center; font-weight:600; padding:6px 8px; background:var(--card); border:1px solid var(--line); border-radius:8px; position:sticky; top:0; z-index:1; }
+  .colhead span { flex:1; }
+  .lanehead { grid-column:1 / -1; display:flex; gap:6px; align-items:center; font-weight:600; background:var(--line); border-radius:8px; padding:4px 10px; margin-top:8px; }
+  .lanehead .title { flex:1; }
+  .lanehead .count { color:var(--muted); font-weight:400; font-size:.85rem; }
+  .cell { min-height:56px; min-width:260px; border:1px dashed var(--line); border-radius:8px; padding:6px; display:flex; flex-direction:column; gap:6px; }
+  .cell.over { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 8%, transparent); }
+  .card.k { --c:transparent; background:color-mix(in srgb, var(--c) 16%, var(--card)); border-left:5px solid var(--c); margin:0; padding:8px 10px; cursor:grab; }
+  .card.k h3 { margin:0 0 4px; font-size:1rem; }
+  .card.k.dragging { opacity:.4; }
+  .md { font-size:.9rem; overflow-wrap:anywhere; }
+  .md > :first-child { margin-top:0; } .md > :last-child { margin-bottom:0; }
+  .md h1,.md h2,.md h3,.md h4 { margin:.6em 0 .3em; font-size:1rem; }
+  .md p, .md ul, .md ol, .md pre, .md blockquote { margin:.4em 0; }
+  .md ul, .md ol { padding-left:1.3em; } .md ul.tasks { list-style:none; padding-left:0; }
+  .md code { background:var(--line); padding:0 4px; border-radius:4px; }
+  .md pre { background:var(--line); padding:8px; border-radius:6px; overflow-x:auto; } .md pre code { padding:0; background:none; }
+  .md blockquote { border-left:3px solid var(--line); padding-left:10px; color:var(--muted); }
+  .iconbtn { padding:0 6px; border:none; background:none; color:var(--muted); }
+  .addbtn { align-self:flex-start; border:none; background:none; color:var(--muted); padding:2px 4px; }
+  dialog { border:1px solid var(--line); border-radius:12px; background:var(--card); color:var(--fg); width:min(640px, 94vw); }
+  dialog::backdrop { background:rgba(0,0,0,.45); }
+  dialog label { display:block; margin:10px 0 4px; font-size:.85rem; color:var(--muted); }
+  dialog input[type=text], dialog textarea { width:100%; }
+  dialog textarea { min-height:140px; font-family:ui-monospace, monospace; }
+  .swatches { display:flex; gap:6px; flex-wrap:wrap; }
+  .sw { width:26px; height:26px; border-radius:50%; border:2px solid transparent; padding:0; background:var(--c); }
+  .sw.sel { border-color:var(--fg); }
+  .sw.none { background:repeating-linear-gradient(45deg,var(--line),var(--line) 4px,transparent 4px,transparent 8px); }
+  .row { display:flex; gap:8px; } .row > * { flex:1; }
+  .preview { border:1px solid var(--line); border-radius:8px; padding:8px; min-height:40px; }
+</style>
+</head>
+<body>
+<main class="wide">
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Kanban</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+    <button id="resume" hidden>Zuletzt geöffnete Datei</button>
+    <span style="flex:1"></span>
+    <button id="addlane">+ Swimlane</button>
+    <button id="addcol">+ Spalte</button>
+  </div>
+  <div id="status"></div>
+  <div class="board"><div id="grid" class="grid"></div></div>
+</main>
+
+<dialog id="dlg">
+  <form method="dialog" id="cardform">
+    <label for="f-title">Titel</label>
+    <input type="text" id="f-title" required>
+    <label for="f-text">Aufgabe (Markdown)</label>
+    <textarea id="f-text" placeholder="**fett**, *kursiv*, `code`, - Liste, - [ ] Checkbox, [Link](https://…)"></textarea>
+    <label>Vorschau</label>
+    <div class="preview md" id="f-preview"></div>
+    <label>Farbe</label>
+    <div class="swatches" id="f-colors"></div>
+    <div class="row">
+      <div><label for="f-lane">Swimlane</label><select id="f-lane" style="width:100%"></select></div>
+      <div><label for="f-col">Spalte</label><select id="f-col" style="width:100%"></select></div>
+    </div>
+    <div class="toolbar" style="margin-top:14px">
+      <button type="button" id="f-del">Löschen</button>
+      <span style="flex:1"></span>
+      <button type="button" id="f-cancel">Abbrechen</button>
+      <button class="primary" id="f-ok">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="../shared/storage.js"></script>
+<script>
+const COLORS = [null, '#ef4444', '#f97316', '#eab308', '#22c55e', '#06b6d4', '#3b82f6', '#a855f7', '#ec4899'];
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const $ = (id) => document.getElementById(id);
+
+const store = SimpleStorage.create({
+  name: 'kanban',
+  defaults: () => ({
+    columns: [{ id: 'c1', name: 'Offen' }, { id: 'c2', name: 'In Arbeit' }, { id: 'c3', name: 'Erledigt' }],
+    lanes: [{ id: 'l1', name: 'Allgemein', collapsed: false }],
+    cards: [],
+  }),
+  onChange: render,
+  statusEl: $('status'),
+});
+const D = () => store.data;
+const commit = () => { store.changed(); render(); };
+
+/* ---------- Markdown (klein, ohne Abhängigkeiten, HTML wird escaped) ---------- */
+const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+function inline(s) {
+  const stash = [];
+  s = esc(s).replace(/`([^`]+)`/g, (_, c) => { stash.push('<code>' + c + '</code>'); return '\u0000' + (stash.length - 1) + '\u0000'; });
+  s = s.replace(/\[([^\]]+)\]\(((?:https?:\/\/|mailto:)[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+       .replace(/\*\*(.+?)\*\*|__(.+?)__/g, (_, a, b) => '<strong>' + (a || b) + '</strong>')
+       .replace(/(^|[^\w*])\*(?!\s)(.+?)\*(?!\w)/g, '$1<em>$2</em>')
+       .replace(/(^|[^\w])_(?!\s)(.+?)_(?!\w)/g, '$1<em>$2</em>')
+       .replace(/~~(.+?)~~/g, '<del>$1</del>');
+  return s.replace(/\u0000(\d+)\u0000/g, (_, i) => stash[i]);
+}
+function markdown(src) {
+  const lines = src.replace(/\r/g, '').split('\n');
+  let out = '', i = 0, para = [], cb = 0;
+  const flush = () => { if (para.length) { out += '<p>' + para.map(inline).join('<br>') + '</p>'; para = []; } };
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^```/.test(l)) {
+      flush(); const code = []; i++;
+      while (i < lines.length && !/^```/.test(lines[i])) code.push(lines[i++]);
+      i++; out += '<pre><code>' + esc(code.join('\n')) + '</code></pre>'; continue;
+    }
+    let m;
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))) { flush(); out += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; i++; continue; }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(l)) { flush(); out += '<hr>'; i++; continue; }
+    if (/^>\s?/.test(l)) {
+      flush(); const q = [];
+      while (i < lines.length && /^>\s?/.test(lines[i])) q.push(lines[i++].replace(/^>\s?/, ''));
+      out += '<blockquote>' + q.map(inline).join('<br>') + '</blockquote>'; continue;
+    }
+    if (/^\s*([-*+]|\d+\.)\s+/.test(l)) {
+      flush(); const ordered = /^\s*\d+\./.test(l); const items = []; let tasks = false;
+      while (i < lines.length && /^\s*([-*+]|\d+\.)\s+/.test(lines[i])) {
+        let t = lines[i++].replace(/^\s*([-*+]|\d+\.)\s+/, '');
+        const c = t.match(/^\[([ xX])\]\s+(.*)/);
+        if (c) { tasks = true; t = `<input type="checkbox" data-cb="${cb++}"${c[1] !== ' ' ? ' checked' : ''}> ` + inline(c[2]); } else t = inline(t);
+        items.push('<li>' + t + '</li>');
+      }
+      const tag = ordered ? 'ol' : 'ul';
+      out += `<${tag}${tasks ? ' class="tasks"' : ''}>` + items.join('') + `</${tag}>`; continue;
+    }
+    if (!l.trim()) flush(); else para.push(l);
+    i++;
+  }
+  flush(); return out;
+}
+function toggleCheckbox(card, n) {
+  let k = 0;
+  card.text = card.text.replace(/^(\s*(?:[-*+]|\d+\.)\s+)\[([ xX])\]/gm, (all, p, s) => k++ === n ? p + (s === ' ' ? '[x]' : '[ ]') : all);
+}
+
+/* ---------- Rendering ---------- */
+let dragId = null;
+function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function btn(label, title, fn) { const b = el('button', 'iconbtn', label); b.title = title; b.onclick = fn; return b; }
+
+function render() {
+  const g = $('grid'); g.textContent = '';
+  const d = D();
+  g.style.gridTemplateColumns = `repeat(${d.columns.length}, minmax(260px, 1fr))`;
+  d.columns.forEach((c, ci) => {
+    const h = el('div', 'colhead'); h.append(el('span', null, c.name));
+    h.append(
+      btn('◀', 'Nach links', () => moveItem(d.columns, ci, -1)), btn('▶', 'Nach rechts', () => moveItem(d.columns, ci, 1)),
+      btn('✎', 'Umbenennen', () => { const n = prompt('Spaltenname', c.name); if (n && n.trim()) { c.name = n.trim(); commit(); } }),
+      btn('✕', 'Spalte löschen', () => {
+        const n = d.cards.filter((k) => k.col === c.id).length;
+        if (d.columns.length < 2) return alert('Mindestens eine Spalte nötig.');
+        if (confirm(`Spalte „${c.name}“ löschen${n ? ` inkl. ${n} Aufgabe(n)` : ''}?`)) { d.cards = d.cards.filter((k) => k.col !== c.id); d.columns.splice(ci, 1); commit(); }
+      }));
+    g.append(h);
+  });
+  d.lanes.forEach((lane, li) => {
+    const count = d.cards.filter((k) => k.lane === lane.id).length;
+    const lh = el('div', 'lanehead');
+    const t = el('span', 'title', (lane.collapsed ? '▸ ' : '▾ ') + lane.name); t.style.cursor = 'pointer';
+    t.onclick = () => { lane.collapsed = !lane.collapsed; commit(); };
+    lh.append(t, el('span', 'count', count + ' Aufgabe(n)'),
+      btn('▲', 'Nach oben', () => moveItem(d.lanes, li, -1)), btn('▼', 'Nach unten', () => moveItem(d.lanes, li, 1)),
+      btn('✎', 'Umbenennen', () => { const n = prompt('Name der Swimlane', lane.name); if (n && n.trim()) { lane.name = n.trim(); commit(); } }),
+      btn('✕', 'Swimlane löschen', () => {
+        if (d.lanes.length < 2) return alert('Mindestens eine Swimlane nötig.');
+        if (confirm(`Swimlane „${lane.name}“ löschen${count ? ` inkl. ${count} Aufgabe(n)` : ''}?`)) { d.cards = d.cards.filter((k) => k.lane !== lane.id); d.lanes.splice(li, 1); commit(); }
+      }));
+    g.append(lh);
+    if (lane.collapsed) return;
+    d.columns.forEach((c) => {
+      const cell = el('div', 'cell');
+      cell.ondragover = (e) => { if (dragId) { e.preventDefault(); cell.classList.add('over'); } };
+      cell.ondragleave = () => cell.classList.remove('over');
+      cell.ondrop = (e) => { e.preventDefault(); cell.classList.remove('over'); dropCard(lane.id, c.id, null, false); };
+      d.cards.filter((k) => k.lane === lane.id && k.col === c.id).forEach((k) => cell.append(cardEl(k)));
+      const add = el('button', 'addbtn', '+ Aufgabe'); add.onclick = () => openCard(null, lane.id, c.id);
+      cell.append(add); g.append(cell);
+    });
+  });
+}
+function cardEl(k) {
+  const c = el('div', 'card k'); c.draggable = true;
+  if (k.color) c.style.setProperty('--c', k.color);
+  c.append(el('h3', null, k.title));
+  if (k.text.trim()) {
+    const md = el('div', 'md'); md.innerHTML = markdown(k.text); c.append(md);
+    md.querySelectorAll('input[data-cb]').forEach((i) => {
+      i.onclick = (e) => e.stopPropagation();
+      i.onchange = () => { toggleCheckbox(k, +i.dataset.cb); commit(); };
+    });
+    md.querySelectorAll('a').forEach((a) => a.onclick = (e) => e.stopPropagation());
+  }
+  c.ondblclick = () => openCard(k);
+  c.title = 'Doppelklick zum Bearbeiten';
+  c.ondragstart = (e) => { dragId = k.id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', k.id); setTimeout(() => c.classList.add('dragging')); };
+  c.ondragend = () => { dragId = null; c.classList.remove('dragging'); };
+  c.ondragover = (e) => { if (dragId) e.preventDefault(); };
+  c.ondrop = (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const r = c.getBoundingClientRect();
+    dropCard(k.lane, k.col, k.id, e.clientY > r.top + r.height / 2);
+  };
+  return c;
+}
+function dropCard(lane, col, targetId, after) {
+  const d = D(); const card = d.cards.find((k) => k.id === dragId);
+  dragId = null; if (!card || card.id === targetId) return render();
+  d.cards.splice(d.cards.indexOf(card), 1);
+  card.lane = lane; card.col = col;
+  let idx = d.cards.length;
+  if (targetId) { idx = d.cards.findIndex((k) => k.id === targetId) + (after ? 1 : 0); }
+  d.cards.splice(idx, 0, card); commit();
+}
+function moveItem(arr, i, dir) {
+  const j = i + dir; if (j < 0 || j >= arr.length) return;
+  [arr[i], arr[j]] = [arr[j], arr[i]]; commit();
+}
+
+/* ---------- Karten-Dialog ---------- */
+let editing = null, color = null;
+function drawSwatches() {
+  const box = $('f-colors'); box.textContent = '';
+  COLORS.forEach((c) => {
+    const b = el('button', 'sw' + (c ? '' : ' none') + (c === color ? ' sel' : '')); b.type = 'button';
+    if (c) b.style.setProperty('--c', c);
+    b.title = c ? c : 'Keine Farbe'; b.onclick = () => { color = c; drawSwatches(); };
+    box.append(b);
+  });
+}
+function openCard(card, lane, col) {
+  const d = D(); editing = card;
+  $('f-title').value = card ? card.title : '';
+  $('f-text').value = card ? card.text : '';
+  color = card ? card.color : null; drawSwatches();
+  const fill = (sel, items, val) => { sel.textContent = ''; items.forEach((x) => { const o = el('option', null, x.name); o.value = x.id; sel.append(o); }); sel.value = val; };
+  fill($('f-lane'), d.lanes, card ? card.lane : lane);
+  fill($('f-col'), d.columns, card ? card.col : col);
+  $('f-del').hidden = !card;
+  updatePreview(); $('dlg').showModal(); $('f-title').focus();
+}
+const updatePreview = () => { $('f-preview').innerHTML = markdown($('f-text').value); };
+$('f-text').oninput = updatePreview;
+$('f-cancel').onclick = () => $('dlg').close();
+$('f-del').onclick = () => {
+  if (!confirm('Aufgabe löschen?')) return;
+  D().cards = D().cards.filter((k) => k !== editing); $('dlg').close(); commit();
+};
+$('cardform').onsubmit = (e) => {
+  e.preventDefault();
+  const v = { title: $('f-title').value.trim(), text: $('f-text').value, color, lane: $('f-lane').value, col: $('f-col').value };
+  if (!v.title) return;
+  if (editing) Object.assign(editing, v); else D().cards.push({ id: uid(), ...v });
+  $('dlg').close(); commit();
+};
+
+/* ---------- Toolbar ---------- */
+$('addlane').onclick = () => { const n = prompt('Name der neuen Swimlane'); if (n && n.trim()) { D().lanes.push({ id: uid(), name: n.trim(), collapsed: false }); commit(); } };
+$('addcol').onclick = () => { const n = prompt('Name der neuen Spalte'); if (n && n.trim()) { D().columns.push({ id: uid(), name: n.trim() }); commit(); } };
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+$('resume').onclick = () => store.resume && store.resume();
+store.restore().then(() => { $('resume').hidden = !store.resume; });
+render();
+</script>
+</body>
+</html>
