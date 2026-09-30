@@ -16,3 +16,5 @@ input[type=text], input[type=number], input[type=date], select, textarea { backg
 #status { font-size:.9rem; color:var(--muted); margin:6px 0; }
 #status[data-kind=ok] { color:var(--ok); } #status[data-kind=warn] { color:var(--warn); } #status[data-kind=error] { color:var(--err); }
 a { color:var(--accent); }
+#status button { padding:2px 10px; margin-right:6px; font-size:.85rem; }
+#status[data-kind=error] { font-weight:600; }
