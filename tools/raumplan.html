@@ -70,7 +70,7 @@
   .small-btn { padding:2px 8px; }
   details.types { flex-basis:100%; color:var(--muted); font-size:.9rem; }
   details.types label { display:inline-block; margin-right:12px; }
-  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:8px; z-index:50; }
+  #toast { position:fixed; left:50%; bottom:20px; transform:translateX(-50%); width:max-content; max-width:min(92vw, 560px); overflow-wrap:anywhere; background:var(--fg); color:var(--bg); padding:8px 16px; border-radius:8px; z-index:50; }
   #toast[hidden] { display:none; }
   #roomname { width:200px; font-weight:600; max-width:100%; }
 
@@ -217,7 +217,7 @@ const store = SimpleStorage.create({
     const rep = [], lost = normalize(store.data, rep);
     resetHistory(); tool = { kind: 'select' }; curId = null; // nach Laden/Neu: erster Raum aktiv (ensureActive in render), Auswahl A1
     render();
-    if (lost) toast(`${lost} Asset(s) passten nicht in den Raum (max. ${MAXN}×${MAXN}) und wurden verworfen – ${rep.map((x) => `Raum „${x.name}“: ${x.n}`).join(', ')}`);
+    if (lost) toast(`${lost} Asset(s) passten nicht in den Raum (max. ${MAXN}×${MAXN}) und wurden verworfen – ${rep.map((x) => `Raum „${x.name}“: ${x.n}`).join(', ')}`, 7000);
   },
   statusEl: $('status'),
 });
@@ -294,7 +294,10 @@ function normalize(d, report) {
       if (!found) { lost++; return; }
       used.add(key(a.row, a.col)); R.assets.push(a);
     });
-    if (lost) { dropped += lost; if (report) report.push({ name: R.name, n: lost }); }
+    if (lost) { // Anzeigename wie in der Tab-Leiste (leer -> „Raum N“), lange Namen gekürzt
+      dropped += lost;
+      if (report) { const nm = Array.from(R.name.trim() || 'Raum ' + (i + 1)); report.push({ name: nm.length > 40 ? nm.slice(0, 39).join('') + '…' : nm.join(''), n: lost }); }
+    }
     return R;
   });
   return dropped;
@@ -371,7 +374,7 @@ let tool = { kind: 'select' };
 
 /* ---------- Toast ---------- */
 let toastT;
-function toast(msg) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, 2800); }
+function toast(msg, ms) { const t = $('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms || 2800); }
 
 /* ---------- Icons ---------- */
 function iconEl(icon, size) {
@@ -488,9 +491,9 @@ let tabSig = null;
 const roomTabs = () => Array.from($('roomtabs').children);
 function renderRoomBar() {
   const d = D(), cur = RM(), tabs = $('roomtabs'), acts = $('roomacts');
-  const sig = JSON.stringify(d.rooms.map((r) => [r.id, roomLabel(r)])), rebuilt = sig !== tabSig || tabs.children.length !== d.rooms.length;
+  const sig = JSON.stringify(d.rooms.map((r) => r.id)), rebuilt = sig !== tabSig || tabs.children.length !== d.rooms.length;
   const hadFocus = tabs.contains(document.activeElement);
-  if (rebuilt) { // Tabs nur neu aufbauen, wenn sich Räume/Namen/Reihenfolge ändern (Fokus und Klicks gehen sonst verloren)
+  if (rebuilt) { // Tabs nur neu aufbauen, wenn sich die Räume oder ihre Reihenfolge ändern; Namen werden unten an Ort und Stelle aktualisiert (sonst geht ein Klick mitten im Blur des Namensfelds verloren)
     tabSig = sig; tabs.textContent = '';
     d.rooms.forEach((r, i) => {
       const b = el('button', 'rtab', roomLabel(r)); b.type = 'button'; b.id = 'rtab' + i; b.title = roomLabel(r);
@@ -501,7 +504,8 @@ function renderRoomBar() {
     });
   }
   let activeTab = null;
-  roomTabs().forEach((b) => {
+  roomTabs().forEach((b, i) => {
+    const lbl = roomLabel(d.rooms[i]); if (b.textContent !== lbl) b.textContent = lbl; b.title = lbl;
     const on = b.dataset.id === cur.id; if (on) activeTab = b;
     b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); b.tabIndex = on ? 0 : -1;
   });
@@ -551,7 +555,7 @@ $('roomform').onsubmit = (e) => {
   flushPending();
   D().rooms.push(room); activate(room.id);
   commit();
-  if ($('dlg-cfg').open) renderCfg();
+  if ($('dlg-cfg').open) { renderCfg(); const a = $('cfg-body').querySelector('[data-k="addroom"]'); if (a) a.focus(); } // renderCfg stellt den Fokus nur per Index wieder her – die Liste ist aber gewachsen
 };
 function dupRoom() {
   const src = RM(), copy = JSON.parse(JSON.stringify(src));
@@ -572,8 +576,14 @@ function moveRoom(dir) {
   const rs = D().rooms, i = rs.indexOf(RM()), j = i + dir; if (j < 0 || j >= rs.length) return;
   [rs[i], rs[j]] = [rs[j], rs[i]]; commit();
 }
-// Name des aktiven Raums: leer -> Standardname, Leerraum außen entfernen
-function fixRoomName(r) { r.name = r.name.trim() || freeRoomName(); return r.name; }
+// Name eines Raums: Leerraum außen entfernen; leer -> Standardname. Der Ersatzname ist die Tab-Beschriftung („Raum N“ nach Position),
+// damit das Label beim Verlassen des Feldes nicht springt; nur wenn ein anderer Raum schon so heißt, der nächste freie Name.
+function fixRoomName(r) {
+  const t = r.name.trim(); if (t) return (r.name = t);
+  const l = roomLabel(r);
+  r.name = D().rooms.some((x) => x !== r && x.name.trim() === l) ? freeRoomName() : l;
+  return r.name;
+}
 // Tabs per Tastatur (ARIA-Tab-Muster): ←/→ wechseln (mit Umlauf), Pos1/Ende springen; der Wechsel aktiviert sofort
 $('roomtabs').addEventListener('keydown', (e) => {
   if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
@@ -973,7 +983,8 @@ function cfgFields(box) {
     }
     row.append(btn('▲', 'Nach oben', () => moveIn(d.fields, i, -1)), btn('▼', 'Nach unten', () => moveIn(d.fields, i, 1)),
       btn('✕', 'Feld löschen', () => {
-        if (!confirm(`Feld „${f.label}“ löschen? Die eingetragenen Werte gehen verloren${D().rooms.length > 1 ? ' (in allen Räumen)' : ''}.`)) return;
+        const used = usage((a) => Object.hasOwn(a.values, f.id) && a.values[f.id] !== '' && a.values[f.id] !== false); // Assets mit Wert – in ALLEN Räumen
+        if (!confirm(`Feld „${f.label}“ löschen?${used.n ? ` Die eingetragenen Werte gehen${D().rooms.length > 1 ? ' in allen Räumen' : ''} verloren (${used.txt}).` : ''}`)) return;
         allAssets().forEach((a) => { delete a.values[f.id]; }); d.fields.splice(i, 1); cfgCommit(true);
       }));
     const det = el('details', 'types');
@@ -992,10 +1003,17 @@ function cfgFields(box) {
 
 function cfgRoom(box) {
   const d = D(), R = RM();
+  // Änderungen an Name/Größe aktualisieren die Raumliste nur an Ort und Stelle (kein renderCfg): Ein Neuaufbau mitten in Blur/Klick
+  // würde das Element unter der Maus ersetzen (der Klick ginge verloren) und den Tastaturfokus auf <body> werfen.
+  let relabel = () => {}; const metas = []; let heading = null;
+  const upd = () => {
+    heading.textContent = `Alle Räume (${d.rooms.length}) – ${allAssets().length} Asset(s)`;
+    metas.forEach(([r, m]) => { m.textContent = `${r.cols} × ${r.rows} · ${r.assets.length} Asset(s)`; });
+  };
   box.append(el('p', 'hint', `Aktueller Raum: Name und Größe in Zellen (1–${MAXN}). Spalten = A, B, C …, Zeilen = 1, 2, 3 …`));
   const nrow = el('div', 'cfgrow');
-  const ni = textInput(R.name, 'Name des Raums', (v) => { R.name = v; });
-  ni.onchange = () => { fixRoomName(R); ni.value = R.name; cfgCommit(false); };
+  const ni = textInput(R.name, 'Name des Raums', (v) => { R.name = v; relabel(); });
+  ni.onchange = () => { fixRoomName(R); ni.value = R.name; cfgCommit(false); relabel(); };
   nrow.append(el('span', 'hint', 'Name'), ni); box.append(nrow);
   const row = el('div', 'cfgrow');
   const mk = (label, val) => { const l = el('label', null, label + ' '); const i = el('input'); i.type = 'number'; i.min = 1; i.max = MAXN; i.value = val; i.style.width = '90px'; l.append(i); return [l, i]; };
@@ -1003,24 +1021,29 @@ function cfgRoom(box) {
   const apply = () => {
     const cols = Math.min(MAXN, Math.max(1, parseInt(ic.value, 10) || R.cols)), rows = Math.min(MAXN, Math.max(1, parseInt(ir.value, 10) || R.rows));
     const lost = R.assets.filter((a) => a.col >= cols || a.row >= rows);
-    if (lost.length && !confirm(`${lost.length} Asset(s) in „${roomLabel(R)}“ liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { renderCfg(); return; }
-    lost.forEach(removeAsset); R.cols = cols; R.rows = rows; cfgCommit(true);
+    if (lost.length && !confirm(`${lost.length} Asset(s) in „${roomLabel(R)}“ liegen außerhalb des neuen Raums und werden gelöscht. Fortfahren?`)) { ic.value = R.cols; ir.value = R.rows; return; }
+    lost.forEach(removeAsset); R.cols = cols; R.rows = rows; ic.value = cols; ir.value = rows;
+    cfgCommit(false); upd();
   };
   ic.onchange = apply; ir.onchange = apply;
   row.append(lc, lr); box.append(row);
 
-  box.append(el('h3', null, `Alle Räume (${d.rooms.length}) – ${allAssets().length} Asset(s)`));
+  heading = el('h3'); box.append(heading);
   d.rooms.forEach((r) => {
     const cur = r === R, only = d.rooms.length < 2;
     const line = el('div', 'cfgrow' + (cur ? ' cur' : ''));
     const go = btn('Wechseln', `Zu Raum „${roomLabel(r)}“ wechseln`, () => { if (cur) return; switchRoom(r.id); renderCfg(); });
     const del = btn('Löschen', only ? 'Der letzte Raum kann nicht gelöscht werden' : `Raum „${roomLabel(r)}“ löschen`, () => { if (only) return toast('Der letzte Raum kann nicht gelöscht werden'); deleteRoom(r.id); renderCfg(); });
     if (cur) go.setAttribute('aria-disabled', 'true'); if (only) del.setAttribute('aria-disabled', 'true');
-    line.append(el('span', 'rname', roomLabel(r)), el('span', 'rmeta', `${r.cols} × ${r.rows} · ${r.assets.length} Asset(s)`), go, del);
+    const rn = el('span', 'rname', roomLabel(r)), meta = el('span', 'rmeta');
+    metas.push([r, meta]);
+    if (cur) relabel = () => { const n = roomLabel(r); rn.textContent = n; go.title = `Zu Raum „${n}“ wechseln`; if (!only) del.title = `Raum „${n}“ löschen`; };
+    line.append(rn, meta, go, del);
     box.append(line);
   });
+  upd();
   const add = btn('+ Raum', 'Neuen Raum anlegen', openNewRoom, '');
-  add.style.marginTop = '8px'; box.append(add);
+  add.dataset.k = 'addroom'; add.style.marginTop = '8px'; box.append(add);
 }
 
 // Icon-Auswahl
