@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zeitraster</title>
+<link rel="stylesheet" href="../shared/style.css">
+<style>
+  main.wide { max-width:1200px; }
+  .layout { display:flex; gap:16px; align-items:flex-start; }
+  .stage { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .stage #label { width:min(100%, 640px); font-size:1.1rem; text-align:center; }
+  .time { font-size:clamp(2rem, 7vw, 3.6rem); font-weight:700; font-variant-numeric:tabular-nums; line-height:1.1; min-height:1.1em; text-align:center; }
+  .time.small { font-size:clamp(1.3rem, 4vw, 2rem); }
+  .cvwrap { width:min(100%, 70vh); aspect-ratio:1; border-radius:10px; border:3px solid transparent; }
+  .cvwrap.flash { animation:pulse 0.8s ease-in-out 4; border-color:var(--err); }
+  @media (prefers-reduced-motion: reduce) { .cvwrap.flash { animation:none; } }
+  @keyframes pulse { 50% { border-color:transparent; } }
+  canvas { width:100%; height:100%; display:block; border-radius:8px; }
+  .stage:fullscreen { background:var(--bg); justify-content:center; padding:2vh; }
+  .stage:fullscreen .cvwrap { width:min(94vw, 82vh); }
+  .controls { width:340px; flex:none; margin:0; }
+  @media (max-width:900px) { .layout { flex-direction:column; align-items:stretch; } .controls { width:100%; } }
+  .controls h2 { font-size:1rem; margin:14px 0 6px; }
+  .controls h2:first-child { margin-top:0; }
+  .bigbtn { width:100%; font-size:1.3rem; padding:12px; }
+  .row { display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .chip { padding:4px 12px; border-radius:99px; }
+  .chip.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .chip .x { margin-left:6px; color:var(--err); }
+  .controls label.l { display:flex; align-items:center; justify-content:space-between; gap:8px; margin:8px 0; font-size:.9rem; }
+  .controls select, .controls input[type=number] { max-width:170px; }
+  .controls input[type=range] { max-width:170px; }
+  .log { font-size:.85rem; color:var(--muted); margin:6px 0 0; padding-left:0; list-style:none; }
+  .log li { padding:2px 0; border-bottom:1px solid var(--line); }
+  .sum { font-weight:600; }
+  .hint { color:var(--muted); font-size:.85rem; }
+  .swatch { display:inline-block; width:80px; height:12px; border-radius:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<main class="wide">
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Zeitraster</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="layout">
+    <section class="stage" id="stage">
+      <input type="text" id="label" maxlength="200" placeholder="Woran arbeite ich gerade?" aria-label="Woran arbeite ich gerade?">
+      <div class="time" id="time" aria-live="off"></div>
+      <div class="cvwrap" id="cvwrap"><canvas id="cv" role="img" aria-label="Zeitraster"></canvas></div>
+    </section>
+
+    <aside class="card controls">
+      <button id="start" class="primary bigbtn">▶ Start</button>
+      <div class="row">
+        <button id="reset">↺ Zurücksetzen</button>
+        <button id="plus1">+1 Min</button>
+        <button id="plus5">+5 Min</button>
+        <button id="full">⛶ Vollbild</button>
+      </div>
+
+      <h2>Dauer</h2>
+      <div class="row" id="presets"></div>
+      <div class="row">
+        <label class="l" style="margin:0;gap:6px"><input type="number" id="custom" min="0.1" max="720" step="any" style="width:90px"> Min</label>
+        <button id="customset">Setzen</button>
+        <button id="addpreset" title="Aktuelle Dauer als Schnellwahl speichern">+ Merken</button>
+        <button id="editpresets" title="Schnellwahl bearbeiten">✎</button>
+      </div>
+
+      <h2>Darstellung</h2>
+      <label class="l">Farben <select id="scheme"><option value="ampel">Ampel (grün → rot)</option><option value="kontrast">Farbenblind-freundlich</option><option value="ruhig">Ruhig (türkis → violett)</option></select></label>
+      <div class="hint" style="text-align:right"><span class="swatch" id="swatch"></span></div>
+      <label class="l">Verbrauchte Zeit <select id="order"><option value="rows">Zeilenweise</option><option value="cols">Spaltenweise</option><option value="spiral">Spirale (außen → innen)</option><option value="random">Zufällig</option></select></label>
+      <label class="l">Zeitanzeige <select id="display"><option value="exact">Genau (mm:ss)</option><option value="rough">Grob („ca. 12 Min“)</option><option value="off">Keine Zahlen</option></select></label>
+
+      <h2>Signale</h2>
+      <label class="l">Ton am Ende <input type="checkbox" id="sound"></label>
+      <label class="l">Sanfte Hinweise bei 50 / 25 / 10 % <input type="checkbox" id="milestones"></label>
+      <label class="l">Lautstärke <input type="range" id="volume" min="0" max="1" step="0.05"></label>
+      <div class="row" style="margin-top:0"><button id="testsound">Ton testen</button></div>
+      <label class="l">Bildschirm wach halten <input type="checkbox" id="wake"></label>
+
+      <h2>Heute</h2>
+      <div class="sum" id="sum"></div>
+      <ul class="log" id="log"></ul>
+      <div class="row"><button id="clearlog">Verlauf leeren</button></div>
+      <p class="hint" style="margin-bottom:0">Leertaste = Start/Pause · F = Vollbild. Jede Zelle steht für 1/10&nbsp;000 der Zeit.</p>
+    </aside>
+  </div>
+</main>
+
+<script src="../shared/storage.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const N = 100, CELLS = N * N, MAX_MIN = 720;
+const MILESTONES = [0.5, 0.25, 0.1];
+const SCHEMES = {
+  ampel:    [[1, '#22c55e'], [0.5, '#eab308'], [0.2, '#f97316'], [0, '#dc2626']],
+  kontrast: [[1, '#0072b2'], [0.4, '#f0e442'], [0, '#d55e00']],
+  ruhig:    [[1, '#5eead4'], [0.5, '#818cf8'], [0, '#7c3aed']],
+};
+const ORDERS = ['rows', 'cols', 'spiral', 'random'];
+const DISPLAYS = ['exact', 'rough', 'off'];
+
+/* ---------- Daten ---------- */
+const makeDefaults = () => ({
+  settings: { minutes: 25, scheme: 'ampel', order: 'rows', display: 'exact', milestones: true, sound: true, volume: 0.5, wake: true },
+  presets: [5, 10, 15, 25, 45, 60],
+  label: '',
+  timer: { state: 'idle', totalMs: 25 * 60000, remainingMs: 25 * 60000, endAt: 0, startedAt: 0 },
+  log: [],
+});
+const store = SimpleStorage.create({
+  name: 'zeitraster',
+  defaults: makeDefaults,
+  onChange: () => { normalize(store.data); afterLoad(); },
+  statusEl: $('status'),
+});
+const D = () => store.data;
+
+function normalize(d) {
+  const num = (v, def, lo, hi) => { v = Number(v); if (!Number.isFinite(v)) v = def; return Math.min(hi, Math.max(lo, v)); };
+  const pick = (v, list, def) => (list.includes(v) ? v : def);
+  const s = d.settings && typeof d.settings === 'object' ? d.settings : {};
+  d.settings = {
+    minutes: num(s.minutes, 25, 0.1, MAX_MIN), scheme: pick(s.scheme, Object.keys(SCHEMES), 'ampel'),
+    order: pick(s.order, ORDERS, 'rows'), display: pick(s.display, DISPLAYS, 'exact'),
+    milestones: s.milestones !== false, sound: s.sound !== false, volume: num(s.volume, 0.5, 0, 1), wake: s.wake !== false,
+  };
+  const pr = (Array.isArray(d.presets) ? d.presets : []).map(Number).filter((x) => Number.isFinite(x) && x >= 0.1 && x <= MAX_MIN);
+  d.presets = [...new Set(pr)].sort((a, b) => a - b).slice(0, 12);
+  if (!d.presets.length) d.presets = [5, 10, 15, 25, 45, 60];
+  d.label = typeof d.label === 'string' ? d.label.slice(0, 200) : '';
+  const t = d.timer && typeof d.timer === 'object' ? d.timer : {};
+  const total = num(t.totalMs, d.settings.minutes * 60000, 1000, MAX_MIN * 60000);
+  d.timer = {
+    state: pick(t.state, ['idle', 'running', 'paused', 'done'], 'idle'), totalMs: total,
+    remainingMs: num(t.remainingMs, total, 0, total), endAt: num(t.endAt, 0, 0, 8.64e15), startedAt: num(t.startedAt, 0, 0, 8.64e15),
+  };
+  if (d.timer.state === 'done') d.timer.remainingMs = 0;
+  d.log = (Array.isArray(d.log) ? d.log : []).filter((e) => e && typeof e === 'object' && !Number.isNaN(Date.parse(e.at)))
+    .map((e) => ({ at: new Date(e.at).toISOString(), label: typeof e.label === 'string' ? e.label.slice(0, 200) : '', minutes: num(e.minutes, 0, 0, MAX_MIN) })).slice(-500);
+  // Timer lief ab, während die Seite zu war: als beendet führen (ohne Signal)
+  if (d.timer.state === 'running' && d.timer.endAt <= Date.now()) {
+    d.log.push({ at: new Date(d.timer.endAt || Date.now()).toISOString(), label: d.label, minutes: Math.round(d.timer.totalMs / 600) / 100 });
+    d.timer.state = 'done'; d.timer.remainingMs = 0;
+  }
+}
+
+/* ---------- Timer-Logik ---------- */
+let fired = new Set();
+const remaining = () => { const t = D().timer; return t.state === 'running' ? Math.max(0, t.endAt - Date.now()) : t.state === 'done' ? 0 : t.remainingMs; };
+const fracLeft = () => { const t = D().timer; return t.state === 'idle' ? 1 : Math.min(1, Math.max(0, remaining() / t.totalMs)); };
+function refireFlags() { fired = new Set(MILESTONES.filter((m) => fracLeft() <= m)); }
+
+function start() {
+  const t = D().timer; ensureAudio();
+  if (t.state === 'done' || t.remainingMs <= 0 && t.state !== 'running') { t.totalMs = D().settings.minutes * 60000; t.remainingMs = t.totalMs; t.state = 'idle'; }
+  if (t.state === 'idle') { t.startedAt = Date.now(); fired = new Set(); }
+  if (t.state !== 'running') { t.endAt = Date.now() + t.remainingMs; t.state = 'running'; }
+  store.changed(); wake(); render();
+}
+function pause() {
+  const t = D().timer; if (t.state !== 'running') return;
+  t.remainingMs = remaining(); t.state = 'paused'; store.changed(); releaseWake(); render();
+}
+function reset() {
+  const t = D().timer; t.totalMs = D().settings.minutes * 60000; t.remainingMs = t.totalMs; t.state = 'idle'; t.endAt = 0;
+  fired = new Set(); store.changed(); releaseWake(); $('cvwrap').classList.remove('flash'); render();
+}
+function setMinutes(m) {
+  m = Math.min(MAX_MIN, Math.max(0.1, m));
+  const t = D().timer;
+  if ((t.state === 'running' || t.state === 'paused') && !confirm('Laufende Zeit verwerfen und neue Dauer setzen?')) return;
+  D().settings.minutes = m; reset();
+}
+function extend(ms) {
+  const t = D().timer;
+  if (t.state === 'done' || t.state === 'idle') {
+    if (t.state === 'idle') { t.totalMs += ms; t.remainingMs += ms; D().settings.minutes = t.totalMs / 60000; store.changed(); render(); return; }
+    t.totalMs = ms; t.remainingMs = ms; t.state = 'idle'; fired = new Set(); $('cvwrap').classList.remove('flash'); start(); return;
+  }
+  t.totalMs += ms;
+  if (t.state === 'running') t.endAt += ms; else t.remainingMs += ms;
+  MILESTONES.forEach((m) => { if (fracLeft() > m) fired.delete(m); });
+  store.changed(); render();
+}
+function finish() {
+  const t = D().timer;
+  t.state = 'done'; t.remainingMs = 0; t.endAt = 0;
+  D().log.push({ at: new Date().toISOString(), label: D().label, minutes: Math.round(t.totalMs / 600) / 100 });
+  if (D().log.length > 500) D().log.shift();
+  store.changed(); releaseWake();
+  if (D().settings.sound) endSound();
+  $('cvwrap').classList.add('flash'); setTimeout(() => $('cvwrap').classList.remove('flash'), 3600);
+  render();
+}
+function update() {
+  const t = D().timer;
+  if (t.state === 'running') {
+    if (t.endAt <= Date.now()) { finish(); return; }
+    const f = fracLeft();
+    MILESTONES.forEach((m) => { if (f <= m && !fired.has(m)) { fired.add(m); if (D().settings.milestones) softSound(); } });
+  }
+  renderTime();
+}
+
+/* ---------- Audio ---------- */
+let actx = null;
+function ensureAudio() {
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume();
+  } catch { /* ohne Ton weiter */ }
+}
+function tone(freq, start, dur, vol) {
+  if (!actx || vol <= 0) return;
+  const o = actx.createOscillator(), g = actx.createGain(), t0 = actx.currentTime + start;
+  o.type = 'sine'; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g).connect(actx.destination); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function softSound() { ensureAudio(); tone(660, 0, 0.35, 0.25 * D().settings.volume); }
+function endSound() {
+  ensureAudio(); const v = 0.6 * D().settings.volume;
+  [0, 0.45, 0.9].forEach((s) => { tone(880, s, 0.35, v); tone(1175, s + 0.15, 0.35, v); });
+}
+
+/* ---------- Bildschirm wach halten ---------- */
+let lock = null;
+async function wake() {
+  if (!D().settings.wake || !navigator.wakeLock || lock || D().timer.state !== 'running' || document.hidden) return;
+  try { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } catch { lock = null; }
+}
+function releaseWake() { if (lock) { lock.release().catch(() => {}); lock = null; } }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { update(); wake(); requestDraw(); } });
+
+/* ---------- Zeichnen ---------- */
+const ranks = {};
+function getRank(order) {
+  if (ranks[order]) return ranks[order];
+  const rk = new Uint16Array(CELLS);
+  if (order === 'rows') for (let i = 0; i < CELLS; i++) rk[i] = i;
+  else if (order === 'cols') for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) rk[r * N + c] = c * N + r;
+  else if (order === 'spiral') {
+    let top = 0, bottom = N - 1, left = 0, right = N - 1, k = 0;
+    while (top <= bottom && left <= right) {
+      for (let c = left; c <= right; c++) rk[top * N + c] = k++;
+      top++;
+      for (let r = top; r <= bottom; r++) rk[r * N + right] = k++;
+      right--;
+      if (top <= bottom) { for (let c = right; c >= left; c--) rk[bottom * N + c] = k++; bottom--; }
+      if (left <= right) { for (let r = bottom; r >= top; r--) rk[r * N + left] = k++; left++; }
+    }
+  } else { // zufällig, aber immer gleiche Reihenfolge (fester Startwert)
+    const idx = Array.from({ length: CELLS }, (_, i) => i); let a = 123456789;
+    const rnd = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    for (let i = CELLS - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+    idx.forEach((cell, k) => { rk[cell] = k; });
+  }
+  return (ranks[order] = rk);
+}
+const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
+function schemeColor(name, f) {
+  const st = SCHEMES[name]; f = Math.min(1, Math.max(0, f));
+  for (let i = 0; i < st.length - 1; i++) {
+    if (f <= st[i][0] && f >= st[i + 1][0]) {
+      const t = (st[i][0] - f) / (st[i][0] - st[i + 1][0]), a = hex(st[i][1]), b = hex(st[i + 1][1]);
+      return a.map((x, k) => Math.round(x + (b[k] - x) * t));
+    }
+  }
+  return hex(st[st.length - 1][1]);
+}
+const rgb = (c) => `rgb(${c[0]},${c[1]},${c[2]})`;
+const mix = (a, b, t) => a.map((x, k) => Math.round(x + (b[k] - x) * t));
+function cssColor(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return HEXRE.test(v) ? hex(v.length === 4 ? '#' + [...v.slice(1)].map((x) => x + x).join('') : v) : fallback;
+}
+const HEXRE = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+let drawKey = '', drawQueued = false;
+function requestDraw() { if (!drawQueued) { drawQueued = true; requestAnimationFrame(() => { drawQueued = false; draw(); }); } }
+function draw() {
+  const cv = $('cv'), s = D().settings, t = D().timer;
+  const dpr = window.devicePixelRatio || 1, side = Math.max(1, Math.round(cv.clientWidth * dpr));
+  const f = fracLeft(), progress = t.state === 'idle' ? 0 : 1 - f;
+  const exact = progress * CELLS, n = Math.min(CELLS, Math.floor(exact)), part = t.state === 'running' ? exact - n : 0;
+  const elapsedC = cssColor('--line', [228, 231, 236]), gapC = cssColor('--bg', [246, 247, 249]);
+  const key = [side, n, Math.round(part * 6), Math.round(f * 400), s.scheme, s.order, elapsedC, gapC, t.state === 'done'].join('|');
+  if (key === drawKey) return;
+  drawKey = key;
+  if (cv.width !== side || cv.height !== side) { cv.width = side; cv.height = side; }
+  const ctx = cv.getContext('2d'), cs = side / N, gap = cs >= 3 ? Math.max(1, Math.round(dpr)) : 0;
+  const rk = getRank(s.order), remainC = schemeColor(s.scheme, f);
+  const xs = new Int32Array(N + 1); for (let i = 0; i <= N; i++) xs[i] = Math.round(i * cs);
+  ctx.fillStyle = rgb(gapC); ctx.fillRect(0, 0, side, side);
+  const paint = (test, color) => {
+    ctx.fillStyle = rgb(color);
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+      if (test(rk[r * N + c])) ctx.fillRect(xs[c], xs[r], xs[c + 1] - xs[c] - gap, xs[r + 1] - xs[r] - gap);
+    }
+  };
+  paint((k) => k > n, remainC);
+  paint((k) => k < n, elapsedC);
+  if (n < CELLS) paint((k) => k === n, mix(remainC, elapsedC, part));
+  const pct = Math.round(f * 100);
+  cv.setAttribute('aria-label', t.state === 'done' ? 'Zeit abgelaufen' : `Zeitraster, noch ${pct} Prozent`);
+}
+
+/* ---------- Anzeige ---------- */
+function fmt(ms) {
+  const sec = Math.ceil(ms / 1000), h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+  const p = (x) => String(x).padStart(2, '0');
+  return h ? `${h}:${p(m)}:${p(s)}` : `${p(m)}:${p(s)}`;
+}
+function rough(ms) {
+  const m = Math.ceil(ms / 60000);
+  if (m <= 1) return 'unter 1 Minute';
+  return 'ca. ' + (m >= 60 ? `${Math.floor(m / 60)} Std ${m % 60} Min` : `${m} Min`);
+}
+function renderTime() {
+  const s = D().settings, t = D().timer, el = $('time'), ms = remaining();
+  let text = '';
+  if (t.state === 'done') text = '✔ Geschafft!';
+  else if (s.display === 'exact') text = fmt(ms);
+  else if (s.display === 'rough') text = rough(ms);
+  const title = t.state === 'running' ? `${fmt(ms)} – Zeitraster` : t.state === 'done' ? '✔ Fertig – Zeitraster' : 'Zeitraster';
+  if (el.textContent !== text) el.textContent = text;
+  el.classList.toggle('small', s.display === 'rough' && t.state !== 'done');
+  if (document.title !== title) document.title = title;
+  requestDraw();
+}
+let editPresets = false;
+function render() {
+  const d = D(), s = d.settings, t = d.timer;
+  $('start').textContent = t.state === 'running' ? '⏸ Pause' : t.state === 'paused' ? '▶ Weiter' : t.state === 'done' ? '↻ Nochmal' : '▶ Start';
+  if (document.activeElement !== $('label')) $('label').value = d.label;
+  ['scheme', 'order', 'display'].forEach((k) => { $(k).value = s[k]; });
+  ['sound', 'milestones', 'wake'].forEach((k) => { $(k).checked = s[k]; });
+  $('volume').value = s.volume;
+  if (document.activeElement !== $('custom')) $('custom').value = +(s.minutes.toFixed(2));
+  const sw = SCHEMES[s.scheme]; $('swatch').style.background = `linear-gradient(90deg, ${sw.slice().reverse().map((x) => x[1]).join(',')})`;
+  const pb = $('presets'); pb.textContent = '';
+  d.presets.forEach((m) => {
+    const b = document.createElement('button'); b.className = 'chip' + (Math.abs(m - s.minutes) < 1e-6 ? ' on' : ''); b.type = 'button';
+    b.textContent = m >= 60 && m % 60 === 0 ? `${m / 60} Std` : `${+m.toFixed(2)} Min`;
+    if (editPresets) { const x = document.createElement('span'); x.className = 'x'; x.textContent = '✕'; b.append(x); b.onclick = () => { d.presets = d.presets.filter((p) => p !== m); if (!d.presets.length) d.presets = [25]; store.changed(); render(); }; }
+    else b.onclick = () => setMinutes(m);
+    pb.append(b);
+  });
+  $('editpresets').classList.toggle('primary', editPresets);
+  renderLog(); renderTime();
+}
+function renderLog() {
+  const d = D(), today = new Date().toDateString();
+  const todays = d.log.filter((e) => new Date(e.at).toDateString() === today);
+  const mins = todays.reduce((a, e) => a + e.minutes, 0);
+  $('sum').textContent = todays.length ? `${todays.length} Runde(n), ${Math.round(mins)} Min geschafft` : 'Noch keine Runde heute';
+  const ul = $('log'); ul.textContent = '';
+  todays.slice(-8).reverse().forEach((e) => {
+    const li = document.createElement('li');
+    li.textContent = `${new Date(e.at).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${+e.minutes.toFixed(1)} Min${e.label ? ' · ' + e.label : ''}`;
+    ul.append(li);
+  });
+}
+function afterLoad() { refireFlags(); releaseWake(); wake(); drawKey = ''; render(); }
+
+/* ---------- Bedienung ---------- */
+$('start').onclick = () => (D().timer.state === 'running' ? pause() : start());
+$('reset').onclick = () => { const t = D().timer; if ((t.state === 'running' || t.state === 'paused') && !confirm('Laufende Zeit zurücksetzen?')) return; reset(); };
+$('plus1').onclick = () => extend(60000);
+$('plus5').onclick = () => extend(5 * 60000);
+$('full').onclick = toggleFull;
+function toggleFull() { if (document.fullscreenElement) document.exitFullscreen(); else $('stage').requestFullscreen().catch(() => {}); }
+$('customset').onclick = () => { const v = parseFloat($('custom').value); if (Number.isFinite(v) && v > 0) setMinutes(v); };
+$('custom').onkeydown = (e) => { if (e.key === 'Enter') $('customset').click(); };
+$('addpreset').onclick = () => {
+  const m = +D().settings.minutes.toFixed(2), p = D().presets;
+  if (p.includes(m)) return; if (p.length >= 12) return alert('Maximal 12 Schnellwahl-Einträge.');
+  p.push(m); p.sort((a, b) => a - b); store.changed(); render();
+};
+$('editpresets').onclick = () => { editPresets = !editPresets; render(); };
+$('label').oninput = (e) => { D().label = e.target.value; store.changed(); };
+['scheme', 'order', 'display'].forEach((k) => { $(k).onchange = (e) => { D().settings[k] = e.target.value; store.changed(); drawKey = ''; render(); }; });
+['sound', 'milestones', 'wake'].forEach((k) => { $(k).onchange = (e) => { D().settings[k] = e.target.checked; store.changed(); if (k === 'wake') { e.target.checked ? wake() : releaseWake(); } }; });
+$('volume').oninput = (e) => { D().settings.volume = +e.target.value; store.changed(); };
+$('testsound').onclick = endSound;
+$('clearlog').onclick = () => { if (D().log.length && confirm('Gesamten Verlauf löschen?')) { D().log = []; store.changed(); renderLog(); } };
+document.addEventListener('keydown', (e) => {
+  if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.code === 'Space') { e.preventDefault(); $('start').click(); }
+  else if (e.key.toLowerCase() === 'f') toggleFull();
+});
+new ResizeObserver(() => requestDraw()).observe($('cvwrap'));
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { drawKey = ''; requestDraw(); });
+
+function loop() { update(); requestAnimationFrame(loop); }
+setInterval(update, 1000); // läuft auch im Hintergrund-Tab weiter (Ende erkennen, Ton)
+normalize(D()); afterLoad(); loop();
+store.restore();
+</script>
+</body>
+</html>
