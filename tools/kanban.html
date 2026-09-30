@@ -69,6 +69,8 @@
     <button id="undo" title="Rückgängig (Strg+Z)">↶</button>
     <button id="redo" title="Wiederholen (Strg+Y)">↷</button>
     <button id="export">Export (Markdown)</button>
+    <button id="exportjson" title="Aktuelles Board als JSON-Datei">Export (JSON)</button>
+    <button id="importjson" title="Board aus JSON-Datei als neues Board hinzufügen">Board importieren</button>
   </div>
   <div id="status"></div>
   <div class="tabs" id="tabs"></div>
@@ -501,10 +503,39 @@ function exportMarkdown() {
   });
   const arch = b.cards.filter((k) => k.archived);
   if (arch.length) o += `\n## Archiv\n\n` + arch.map(line).join('');
+  download(fileBase(b.name) + '.md', o, 'text/markdown');
+}
+
+function download(name, text, type) {
   const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([o], { type: 'text/markdown' }));
-  a.download = b.name.replace(/[^\w\-äöüÄÖÜß ]/g, '_') + '.md'; a.click();
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+const fileBase = (n) => n.replace(/[^\w\-äöüÄÖÜß ]/g, '_');
+function exportJson() {
+  const b = B();
+  download(fileBase(b.name) + '.board.json', JSON.stringify({ app: 'kanban-board', version: 1, board: b }, null, 2), 'application/json');
+}
+function importJson() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+  inp.onchange = async () => {
+    try {
+      const obj = JSON.parse(await inp.files[0].text());
+      const src = obj.board || (obj.boards && obj.boards[0]);
+      if (!src || !src.columns || !src.lanes || !src.cards) throw new Error('Keine Board-Datei');
+      // neue IDs vergeben, damit nichts mit vorhandenen Boards kollidiert
+      const nb = JSON.parse(JSON.stringify(src)), map = {};
+      nb.id = uid();
+      [...nb.columns, ...nb.lanes].forEach((x) => { const n = uid(); map[x.id] = n; x.id = n; });
+      nb.cards.forEach((k) => { k.id = uid(); k.col = map[k.col]; k.lane = map[k.lane]; });
+      nb.cards = nb.cards.filter((k) => k.col && k.lane);
+      nb.name = (nb.name || 'Import') + ' (Import)';
+      const d = { boards: [nb] }; normalize(d);
+      D().boards.push(d.boards[0]); curId = nb.id; commit();
+    } catch (e) { alert('Import fehlgeschlagen: ' + e.message); }
+  };
+  inp.click();
 }
 
 /* ---------- Toolbar ---------- */
@@ -523,6 +554,8 @@ $('ftag').onchange = (e) => { F.tag = e.target.value; render(); };
 $('farch').onchange = (e) => { F.archive = e.target.checked; render(); };
 $('undo').onclick = undo; $('redo').onclick = redo;
 $('export').onclick = exportMarkdown;
+$('exportjson').onclick = exportJson;
+$('importjson').onclick = importJson;
 $('new').onclick = () => store.new();
 $('open').onclick = () => store.open();
 $('save').onclick = () => store.save();
