@@ -70,6 +70,10 @@
   .sugs li { display:flex; align-items:center; gap:6px; padding:3px 0; border-bottom:1px solid var(--line); }
   .sugs li span { flex:1; overflow-wrap:anywhere; }
   .sugs button, .iconbtn { padding:2px 9px; }
+  /* lange Wörter ohne Leerzeichen sollen umbrechen statt die Seite zu verbreitern */
+  .log li, .note, .cheer, #linktext, #sugtext, .rchip { overflow-wrap:anywhere; }
+  #linktext, #sugtext { min-width:0; }
+  .rchip { max-width:100%; }
 
   /* ---------- Gemeinsame Bausteine (Aufgaben & Routinen) ---------- */
   .pane-top { display:flex; flex-wrap:wrap; gap:8px 16px; align-items:center; justify-content:space-between; margin:0 0 10px; }
@@ -124,6 +128,8 @@
   .erow { grid-template-columns:1fr auto; }
   .ctl { display:flex; align-items:center; gap:6px; }
   @media (max-width:600px) { .steprow { grid-template-columns:auto 1fr; } .steprow .ctl { grid-column:2; } .erow { grid-template-columns:1fr; } }
+  /* Tablet: Seitenleiste steht schon daneben, die Detailspalte ist noch schmal -> Steuerelemente in zweite Zeile */
+  @media (min-width:761px) and (max-width:1020px) { .steprow { grid-template-columns:auto 1fr; } .steprow .ctl { grid-column:2; } }
   .steprow:last-child { border-bottom:none; }
   .steprow.done input[type=text] { color:var(--muted); text-decoration:line-through; }
   .steprow input[type=text], .erow input[type=text] { width:100%; min-width:0; }
@@ -393,7 +399,8 @@ function normalize(d) {
   const bool = (v) => v === true || v === 1 || v === 'true';
   const pick = (v, list, def) => (list.includes(v) ? v : def);
   const str = (v, max, def = '') => { const s = (typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '').trim().slice(0, max); return s || def; };
-  const objs = (a) => (Array.isArray(a) ? a : []).filter((x) => x && typeof x === 'object' && !Array.isArray(x));
+  // Nicht-leere Strings (handgeschriebene Dateien) werden zu Objekten {key: String}, damit nichts verloren geht
+  const objs = (a, key) => (Array.isArray(a) ? a : []).map((x) => (key && typeof x === 'string' && x.trim() ? { [key]: x } : x)).filter((x) => x && typeof x === 'object' && !Array.isArray(x));
   const obj = (o) => (o && typeof o === 'object' && !Array.isArray(o) ? o : {});
   const uniqIn = (set) => (id) => { id = typeof id === 'string' ? id.trim().slice(0, 64) : typeof id === 'number' ? String(id) : ''; if (!id || set.has(id)) id = uid(); set.add(id); return id; };
   const today = localDate();
@@ -430,6 +437,10 @@ function normalize(d) {
     link: t.link && typeof t.link === 'object' && typeof t.link.taskId === 'string' && typeof t.link.stepId === 'string' && t.link.taskId && t.link.stepId
       ? { taskId: t.link.taskId, stepId: t.link.stepId } : null,
   };
+  if (d.timer.state === 'running') { // ohne gültiges Ende gilt der Timer als pausiert; das Ende liegt nie weiter weg als jetzt + Gesamtdauer
+    if (!(d.timer.endAt > 0)) d.timer.state = 'paused';
+    else d.timer.endAt = Math.min(d.timer.endAt, Date.now() + d.timer.totalMs);
+  }
   if (d.timer.state === 'done') d.timer.remainingMs = 0;
   if (d.pomodoro.enabled && d.timer.state === 'idle') { // ruhender Timer zeigt immer die aktuelle Phase
     d.timer.phase = d.pomodoro.phase; d.timer.totalMs = d.timer.remainingMs = num(phaseMs(d.pomodoro, d.pomodoro.phase), 25 * 60000, 1000, MAX_MIN * 60000);
@@ -439,11 +450,11 @@ function normalize(d) {
 
   // Aufgaben
   const tIds = new Set(), tUniq = uniqIn(tIds);
-  d.tasks = objs(d.tasks).slice(0, MAX_TASKS).map((tk) => ({
+  d.tasks = objs(d.tasks, 'title').slice(0, MAX_TASKS).map((tk) => ({
     id: tUniq(tk.id), title: str(tk.title, 200, 'Aufgabe'),
     createdAt: typeof tk.createdAt === 'string' && !Number.isNaN(Date.parse(tk.createdAt)) ? new Date(tk.createdAt).toISOString() : new Date().toISOString(),
     done: bool(tk.done),
-    steps: objs(tk.steps).slice(0, MAX_STEPS).map((st) => ({ id: tUniq(st.id), text: str(st.text, 300, 'Schritt'), minutes: intOr(st.minutes, 5, 1, MAX_STEP_MIN), done: bool(st.done) })),
+    steps: objs(tk.steps, 'text').slice(0, MAX_STEPS).map((st) => ({ id: tUniq(st.id), text: str(st.text, 300, 'Schritt'), minutes: intOr(st.minutes, 5, 1, MAX_STEP_MIN), done: bool(st.done) })),
   }));
   if (d.timer.link) { // ins Leere laufende Verknüpfung entfernen
     const tk = d.tasks.find((x) => x.id === d.timer.link.taskId);
@@ -453,7 +464,7 @@ function normalize(d) {
   // Routinen
   if (!Array.isArray(d.routines)) d.routines = makeRoutines();
   const rIds = new Set(), rUniq = uniqIn(rIds);
-  d.routines = objs(d.routines).slice(0, MAX_ROUTINES).map((r) => {
+  d.routines = objs(d.routines, 'name').slice(0, MAX_ROUTINES).map((r) => {
     const hist = {};
     Object.entries(obj(r.history)).forEach(([k, v]) => {
       if (!isDateStr(k) || !v || typeof v !== 'object') return;
@@ -462,7 +473,7 @@ function normalize(d) {
     });
     const out = {
       id: rUniq(r.id), name: str(r.name, 100, 'Routine'),
-      items: objs(r.items).slice(0, MAX_ITEMS).map((it) => ({ id: rUniq(it.id), text: str(it.text, 200, 'Punkt'), minutes: intOr(it.minutes, 0, 0, MAX_STEP_MIN), done: bool(it.done) })),
+      items: objs(r.items, 'text').slice(0, MAX_ITEMS).map((it) => ({ id: rUniq(it.id), text: str(it.text, 200, 'Punkt'), minutes: intOr(it.minutes, 0, 0, MAX_STEP_MIN), done: bool(it.done) })),
       lastReset: isDateStr(r.lastReset) ? r.lastReset : today, history: hist,
     };
     trimHistory(out, today);
@@ -521,11 +532,11 @@ function start() {
   if (t.state === 'done' || t.remainingMs <= 0 && t.state !== 'running') { const keep = D().pomodoro.enabled ? null : t.link; toIdle(); t.link = keep; }
   if (t.state === 'idle') { t.startedAt = Date.now(); fired = new Set(); }
   if (t.state !== 'running') { t.endAt = Date.now() + t.remainingMs; t.state = 'running'; }
-  setNote(''); store.changed(); wake(); render();
+  setNote(''); store.changed(); wake(); render(true);
 }
 function pause() {
   const t = D().timer; if (t.state !== 'running') return;
-  t.remainingMs = remaining(); t.state = 'paused'; store.changed(); releaseWake(); render();
+  t.remainingMs = remaining(); t.state = 'paused'; store.changed(); releaseWake(); render(true);
 }
 function reset() {
   toIdle();
@@ -573,7 +584,7 @@ function finish() {
     setNote(ph === 'work' ? 'Fokusrunde geschafft – jetzt kurz entspannen.' : ph === 'short' ? 'Pause vorbei – die nächste Runde läuft.' : 'Ein ganzer Zyklus geschafft – neuer Zyklus läuft.');
     return;
   }
-  setNote(msg); render();
+  setNote(msg); render(true);
 }
 function update() {
   const t = D().timer;
@@ -776,7 +787,9 @@ function renderTimer() {
   renderPomo(); renderLinkbox();
   renderLog(); renderTime();
 }
+let logDay = ''; // Tag, für den „Heute“ zuletzt gezeichnet wurde (Erkennung von Mitternacht)
 function renderLog() {
+  logDay = localDate();
   const d = D(), today = new Date().toDateString();
   const todays = d.log.filter((e) => new Date(e.at).toDateString() === today);
   const mins = todays.reduce((a, e) => a + e.minutes, 0);
@@ -791,6 +804,7 @@ function renderLog() {
 
 /* ---------- Fokus-Runden: Anzeige ---------- */
 let sug = '';
+let keepSugs = false; // true: Ideen-Liste nicht neu aufbauen (sonst geht der erste Klick auf ✕ nach einem blur-„change“ verloren)
 function pickSuggestion(force) {
   const list = D().pomodoro.suggestions;
   if (!list.length) { sug = ''; return; }
@@ -819,6 +833,7 @@ function renderPomo() {
   $('sugbox').hidden = !showSug;
   if (showSug) { $('sugtext').textContent = sug; $('sugnext').hidden = p.suggestions.length < 2; }
   // Ideen-Liste
+  if (keepSugs) return;
   const ul = $('pSugs'); ul.textContent = '';
   p.suggestions.forEach((text, i) => {
     const li = el('li'); li.append(el('span', null, text), mkBtn('✕', { label: `Idee löschen: ${text}`, title: 'Löschen', onclick: () => { p.suggestions.splice(i, 1); store.changed(); renderPomo(); } }));
@@ -853,9 +868,11 @@ function setTab(name) {
   if (name === 'timer') { doneAck = true; requestDraw(); }
   render();
 }
-function render() {
+// timerOnly: Timer-Ereignisse (Start/Pause/Ende) bauen Aufgaben-/Routinen-Ansicht nicht neu auf,
+// sonst gingen dort getippter Text und Tastaturfokus verloren. Diese Ansichten hängen nicht vom Timer ab.
+function render(timerOnly) {
   renderTabs(); renderTimer();
-  if (ui.tab === 'tasks') renderTasks(); else if (ui.tab === 'routines') renderRoutines();
+  if (!timerOnly) { if (ui.tab === 'tasks') renderTasks(); else if (ui.tab === 'routines') renderRoutines(); }
   renderChip();
 }
 $('tabbar').addEventListener('click', (e) => { const b = e.target.closest('.tab'); if (b) setTab(b.dataset.tab); });
@@ -966,11 +983,11 @@ function renderTaskList() {
   const list = (arr, cls) => {
     const ul = el('ul', 'tasklist');
     arr.forEach((tk) => {
-      const li = el('li'), b = el('button', 'taskitem' + (cls ? ' ' + cls : '')); b.type = 'button';
+      const li = el('li'), b = el('button', 'taskitem' + (cls ? ' ' + cls : '')); b.type = 'button'; b.dataset.k = 'task:' + tk.id;
       b.append(el('span', null, tk.title));
       if (d.settings.counts && tk.steps.length) b.append(el('span', 'meta', taskCount(tk)));
       b.setAttribute('aria-current', tk.id === ui.taskId ? 'true' : 'false');
-      b.onclick = () => { ui.taskId = tk.id; ui.view = 'focus'; ui.split = null; ui.renaming = false; ui.listOpen = false; renderTasks(); };
+      b.onclick = () => { ui.taskId = tk.id; ui.view = 'focus'; ui.split = null; ui.renaming = false; ui.listOpen = false; ui.focus = 'task:' + tk.id; renderTasks(); };
       li.append(b); ul.append(li);
     });
     return ul;
@@ -978,7 +995,7 @@ function renderTaskList() {
   if (open.length) box.append(list(open));
   else box.append(el('p', 'hint', 'Keine offenen Aufgaben – das ist ein gutes Gefühl.'));
   if (fin.length) {
-    const tg = mkBtn(`${ui.showDone ? '▾' : '▸'} Erledigt (${fin.length})`, { cls: 'linkbtn', onclick: () => { ui.showDone = !ui.showDone; renderTaskList(); } });
+    const tg = mkBtn(`${ui.showDone ? '▾' : '▸'} Erledigt (${fin.length})`, { cls: 'linkbtn', k: 'showdone', onclick: () => { ui.showDone = !ui.showDone; ui.focus = 'showdone'; renderTasks(); } });
     tg.setAttribute('aria-expanded', ui.showDone ? 'true' : 'false'); tg.style.marginTop = '8px';
     box.append(tg);
     if (ui.showDone) box.append(list(fin, 'fin'));
@@ -1001,7 +1018,7 @@ function renderTaskDetail() {
   if (!tk.steps.length) { box.append(firstStepCard(tk)); return; }
   const seg = el('div', 'seg'); seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Ansicht');
   [['focus', 'Fokus'], ['all', 'Alle Schritte']].forEach(([v, text]) => {
-    const b = mkBtn(text, { onclick: () => { ui.view = v; ui.split = null; renderTasks(); } });
+    const b = mkBtn(text, { k: 'seg:' + v, onclick: () => { ui.view = v; ui.split = null; ui.focus = 'seg:' + v; renderTasks(); } });
     b.setAttribute('aria-pressed', ui.view === v ? 'true' : 'false'); seg.append(b);
   });
   box.append(seg);
@@ -1014,19 +1031,20 @@ function taskHead(tk) {
     const i = mkField('text', { value: tk.title, label: 'Aufgabentitel', max: 200, k: 'rename' });
     const close = () => { ui.renaming = false; ui.focus = 'renamebtn'; renderTasks(); };
     const save = () => { const v = i.value.trim(); if (v) { tk.title = v.slice(0, 200); store.changed(); } close(); };
-    i.onkeydown = (e) => { if (e.key === 'Enter') save(); else if (e.key === 'Escape') close(); };
+    i.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } else if (e.key === 'Escape') { e.preventDefault(); close(); } };
     head.append(i, mkBtn('Speichern', { cls: 'primary', onclick: save }), mkBtn('Abbrechen', { onclick: close }));
     return head;
   }
   head.append(el('h2', null, tk.title));
   const act = el('div', 'tact');
   act.append(mkBtn('✎ Umbenennen', { k: 'renamebtn', label: 'Aufgabe umbenennen', onclick: () => { ui.renaming = true; ui.focus = 'rename'; renderTasks(); } }));
-  if (!tk.done) act.append(mkBtn('✔ Abschließen', { label: 'Aufgabe als erledigt markieren', title: 'Aufgabe als erledigt markieren', onclick: () => { tk.done = true; ui.split = null; store.changed(); showFb('fb-tasks', finishedText(tk), true); renderTasks(); } }));
+  if (!tk.done) act.append(mkBtn('✔ Abschließen', { label: 'Aufgabe als erledigt markieren', title: 'Aufgabe als erledigt markieren', onclick: () => { tk.done = true; ui.split = null; ui.focus = 'reopen'; store.changed(); showFb('fb-tasks', finishedText(tk), true); renderTasks(); } }));
   act.append(mkBtn('🗑 Löschen', { label: 'Aufgabe löschen', onclick: () => {
     if (!confirm(`Aufgabe „${tk.title}“ mit allen Schritten löschen?`)) return;
     const d = D(); d.tasks.splice(d.tasks.indexOf(tk), 1);
     if (d.timer.link && d.timer.link.taskId === tk.id) d.timer.link = null;
     ui.taskId = null; ui.split = null; store.changed(); render();
+    $('newtask').focus();
   } }));
   head.append(act);
   return head;
@@ -1051,16 +1069,17 @@ function firstStepCard(tk) {
 }
 function doneCard(tk) {
   const c = el('div', 'card');
-  c.append(el('div', 'cheer big', `Aufgabe geschafft! ${tk.steps.length ? 'Alle Schritte sind erledigt.' : ''}`.trim()));
+  const fin = tk.steps.filter((s) => s.done), openN = tk.steps.length - fin.length;
+  c.append(el('div', 'cheer big', `Aufgabe geschafft!${tk.steps.length && !openN ? ' Alle Schritte sind erledigt.' : ''}${openN ? ` ${openN} ${openN === 1 ? 'Schritt bleibt' : 'Schritte bleiben'} offen – du kannst die Aufgabe jederzeit wieder öffnen.` : ''}`));
   const row = el('div', 'actions'); row.style.justifyContent = 'flex-start'; row.style.marginTop = '0';
-  row.append(mkBtn('↺ Wieder öffnen', { onclick: () => { tk.done = false; store.changed(); renderTasks(); } }));
+  row.append(mkBtn('↺ Wieder öffnen', { k: 'reopen', onclick: () => { tk.done = false; store.changed(); ui.focus = ['done', 'finish', 'addstep']; renderTasks(); } }));
   const next = D().tasks.find((x) => !x.done);
-  if (next) row.append(mkBtn('Nächste Aufgabe ansehen', { cls: 'primary', onclick: () => { ui.taskId = next.id; ui.view = 'focus'; ui.split = null; renderTasks(); } }));
+  if (next) row.append(mkBtn('Nächste Aufgabe ansehen', { cls: 'primary', onclick: () => { ui.taskId = next.id; ui.view = 'focus'; ui.split = null; ui.focus = ['done', 'finish', 'addstep']; renderTasks(); } }));
   c.append(row);
-  if (tk.steps.length) {
+  if (fin.length) {
     const det = el('details'); det.style.marginTop = '12px';
     det.append(el('summary', null, 'Erledigte Schritte anzeigen'));
-    const ul = el('ul', 'hint'); tk.steps.forEach((s) => ul.append(el('li', null, s.text))); det.append(ul); c.append(det);
+    const ul = el('ul', 'hint'); fin.forEach((s) => ul.append(el('li', null, s.text))); det.append(ul); c.append(det);
   }
   return c;
 }
@@ -1072,7 +1091,7 @@ function focusView(box, tk) {
     const c = el('div', 'card');
     c.append(el('p', null, 'Alle Schritte sind abgehakt.'), el('div', 'actions'));
     c.lastChild.style.justifyContent = 'flex-start'; c.lastChild.style.marginTop = '0';
-    c.lastChild.append(mkBtn('✔ Aufgabe abschließen', { cls: 'primary', onclick: () => { tk.done = true; store.changed(); showFb('fb-tasks', finishedText(tk), true); renderTasks(); } }));
+    c.lastChild.append(mkBtn('✔ Aufgabe abschließen', { cls: 'primary', k: 'finish', onclick: () => { tk.done = true; ui.focus = 'reopen'; store.changed(); showFb('fb-tasks', finishedText(tk), true); renderTasks(); } }));
     box.append(c, (() => { const a = el('div', 'card'); a.append(stepForm(tk, false)); return a; })());
     return;
   }
@@ -1087,7 +1106,7 @@ function focusView(box, tk) {
   const act = el('div', 'actions');
   act.append(mkBtn('✔ Erledigt', { cls: 'primary big', k: 'done', onclick: () => {
     const fin = completeStep(tk, cur);
-    ui.split = null; ui.focus = 'done';
+    ui.split = null; ui.focus = fin ? 'reopen' : 'done';
     showFb('fb-tasks', fin ? finishedText(tk) : nextCheer(), fin);
     renderTasks();
   } }));
@@ -1147,7 +1166,7 @@ function allStepsView(tk) {
       if (st.done && tk.steps.every((s) => s.done)) { tk.done = true; fin = true; }
       store.changed();
       if (fin) showFb('fb-tasks', finishedText(tk), true); else if (st.done) showFb('fb-tasks', nextCheer());
-      ui.focus = 'cb:' + st.id; renderTasks();
+      ui.focus = fin ? 'reopen' : 'cb:' + st.id; renderTasks();
     };
     let good = st.text;
     const txt = mkField('text', { value: st.text, max: 300, label: `Schritt ${i + 1} bearbeiten`, k: 'tx:' + st.id });
@@ -1189,7 +1208,10 @@ function dailyReset(d, today) {
     if (r.lastReset === today) return;
     if (r.lastReset > today) { r.lastReset = today; changed = true; return; } // Uhr zurückgestellt: nichts zurücksetzen
     const total = r.items.length;
-    if (total > 0) r.history[r.lastReset] = { done: r.items.filter((i) => i.done).length, total };
+    if (total > 0) { // einen schon geschriebenen, besseren Stand desselben Tages (Uhr vor- und zurückgestellt) nicht überschreiben
+      const done = r.items.filter((i) => i.done).length, old = r.history[r.lastReset];
+      if (!old || old.total <= 0 || done / total >= old.done / old.total) r.history[r.lastReset] = { done, total };
+    }
     r.items.forEach((i) => { i.done = false; });
     r.lastReset = today; trimHistory(r, today); changed = true;
   });
@@ -1200,6 +1222,7 @@ function checkDaily() {
     store.changed();
     if (ui.tab === 'routines') renderRoutines();
   }
+  if (ui.tab === 'timer' && logDay !== localDate()) renderLog(); // „Heute“ nach Mitternacht neu zeichnen
 }
 function completeDays(r, today) {
   let n = 0;
@@ -1223,7 +1246,7 @@ function renderRoutineBar() {
   D().routines.forEach((r) => {
     const done = r.items.filter((i) => i.done).length;
     const full = r.items.length > 0 && done === r.items.length;
-    const b = mkBtn(r.name + (full ? ' ✔' : counts && r.items.length ? ` ${done}/${r.items.length}` : ''), { cls: 'rchip', onclick: () => { ui.routineId = r.id; renderRoutines(); } });
+    const b = mkBtn(r.name + (full ? ' ✔' : counts && r.items.length ? ` ${done}/${r.items.length}` : ''), { cls: 'rchip', k: 'rchip:' + r.id, onclick: () => { ui.routineId = r.id; ui.focus = 'rchip:' + r.id; renderRoutines(); } });
     b.setAttribute('aria-pressed', r.id === ui.routineId ? 'true' : 'false');
     bar.append(b);
   });
@@ -1269,6 +1292,7 @@ function routineCheckView(r) {
       it.done = cb.checked; store.changed();
       const all = r.items.every((x) => x.done);
       if (it.done && all) showFb('fb-routines', `Alles geschafft – „${r.name}“ ist erledigt. Gut gemacht, jetzt darfst du durchatmen.`, true);
+      else if (!it.done) showFb('fb-routines', ''); // Punkt wieder abgewählt: Lob zurücknehmen
       ui.focus = 'cb:' + it.id; renderRoutines();
     };
     lab.append(cb, el('span', null, it.text)); li.append(lab);
@@ -1288,11 +1312,12 @@ function routineEditView(r) {
   const top = el('div', 'addrow');
   let goodName = r.name;
   const nm = mkField('text', { value: r.name, max: 100, label: 'Name der Routine', cls: 'rname', k: 'rname' });
-  nm.oninput = () => { if (nm.value.trim()) { goodName = nm.value.trim(); r.name = goodName.slice(0, 100); store.changed(); } };
-  nm.onchange = () => { if (!nm.value.trim()) nm.value = goodName; renderRoutineBar(); };
+  // Chip-Beschriftung schon beim Tippen nachführen; beim blur-„change“ keine Leiste neu aufbauen (sonst geht der erste Klick auf Fertig/Chip verloren)
+  nm.oninput = () => { if (nm.value.trim()) { goodName = nm.value.trim(); r.name = goodName.slice(0, 100); store.changed(); renderRoutineBar(); } };
+  nm.onchange = () => { if (!nm.value.trim()) nm.value = goodName; };
   top.append(nm, mkBtn('🗑 Routine löschen', { onclick: () => {
     if (!confirm(`Routine „${r.name}“ löschen?`)) return;
-    const d = D(); d.routines.splice(d.routines.indexOf(r), 1); ui.routineId = null; store.changed(); renderRoutines();
+    const d = D(); d.routines.splice(d.routines.indexOf(r), 1); ui.routineId = null; ui.focus = 'editbtn'; store.changed(); renderRoutines();
   } }));
   card.append(top);
   const ul = el('ul', 'steplist'); ul.style.marginTop = '8px';
@@ -1375,10 +1400,12 @@ $('pomoRestart').onclick = () => {
 [['pWork', 'workMin', 0.1, 240], ['pShort', 'shortMin', 0.1, 120], ['pLong', 'longMin', 0.1, 240], ['pRounds', 'rounds', 1, 12]].forEach(([id, key, lo, hi]) => {
   $(id).onchange = (e) => {
     const p = D().pomodoro; let v = parseFloat(e.target.value);
-    if (!Number.isFinite(v)) { e.target.value = p[key]; return; }
+    if (!Number.isFinite(v)) { e.target.value = +(+p[key]).toFixed(2); return; }
     v = Math.min(hi, Math.max(lo, key === 'rounds' ? Math.round(v) : v));
     p[key] = v; if (key === 'rounds') p.round = Math.min(p.round, v);
-    store.changed(); syncIdle(); render(); // bei laufender Phase ändert sich nur die nächste Phase
+    e.target.value = +(+v).toFixed(2); // begrenzten Wert auch im fokussierten Feld zeigen (renderPomo überspringt das Feld im Fokus)
+    store.changed(); syncIdle();
+    keepSugs = true; try { render(); } finally { keepSugs = false; } // bei laufender Phase ändert sich nur die nächste Phase
   };
 });
 $('pAuto').onchange = (e) => { D().pomodoro.auto = e.target.checked; store.changed(); };
@@ -1406,7 +1433,7 @@ $('linkdone').onclick = () => {
 // Leertaste / F nur im Timer-Tab
 document.addEventListener('keydown', (e) => {
   if (ui.tab !== 'timer') return;
-  if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (/^(INPUT|TEXTAREA|SELECT|BUTTON|SUMMARY|DETAILS|A)$/.test(e.target.tagName) || e.target.isContentEditable || e.ctrlKey || e.metaKey || e.altKey) return;
   if (e.code === 'Space') { e.preventDefault(); $('start').click(); }
   else if (e.key.toLowerCase() === 'f') toggleFull();
 });

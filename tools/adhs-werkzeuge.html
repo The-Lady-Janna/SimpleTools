@@ -10,8 +10,10 @@
     --soft: color-mix(in srgb, var(--accent) 9%, var(--card));
     --soft2: color-mix(in srgb, var(--accent) 18%, var(--card));
     --c-a: #5b86d6; --c-b: #d9962b; --c-c: #3a9d8c;
+    --on-accent: #fff;
   }
-  @media (prefers-color-scheme: dark) { :root { --c-a: #7fa6f5; --c-b: #f0b252; --c-c: #5fcdb9; } }
+  @media (prefers-color-scheme: dark) { :root { --c-a: #7fa6f5; --c-b: #f0b252; --c-c: #5fcdb9; --on-accent: #0b1220; } }
+  button.primary { color: var(--on-accent); }
   html { -webkit-text-size-adjust: 100%; }
   main { max-width: 900px; padding: 12px 16px 90px; }
   h1 { margin: .3em 0 .1em; }
@@ -27,7 +29,7 @@
   :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
   .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 6px; }
   .tab { min-height: 46px; padding: 8px 14px; border-radius: 99px; font-size: 1rem; display: inline-flex; gap: 6px; align-items: center; }
-  .tab[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  .tab[aria-selected=true] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
   .panel[hidden], [hidden] { display: none !important; }
   .hint { color: var(--muted); font-size: .9rem; }
   .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -41,7 +43,7 @@
   .grow { flex: 1; min-width: 0; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
   .chip { border-radius: 99px; padding: 6px 14px; min-height: 40px; }
-  .chip[aria-pressed=true] { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip[aria-pressed=true] { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
   .list { list-style: none; margin: 0; padding: 0; }
   .item { padding: 10px 0; border-bottom: 1px solid var(--line); }
   .item:last-child { border-bottom: 0; }
@@ -53,8 +55,9 @@
   input[type=checkbox].big { width: 28px; height: 28px; accent-color: var(--accent); flex: none; cursor: pointer; margin: 0; }
   input[type=time], input[type=search], input[type=password] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; }
   .hide-num .num { display: none; }
-  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 12px; z-index: 50; display: flex; gap: 12px; align-items: center; max-width: min(92vw, 560px); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
-  #toast button { background: transparent; color: inherit; border-color: currentColor; min-height: 34px; white-space: nowrap; }
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 14px; border-radius: 12px; z-index: 50; display: flex; gap: 12px; align-items: center; width: max-content; max-width: min(92vw, 560px); box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  #toast span { min-width: 0; overflow-wrap: anywhere; }
+  #toast button { background: transparent; color: inherit; border-color: currentColor; min-height: 34px; white-space: nowrap; flex: none; }
   .legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: .85rem; color: var(--muted); margin-top: 4px; }
   .lg { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; }
   .lg-a { background: var(--c-a); } .lg-b { background: var(--c-b); }
@@ -85,7 +88,8 @@
   .es-clock.calm { font-size: 1.4rem; font-weight: 500; color: var(--muted); }
   .bar-a { fill: var(--c-a); } .bar-b { fill: var(--c-b); }
   .es-row { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
-  .es-row .t { font-weight: 600; }
+  .es-row .t { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+  #es-run-title { overflow-wrap: anywhere; }
   /* Entscheidungshilfe */
   .dc-card { background: var(--soft); border-radius: 12px; padding: 14px 16px; }
   .dc-card .big { font-size: 1.3rem; font-weight: 600; overflow-wrap: anywhere; }
@@ -150,7 +154,7 @@
       <button id="es-start" class="primary btn-lg" type="button">▶ Stoppuhr starten</button>
     </div>
     <div class="card" id="es-running" hidden>
-      <h2 id="es-run-title"></h2>
+      <h2 id="es-run-title" tabindex="-1"></h2>
       <p class="hint" id="es-run-est" style="margin-top:0"></p>
       <div id="es-clock" class="es-clock" aria-live="off"></div>
       <div class="row" style="margin-top:12px">
@@ -176,8 +180,8 @@
       <summary>Ergebnis nachtragen (ohne Stoppuhr)</summary>
       <div class="row" style="margin-top:8px">
         <input id="es-m-title" type="text" class="grow" maxlength="120" placeholder="Aufgabe" aria-label="Aufgabe (nachtragen)">
-        <input id="es-m-est" type="number" min="1" max="1440" style="width:110px" placeholder="geschätzt" aria-label="Geschätzte Minuten (nachtragen)">
-        <input id="es-m-act" type="number" min="0.1" max="10080" step="any" style="width:110px" placeholder="gebraucht" aria-label="Gebrauchte Minuten (nachtragen)">
+        <input id="es-m-est" type="number" min="1" max="1440" style="width:130px" placeholder="geschätzt" aria-label="Geschätzte Minuten (nachtragen)">
+        <input id="es-m-act" type="number" min="0.1" max="10080" step="any" style="width:130px" placeholder="gebraucht" aria-label="Gebrauchte Minuten (nachtragen)">
         <button id="es-m-add" type="button">Eintragen</button>
       </div>
     </details>
@@ -212,7 +216,7 @@
       <h2>Zufallsauswahl aus meiner Liste</h2>
       <div class="row">
         <label class="sr" for="dc-list">Liste wählen</label>
-        <select id="dc-list" class="grow big-in" style="min-width:0"></select>
+        <select id="dc-list" class="grow big-in" style="flex:1 1 260px"></select>
         <button id="dc-newlist" type="button">+ Neue Liste</button>
         <button id="dc-dellist" type="button" class="ghost">Liste löschen</button>
       </div>
@@ -284,10 +288,13 @@ function fixIds(list) {
   return list;
 }
 const isoNow = () => new Date().toISOString();
+const TS_MIN = Date.UTC(1901, 0, 1), TS_MAX = Date.UTC(2199, 11, 31); // Bereich, den die Tagesanzeige (parseKey: 1900–2200) verarbeiten kann
 function ts(v, fallback) { // Zeitpunkt (ISO) – nur für Momente, nie für Kalendertage
   if (typeof v === 'string' || typeof v === 'number') {
-    const t = typeof v === 'number' ? v : Date.parse(v);
-    if (Number.isFinite(t) && Math.abs(t) < 8.64e15) return new Date(t).toISOString();
+    let t = NaN;
+    if (typeof v === 'number') t = v;
+    else { const dk = parseKey(v.trim()); t = dk ? dk.getTime() : Date.parse(v); } // reines 'YYYY-MM-DD' = lokaler Kalendertag (mittags), nicht UTC
+    if (Number.isFinite(t)) return new Date(Math.min(TS_MAX, Math.max(TS_MIN, t))).toISOString();
   }
   return fallback === undefined ? isoNow() : fallback;
 }
@@ -346,6 +353,7 @@ function ago(iso) { // freundliche, neutrale Zeitangabe
   if (min < 1) return 'gerade eben';
   if (min < 60) return 'vor ' + min + ' Min';
   const k = dayOfIso(iso), tk = today();
+  if (!parseKey(k)) return '';
   if (k === tk) return 'heute ' + clock(iso);
   if (k === addDays(tk, -1)) return 'gestern ' + clock(iso);
   return dayShort(k) + ' ' + clock(iso);
@@ -362,7 +370,7 @@ function svgEl(tag, attrs, parent) {
 
 /* ---------- Meldungen mit Rückgängig ---------- */
 let toastTimer = null;
-function hideToast() { $('toast').hidden = true; }
+function hideToast() { clearTimeout(toastTimer); $('toast').hidden = true; }
 function toast(msg, undo, ms) {
   const t = $('toast');
   t.textContent = '';
@@ -484,15 +492,26 @@ function renderAll() {
   renderChrome();
   PAGE.modules.forEach((m) => m.render());
 }
-function uiRender() { // neu zeichnen, Fokus auf dasselbe Element zurückgeben
+const focusOk = (n) => !!(n && n.isConnected && n.getClientRects().length); // vorhanden und sichtbar (nicht in verstecktem/eingeklapptem Bereich)
+const focusLost = () => { const a = document.activeElement; return !a || a === document.body || !focusOk(a); };
+function uiRender(after) { // neu zeichnen, Fokus auf dasselbe Element zurückgeben
   const a = document.activeElement, k = a && a.dataset ? a.dataset.fk : null;
+  const pn = a && a !== document.body && a.closest ? a.closest('.panel') : null;
   renderAll();
   if (k) {
     const n = document.querySelector('[data-fk="' + k + '"]');
     if (n && n !== document.activeElement) n.focus({ preventScroll: true });
   }
+  // Ging der Fokus mit einem entfernten/versteckten Element verloren, auf ein sinnvolles Ziel setzen (nie Fokus aus einem Feld stehlen)
+  if ((pn || after) && focusLost()) {
+    const m = PAGE.modules.find((x) => x.id === PAGE.active);
+    for (const f of [after, m && m.focusFallback]) {
+      const n = typeof f === 'function' ? f() : null;
+      if (focusOk(n)) { n.focus({ preventScroll: true }); break; }
+    }
+  }
 }
-function commit() { store.changed(); uiRender(); }
+function commit(after) { store.changed(); uiRender(after); }
 
 function selectTab(id, focus, initial) {
   PAGE.active = id;
@@ -505,7 +524,7 @@ function selectTab(id, focus, initial) {
     if (on && focus) tb.focus();
   });
   const m = PAGE.modules.find((x) => x.id === id);
-  if (m && m.onShow) m.onShow(!!initial);
+  if (m && m.onShow) m.onShow(!!initial || !!focus); // focus = Tastaturnavigation (Pfeile/Home/End): Fokus bleibt auf dem Tab
 }
 function buildTabs() {
   const bar = $('tabs');
@@ -549,7 +568,7 @@ function boot(pageStoreName) {
   const s = SimpleStorage.create({
     name: pageStoreName,
     defaults: makeDefaults,
-    onChange: () => { normalize(s.data); afterLoad(); },
+    onChange: () => { hideToast(); normalize(s.data); afterLoad(); }, // neue Daten (Öffnen/Neu/Neuladen): Toast samt Rückgängig gehört zu den alten Daten
     statusEl: $('status'),
   });
   return s;
@@ -598,6 +617,19 @@ function bdAddText(text) {
   BD.okTimer = setTimeout(() => { $('bd-ok').textContent = ''; }, 1800);
   return true;
 }
+function bdAfter(id, ownFk) { // Fokusziel nach dem Sortieren/Abhaken/Löschen: dieselbe Zeile (Auslöser), sonst Nachbarzeile
+  const rows = Array.from($('bd-list').children), i = rows.findIndex((r) => r.dataset.id === id);
+  const nb = i >= 0 ? rows[i + 1] || rows[i - 1] : null, nid = nb ? nb.dataset.id : null;
+  return () => {
+    const cur = Array.from($('bd-list').children);
+    for (const [x, sel] of [[id, ownFk ? '[data-fk="' + ownFk + '"]' : null], [nid, null]]) {
+      const r = x && cur.find((li) => li.dataset.id === x);
+      const c = r && ((sel && r.querySelector(sel)) || r.querySelector('input, button'));
+      if (focusOk(c)) return c;
+    }
+    return null; // -> Fallback des Moduls (aktiver Filter)
+  };
+}
 function bdUnDone(it) { // Erledigt-Status zurücknehmen (inkl. Punkte, falls noch am Buchungstag)
   it.done = false; delete it.doneAt;
   pointsRevoke('task:' + it.id);
@@ -611,21 +643,22 @@ function bdToggleDone(id, on) {
     const p = pointsAward('task:' + id, D().rewards.taskPoints, 'Aufgabe: ' + short(it.text, 60), 'task');
     msg = pick1(CHEERS) + (p && !hideNum() ? '  +' + p + ' Punkte' : '');
   } else if (!on && it.done) bdUnDone(it);
-  commit();
+  commit(bdAfter(id));
   if (msg) toast(msg);
 }
 function bdSetCat(it, cat) {
   if (it.done && cat !== 'task') bdUnDone(it);
   it.cat = cat;
   BD.panel = null;
-  commit();
+  commit(bdAfter(it.id));
 }
 function bdDelete(id) {
   const i = bdItems().findIndex((x) => x.id === id);
   if (i < 0) return;
+  const after = bdAfter(id); // vor dem Entfernen: Nachbarzeile merken
   const [it] = bdItems().splice(i, 1);
   if (BD.panel && BD.panel.id === id) BD.panel = null;
-  commit();
+  commit(after);
   toast('Weg damit: „' + short(it.text, 40) + '“', () => {
     if (bdFind(it.id)) return;
     bdItems().splice(Math.min(i, bdItems().length), 0, it);
@@ -649,7 +682,7 @@ function bdApplyPanel(it, skip) {
     }
   }
   BD.panel = null;
-  commit();
+  commit(bdAfter(it.id, 'bd-' + P.kind + '-' + it.id));
 }
 
 function bdPanelNode(it) {
@@ -693,8 +726,8 @@ function bdPanelNode(it) {
   }
   const acts = el('div', 'row'); acts.style.marginTop = '10px';
   acts.append(btn(P.kind === 'task' ? 'Als Aufgabe speichern' : 'Als Termin speichern', 'primary', save),
-    btn(isNew ? (P.kind === 'task' ? 'Ohne Angaben' : 'Ohne Datum') : 'Abbrechen', null, () => (isNew ? bdApplyPanel(it, true) : (BD.panel = null, uiRender()))));
-  if (isNew) acts.append(btn('Abbrechen', 'ghost', () => { BD.panel = null; uiRender(); }));
+    btn(isNew ? (P.kind === 'task' ? 'Ohne Angaben' : 'Ohne Datum') : 'Abbrechen', null, () => (isNew ? bdApplyPanel(it, true) : (BD.panel = null, uiRender(bdAfter(it.id, 'bd-' + P.kind + '-' + it.id))))));
+  if (isNew) acts.append(btn('Abbrechen', 'ghost', () => { BD.panel = null; uiRender(bdAfter(it.id, 'bd-' + P.kind + '-' + it.id)); }));
   box.append(acts);
   return box;
 }
@@ -708,13 +741,14 @@ function bdTags(it) {
       const past = it.date < today();
       const s = el('span', 'tag' + (past ? ' past' : ''), '📅 ' + dayRel(it.date) + (it.time ? ' ' + it.time : '') + (past ? ' · vorbei' : ''));
       t.append(s);
-    } else if (it.cat === 'event') t.append(el('span', 'tag past', 'ohne Datum'));
+    } else if (it.cat === 'event') t.append(el('span', 'tag past', 'ohne Datum' + (it.time ? ' · ' + it.time : '')));
   }
   return t.children.length ? t : null;
 }
 
 function bdRow(it) {
   const li = el('li', 'item bd-item' + (it.done ? ' done' : '') + (it.cat === 'task' ? ' istask' : ''));
+  li.dataset.id = it.id;
   const top = el('div', 'bd-top');
   if (it.cat === 'task') {
     const cb = el('input', 'big'); cb.type = 'checkbox'; cb.checked = it.done;
@@ -807,7 +841,8 @@ $('bd-clear-done').onclick = () => {
 registerModule({
   id: 'braindump', key: 'braindump', icon: '🧠', label: 'Brain Dump',
   defaults: () => ({ items: [] }), normalize: normBraindump, render: renderBD,
-  onShow: (initial) => { if (!initial) $('bd-input').focus(); },
+  onShow: (skip) => { if (!skip && !(window.matchMedia && matchMedia('(pointer: coarse)').matches)) $('bd-input').focus(); }, // nicht bei Tastaturnavigation, nicht am Handy (Bildschirmtastatur)
+  focusFallback: () => document.querySelector('#bd-filters [aria-pressed="true"]'),
 });
 
 /* ================= 🎯 ZEITSCHÄTZUNG ================= */
@@ -873,7 +908,7 @@ function esDelete(id) {
   const L = D().estimates.entries, i = L.findIndex((x) => x.id === id);
   if (i < 0) return;
   const [e] = L.splice(i, 1);
-  commit();
+  commit(() => $('es-list').querySelector('button'));
   toast('Eintrag gelöscht.', () => { if (!D().estimates.entries.some((x) => x.id === e.id)) { D().estimates.entries.splice(Math.min(i, D().estimates.entries.length), 0, e); commit(); } });
 }
 function niceMax(v) {
@@ -903,6 +938,7 @@ function esChart(entries) {
   });
   return svg;
 }
+function esScrollEnd() { const cw = $('es-chart'); cw.scrollLeft = cw.scrollWidth; } // neueste Einträge (rechts) zuerst zeigen
 function renderES() {
   const E = D().estimates, r = E.running;
   $('es-setup').hidden = !!r;
@@ -936,7 +972,7 @@ function renderES() {
   const cw = $('es-chart'); cw.textContent = '';
   const last = es.slice(-15);
   $('es-legend').hidden = !last.length;
-  if (last.length) cw.append(esChart(last));
+  if (last.length) { cw.append(esChart(last)); esScrollEnd(); }
   // Verlauf
   const ul = $('es-list'); ul.textContent = '';
   es.slice(-20).reverse().forEach((e) => {
@@ -1005,6 +1041,8 @@ registerModule({
   id: 'estimates', key: 'estimates', icon: '🎯', label: 'Zeitschätzung',
   defaults: () => ({ entries: [], running: null }), normalize: normEstimates, render: renderES, tick: esTick,
   onLoad: () => { ES.resultId = null; },
+  onShow: esScrollEnd, // beim Einblenden (vorher war der Bereich versteckt, scrollWidth = 0)
+  focusFallback: () => (D().estimates.running ? $('es-run-title') : $('es-title')),
 });
 
 /* ================= 🎲 ENTSCHEIDUNGSHILFE ================= */
@@ -1063,6 +1101,13 @@ function renderDC() {
     acts.append(
       btn('✓ Erledigt', 'primary', () => { DC.status = 'idle'; DC.current = null; bdToggleDone(t.id, true); }),
       btn('▶ Mit Stoppuhr starten', null, () => {
+        const run = D().estimates.running;
+        if (run) { // es läuft schon eine Stoppuhr: Vorschlag nicht übernehmen, Felder unangetastet lassen
+          toast('Es läuft schon eine Stoppuhr („' + short(run.title, 30) + '“) – stoppe sie zuerst, dann kannst du diese Aufgabe starten. 🌿');
+          selectTab('estimates');
+          $('es-run-title').focus();
+          return;
+        }
         $('es-title').value = t.text; $('es-min').value = t.minutes || '';
         DC.status = 'idle'; uiRender(); selectTab('estimates');
         $(t.minutes ? 'es-start' : 'es-min').focus();
@@ -1074,7 +1119,7 @@ function renderDC() {
   } else if (DC.status === 'exhausted') {
     const card = el('div', 'dc-card');
     card.append(el('div', null, 'Das waren alle passenden Vorschläge – du hast schon gut geprüft. 🌿'));
-    const b = btn('Nochmal von vorn', null, () => { DC.skipped.clear(); dcSuggest(); uiRender(); }); b.style.marginTop = '8px';
+    const b = btn('Nochmal von vorn', null, () => { DC.skipped.clear(); dcSuggest(); uiRender(() => $('dc-go')); }); b.style.marginTop = '8px';
     card.append(b); res.append(card);
   } else if (DC.status === 'none' || DC.status === 'notasks') {
     const card = el('div', 'dc-card');
@@ -1111,12 +1156,13 @@ function renderDC() {
     const card = el('div', 'dc-card');
     card.append(el('div', 'meta', cur.name), el('div', 'big', DC.pick));
     const acts = el('div', 'row'); acts.style.marginTop = '8px';
-    acts.append(btn('Nicht diese', null, () => { DC.pickSkipped.add(DC.pick); dcPick(); uiRender(); }));
+    acts.append(btn('Nicht diese', null, () => { DC.pickSkipped.add(DC.pick); dcPick(); uiRender(() => $('dc-pick')); }));
+    acts.lastChild.dataset.fk = 'dc-pnot';
     card.append(acts); pr.append(card);
   } else if (DC.pickStatus === 'exhausted') {
     const card = el('div', 'dc-card');
     card.append(el('div', null, 'Das war alles auf der Liste. 🌿'));
-    const b = btn('Nochmal von vorn', null, () => { DC.pickSkipped.clear(); dcPick(); uiRender(); }); b.style.marginTop = '8px';
+    const b = btn('Nochmal von vorn', null, () => { DC.pickSkipped.clear(); dcPick(); uiRender(() => $('dc-pick')); }); b.style.marginTop = '8px';
     card.append(b); pr.append(card);
   }
 }
@@ -1130,7 +1176,7 @@ function dcPick() {
 }
 function dcRemoveItem(list, i) {
   const [it] = list.items.splice(i, 1);
-  commit();
+  commit(() => $('dc-newitem'));
   toast('Entfernt: „' + short(it, 30) + '“', () => { list.items.splice(Math.min(i, list.items.length), 0, it); commit(); });
 }
 function dcAddItem() {
@@ -1174,6 +1220,7 @@ registerModule({
   id: 'decide', key: 'decide', icon: '🎲', label: 'Entscheidungshilfe',
   defaults: defaultsDecide, normalize: normDecide, render: renderDC,
   onLoad: () => { DC.skipped.clear(); DC.current = null; DC.status = 'idle'; DC.pickStatus = 'idle'; },
+  focusFallback: () => $('dc-go'),
 });
 
 /* ================= Start ================= */
