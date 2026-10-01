@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ernährung &amp; Wasser</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 900px; }
+  .top { display:grid; grid-template-columns:200px 1fr; gap:14px; align-items:center; } @media (max-width: 640px) { .top { grid-template-columns:1fr; justify-items:center; } .top > div:last-child { width:100%; } }
+  .ring { position:relative; width:170px; height:170px; } .ring svg { width:100%; height:100%; transform:rotate(-90deg); } .ring .c { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; }
+  .ring .c b { font-size:1.6rem; line-height:1.1; }
+  .meter { margin:6px 0; } .meter .l { display:flex; justify-content:space-between; font-size:.88rem; } .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; } .bar > i { display:block; height:100%; background:var(--accent); } .bar.w > i { background:var(--c-a); } .bar.p > i { background:var(--c-c); }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; } label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; } input.w { width:6em; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0; } .chip { padding:3px 10px; border:1px solid var(--line); border-radius:99px; background:var(--bg); cursor:pointer; font-size:.88rem; } .chip:hover { border-color:var(--accent); }
+  .grp { margin:12px 0 2px; font-size:.8rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); } .item { display:flex; gap:8px; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); } .item span.n { flex:1; }
+  .wk { display:flex; gap:6px; align-items:flex-end; height:90px; } .wk div { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:2px; font-size:.72rem; color:var(--muted); } .wk i { width:70%; background:var(--accent); border-radius:4px 4px 0 0; display:block; min-height:2px; } .wk i.over { background:var(--warn); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Ernährung &amp; Wasser</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="essensplaner.html">Essensplaner</a> – geplante Gerichte erscheinen hier als Vorschlag.</p>
+  <div class="card toolbar"><button id="prev" aria-label="Vorheriger Tag">‹</button><input type="date" id="date" aria-label="Datum"><button id="next" aria-label="Nächster Tag">›</button><button id="now">Heute</button></div>
+  <div class="card top"><div class="ring" id="ring"></div><div id="meters"></div></div>
+  <div class="card"><div class="row"><strong>💧 Wasser</strong><button data-w="250">+250 ml</button><button data-w="500">+500 ml</button><button data-w="-250">−250 ml</button></div></div>
+  <form id="form" class="card">
+    <div id="planned"></div><div id="favs"></div>
+    <div class="form">
+      <label class="f">Mahlzeit<select id="meal"><option>Frühstück</option><option>Mittag</option><option>Abend</option><option>Snack</option></select></label>
+      <label class="f" style="flex:1;min-width:150px">Was?<input type="text" id="name" required placeholder="z. B. Haferflocken mit Banane"></label>
+      <label class="f">kcal<input type="number" id="kcal" class="w" min="0" required></label>
+      <label class="f">Eiweiß (g)<input type="number" id="prot" class="w" min="0" step="any"></label>
+      <label class="f"><span>&nbsp;</span><label><input type="checkbox" id="star"> ★ merken</label></label>
+      <button class="primary">Hinzufügen</button>
+    </div>
+  </form>
+  <div class="card"><div id="entries"></div></div>
+  <div class="card"><strong>Letzte 7 Tage (kcal)</strong><div class="wk" id="wk" style="margin-top:8px"></div></div>
+  <details class="card"><summary>Tagesziele</summary><div class="form" style="margin-top:8px">
+    <label class="f">Kalorien<input type="number" id="gk" class="w" min="0"></label><label class="f">Eiweiß (g)<input type="number" id="gp" class="w" min="0"></label><label class="f">Wasser (ml)<input type="number" id="gw" class="w" min="0" step="50"></label></div></details>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'essen-einkauf',
+  defaults: () => ({ list: [], favs: [], pantry: [], recipes: [], plan: {}, nutrition: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let day = ymd(new Date());
+function normalize() {
+  const d = store.data;
+  for (const k of ['recipes', 'list', 'favs', 'pantry']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!d.plan || typeof d.plan !== 'object' || Array.isArray(d.plan)) d.plan = {};
+  const n = d.nutrition && typeof d.nutrition === 'object' ? d.nutrition : (d.nutrition = {});
+  if (!n.goals || typeof n.goals !== 'object') n.goals = { kcal: 2000, protein: 100, water: 2000 };
+  if (!n.log || typeof n.log !== 'object' || Array.isArray(n.log)) n.log = {};
+  if (!n.water || typeof n.water !== 'object' || Array.isArray(n.water)) n.water = {};
+  if (!Array.isArray(n.favs)) n.favs = [];
+}
+const N = () => store.data.nutrition;
+const MEALS = ['Frühstück', 'Mittag', 'Abend', 'Snack'];
+const totals = (key) => (N().log[key] || []).reduce((a, e) => ({ kcal: a.kcal + (e.kcal || 0), protein: a.protein + (e.protein || 0) }), { kcal: 0, protein: 0 });
+const pctOf = (v, g) => (g > 0 ? Math.min(100, v / g * 100) : 0);
+function ring(v, g) {
+  const R = 70, C = 2 * Math.PI * R, over = g > 0 && v > g, pct = pctOf(v, g);
+  const NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 170 170');
+  for (const [dash, color] of [[C, 'var(--line)'], [C * pct / 100, over ? 'var(--warn)' : 'var(--accent)']]) {
+    const c = document.createElementNS(NS, 'circle'); for (const [k, val] of Object.entries({ cx: 85, cy: 85, r: R, fill: 'none', stroke: color, 'stroke-width': 14, 'stroke-linecap': 'round', 'stroke-dasharray': dash + ' ' + C })) c.setAttribute(k, val); svg.append(c);
+  }
+  return svg;
+}
+const meter = (label, v, g, unit, cls) => h('div', { class: 'meter' }, h('div', { class: 'l' }, h('span', {}, label), h('span', {}, Math.round(v) + ' / ' + g + ' ' + unit)), h('div', { class: 'bar ' + cls }, h('i', { style: 'width:' + pctOf(v, g) + '%' })));
+function render() {
+  $('date').value = day;
+  const n = N(), t = totals(day), water = n.water[day] || 0, g = n.goals;
+  $('ring').replaceChildren(ring(t.kcal, g.kcal), h('div', { class: 'c' }, h('b', {}, Math.round(t.kcal)), h('span', { class: 'muted' }, 'von ' + g.kcal + ' kcal'), h('span', { class: g.kcal && t.kcal > g.kcal ? 'badge warn' : 'muted' }, g.kcal ? (t.kcal > g.kcal ? Math.round(t.kcal - g.kcal) + ' drüber' : Math.round(g.kcal - t.kcal) + ' übrig') : '')));
+  $('meters').replaceChildren(meter('Eiweiß', t.protein, g.protein, 'g', 'p'), meter('Wasser', water, g.water, 'ml', 'w'));
+  // Vorschläge aus dem Essensplan + Favoriten
+  const plan = n && store.data.plan[day] ? Object.values(store.data.plan[day]).filter(Boolean) : [];
+  const nameIn = $('name');
+  $('planned').replaceChildren(...(plan.length ? [h('div', { class: 'muted', style: 'font-size:.85rem' }, 'Laut Essensplan:'), h('div', { class: 'chips' }, plan.map((p) => { const c = h('button', { type: 'button', class: 'chip' }, '📅 ' + p); c.onclick = () => { nameIn.value = p; $('kcal').focus(); }; return c; }))] : []));
+  $('favs').replaceChildren(...(n.favs.length ? [h('div', { class: 'muted', style: 'font-size:.85rem' }, 'Favoriten (Klick = hinzufügen, Rechtsklick = entfernen):'), h('div', { class: 'chips' }, n.favs.map((f) => { const c = h('button', { type: 'button', class: 'chip', title: f.kcal + ' kcal' }, '★ ' + f.name);
+    c.onclick = () => { (n.log[day] || (n.log[day] = [])).push({ id: uid(), meal: $('meal').value, name: f.name, kcal: f.kcal, protein: f.protein || 0 }); store.changed(); render(); };
+    c.oncontextmenu = (e) => { e.preventDefault(); if (confirm('Favorit „' + f.name + '“ entfernen?')) { n.favs = n.favs.filter((x) => x !== f); store.changed(); render(); } }; return c; }))] : []));
+  const list = n.log[day] || [];
+  $('entries').replaceChildren(...(list.length ? MEALS.flatMap((m) => { const its = list.filter((e) => e.meal === m); if (!its.length) return [];
+    return [h('div', { class: 'grp' }, m + ' · ' + Math.round(its.reduce((a, e) => a + e.kcal, 0)) + ' kcal'), ...its.map((e) => h('div', { class: 'item' }, h('span', { class: 'n' }, e.name), h('span', { class: 'muted' }, Math.round(e.kcal) + ' kcal' + (e.protein ? ' · ' + Math.round(e.protein) + ' g' : '')),
+      h('button', { class: 'small', title: 'Löschen', onclick: () => { n.log[day] = n.log[day].filter((x) => x !== e); if (!n.log[day].length) delete n.log[day]; store.changed(); render(); } }, '✕')))]; }) : [h('p', { class: 'muted', style: 'margin:0' }, 'Noch nichts eingetragen.')]));
+  const days = Array.from({ length: 7 }, (_, i) => { const d = parseYmd(day); d.setDate(d.getDate() - 6 + i); return ymd(d); }), vals = days.map((k) => totals(k).kcal), max = Math.max(1, g.kcal, ...vals);
+  $('wk').replaceChildren(...days.map((k, i) => h('div', { title: fmtDate(k) + ': ' + Math.round(vals[i]) + ' kcal' }, vals[i] ? Math.round(vals[i]) : '', h('i', { class: g.kcal && vals[i] > g.kcal ? 'over' : '', style: 'height:' + vals[i] / max * 60 + 'px' }), parseYmd(k).toLocaleDateString('de-DE', { weekday: 'short' }))));
+  if (document.activeElement !== $('gk')) $('gk').value = g.kcal; if (document.activeElement !== $('gp')) $('gp').value = g.protein; if (document.activeElement !== $('gw')) $('gw').value = g.water;
+}
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const n = N(), rec = { id: uid(), meal: $('meal').value, name: $('name').value.trim(), kcal: parseFloat($('kcal').value) || 0, protein: parseFloat($('prot').value) || 0 };
+  (n.log[day] || (n.log[day] = [])).push(rec);
+  if ($('star').checked && !n.favs.some((f) => f.name.toLowerCase() === rec.name.toLowerCase())) n.favs.push({ id: uid(), name: rec.name, kcal: rec.kcal, protein: rec.protein });
+  $('name').value = ''; $('kcal').value = ''; $('prot').value = ''; $('star').checked = false; store.changed(); render(); $('name').focus();
+};
+document.querySelectorAll('[data-w]').forEach((b) => b.onclick = () => { const n = N(); n.water[day] = Math.max(0, (n.water[day] || 0) + parseInt(b.dataset.w, 10)); if (!n.water[day]) delete n.water[day]; store.changed(); render(); });
+const shift = (d) => { const x = parseYmd(day); x.setDate(x.getDate() + d); day = ymd(x); render(); };
+$('prev').onclick = () => shift(-1); $('next').onclick = () => shift(1); $('now').onclick = () => { day = ymd(new Date()); render(); };
+$('date').onchange = () => { if ($('date').value) { day = $('date').value; render(); } };
+for (const [id, key] of [['gk', 'kcal'], ['gp', 'protein'], ['gw', 'water']]) $(id).onchange = () => { N().goals[key] = Math.max(0, parseFloat($(id).value) || 0); store.changed(); render(); };
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

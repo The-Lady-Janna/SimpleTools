@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spar- &amp; Schuldenziele</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 960px; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.25rem; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:7em; }
+  .goal h3 { margin:0; font-size:1.1rem; flex:1; } .goal .head { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+  .bar { height:14px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:8px 0; }
+  .bar > i { display:block; height:100%; background:var(--accent); } .bar.ok > i { background:var(--ok); } .bar.debt > i { background:var(--warn); }
+  .facts { display:flex; flex-wrap:wrap; gap:6px 18px; font-size:.92rem; } .facts span b { font-weight:600; }
+  .tx { font-size:.88rem; display:flex; gap:8px; align-items:center; padding:2px 0; } .tx span { flex:1; }
+  .pos { color:var(--ok); } .neg { color:var(--err); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Spar- &amp; Schuldenziele</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="haushaltsbuch.html">Haushaltsbuch</a> – Einzahlungen können dort automatisch als Ausgabe „Sparen“ gebucht werden.</p>
+  <div class="sum">
+    <div class="card"><span class="muted">Gespart insgesamt</span><b class="pos" id="stot"></b></div>
+    <div class="card"><span class="muted">Schulden offen</span><b class="neg" id="sdebt"></b></div>
+    <div class="card"><span class="muted">Ø Sparen / Monat (3 Mon.)</span><b id="savg"></b></div>
+  </div>
+  <form id="form" class="card form">
+    <label class="f" style="flex:1;min-width:160px">Name<input type="text" id="name" required placeholder="z. B. Notgroschen oder Autokredit"></label>
+    <label class="f">Art<select id="kind"><option value="save">Sparziel</option><option value="debt">Schulden abbauen</option></select></label>
+    <label class="f"><span id="tlabel">Zielbetrag (€)</span><input type="text" id="target" class="w" inputmode="decimal" required></label>
+    <label class="f"><span id="slabel">Schon gespart (€)</span><input type="text" id="start" class="w" inputmode="decimal" placeholder="0"></label>
+    <label class="f">Frist<input type="date" id="deadline"></label>
+    <label class="f" id="rwrap" hidden>Zins p. a. (%)<input type="text" id="rate" class="w" inputmode="decimal" placeholder="0"></label>
+    <button class="primary">Anlegen</button>
+  </form>
+  <div id="list"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'haushaltsbuch',
+  defaults: () => ({ entries: [], budgets: {}, savings: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+function normalize() { if (!Array.isArray(store.data.savings)) store.data.savings = []; if (!Array.isArray(store.data.entries)) store.data.entries = []; if (!store.data.budgets || typeof store.data.budgets !== 'object') store.data.budgets = {}; store.data.savings.forEach((g) => { if (!Array.isArray(g.contribs)) g.contribs = []; }); }
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€|%/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
+const sum = (g) => g.contribs.reduce((a, c) => a + c.amount, 0);
+const today0 = () => parseYmd(ymd(new Date()));
+const addMonths = (d, m) => { const x = new Date(d); const day = x.getDate(); x.setDate(1); x.setMonth(x.getMonth() + Math.ceil(m)); x.setDate(Math.min(day, new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate())); return x; };
+function avgMonthly(g) { const cut = new Date(today0().getFullYear(), today0().getMonth() - 3, today0().getDate()); return g.contribs.filter((c) => parseYmd(c.date) >= cut).reduce((a, c) => a + c.amount, 0) / 3; }
+function monthsUntil(dl) { return Math.max(0, (parseYmd(dl) - today0()) / 86400000 / 30.4375); }
+function calc(g) {
+  const debt = g.kind === 'debt', paid = sum(g), avg = avgMonthly(g);
+  const current = debt ? Math.max(0, g.target - paid) : (g.start || 0) + paid;
+  const remaining = debt ? current : Math.max(0, g.target - current);
+  const done = debt ? remaining <= 0 : remaining <= 0;
+  const pct = debt ? (g.start > 0 ? Math.min(100, (g.start - current) / g.start * 100) : 0) : (g.target > 0 ? Math.min(100, current / g.target * 100) : 0);
+  const r = (g.rate || 0) / 100 / 12;
+  let needed = null, eta = null, note = '';
+  if (!done && g.deadline) {
+    const m = monthsUntil(g.deadline);
+    if (m > 0) needed = !debt || r === 0 ? remaining / m : remaining * r / (1 - Math.pow(1 + r, -m));
+    else note = 'Frist erreicht';
+  }
+  if (!done && avg > 0) {
+    let n;
+    if (!debt || r === 0) n = remaining / avg; else if (avg > remaining * r) n = -Math.log(1 - remaining * r / avg) / Math.log(1 + r); else { n = Infinity; note = 'Die Zahlungen decken die Zinsen nicht.'; }
+    if (isFinite(n)) eta = addMonths(today0(), n);
+  }
+  return { debt, paid, current, remaining, done, pct, needed, eta, avg, note };
+}
+function render() {
+  const gs = store.data.savings;
+  let tot = 0, debt = 0, avg = 0;
+  gs.forEach((g) => { const c = calc(g); if (c.debt) debt += c.remaining; else { tot += c.current; avg += c.avg; } });
+  $('stot').textContent = eur(tot); $('sdebt').textContent = eur(debt); $('savg').textContent = eur(avg);
+  $('rwrap').hidden = $('kind').value !== 'debt';
+  $('tlabel').textContent = $('kind').value === 'debt' ? 'Aktuelle Schuld (€)' : 'Zielbetrag (€)';
+  $('slabel').textContent = $('kind').value === 'debt' ? 'Ursprünglich (optional, €)' : 'Schon gespart (€)';
+  $('list').replaceChildren(...(gs.length ? gs.map(card) : [h('div', { class: 'card muted' }, 'Noch keine Ziele. Lege ein Sparziel (Notgroschen, Urlaub …) oder eine Schuld an, die du abbauen willst.')]));
+}
+function card(g) {
+  const c = calc(g);
+  const amt = h('input', { type: 'text', inputMode: 'decimal', class: 'w', placeholder: c.debt ? 'Zahlung €' : 'Einzahlung €', required: true, 'aria-label': 'Betrag' });
+  const date = h('input', { type: 'date', value: ymd(new Date()), 'aria-label': 'Datum' });
+  const book = h('input', { type: 'checkbox', checked: !c.debt, id: 'b' + g.id });
+  const f = h('form', { class: 'row', style: 'margin-top:8px' }, amt, date, h('label', {}, book, ' im Haushaltsbuch buchen'), h('button', { class: 'primary' }, c.debt ? 'Zahlung' : 'Einzahlen'));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const a = parseAmount(amt.value); if (!(a > 0)) { alert('Bitte einen Betrag größer 0 eingeben.'); return; }
+    const tx = { id: uid(), date: date.value, amount: Math.round(a * 100) / 100 };
+    if (book.checked) { const en = { id: uid(), date: tx.date, type: 'out', amount: tx.amount, category: c.debt ? 'Schuldentilgung' : 'Sparen', note: g.name }; store.data.entries.push(en); tx.entryId = en.id; }
+    g.contribs.push(tx); store.changed(); render();
+  };
+  const facts = [];
+  facts.push(h('span', {}, c.debt ? 'Offen: ' : 'Gespart: ', h('b', {}, eur(c.debt ? c.remaining : c.current))), h('span', {}, c.debt ? 'Getilgt: ' : 'Noch fehlen: ', h('b', {}, eur(c.debt ? g.start - c.remaining : c.remaining))));
+  if (g.target && !c.debt) facts.push(h('span', {}, 'Ziel: ', h('b', {}, eur(g.target))));
+  if (g.deadline) facts.push(h('span', {}, 'Frist: ', h('b', {}, fmtDate(g.deadline))));
+  if (c.needed != null) facts.push(h('span', {}, 'Nötig pro Monat: ', h('b', {}, eur(c.needed))));
+  if (c.avg > 0) facts.push(h('span', {}, 'Ø bisher: ', h('b', {}, eur(c.avg) + '/Monat')));
+  if (c.eta) facts.push(h('span', {}, (c.debt ? 'Schuldenfrei: ' : 'Ziel erreicht: '), h('b', {}, c.eta.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })), g.deadline && c.eta > parseYmd(g.deadline) ? h('span', { class: 'neg' }, ' (nach der Frist)') : null));
+  if (c.note) facts.push(h('span', { class: 'neg' }, c.note));
+  const txs = g.contribs.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  return h('div', { class: 'card goal' }, h('div', { class: 'head' }, h('h3', {}, (c.debt ? '💳 ' : '🎯 ') + g.name), c.done ? h('span', { class: 'badge ok' }, c.debt ? 'Schuldenfrei 🎉' : 'Ziel erreicht 🎉') : null,
+    h('strong', {}, Math.round(c.pct) + ' %'), h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('„' + g.name + '“ löschen? Gebuchte Haushaltsbuch-Einträge bleiben erhalten.')) { store.data.savings = store.data.savings.filter((x) => x !== g); store.changed(); render(); } } }, '✕')),
+    h('div', { class: 'bar' + (c.done ? ' ok' : c.debt ? ' debt' : '') }, h('i', { style: 'width:' + c.pct + '%' })), h('div', { class: 'facts' }, facts), f,
+    txs.map((t) => h('div', { class: 'tx' }, h('span', {}, fmtDate(t.date)), h('b', { class: c.debt ? 'neg' : 'pos' }, (c.debt ? '−' : '+') + eur(t.amount)),
+      h('button', { class: 'small', title: 'Löschen', onclick: () => { g.contribs = g.contribs.filter((x) => x !== t); if (t.entryId) store.data.entries = store.data.entries.filter((e) => e.id !== t.entryId); store.changed(); render(); } }, '✕'))),
+    g.contribs.length > 5 ? h('div', { class: 'muted', style: 'font-size:.8rem' }, '… und ' + (g.contribs.length - 5) + ' ältere Einträge') : null);
+}
+$('kind').onchange = render;
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const debt = $('kind').value === 'debt', t = parseAmount($('target').value), s = parseAmount($('start').value || '0');
+  if (!(t > 0) || isNaN(s)) { alert('Bitte gültige Beträge eingeben.'); return; }
+  const g = { id: uid(), name: $('name').value.trim(), kind: debt ? 'debt' : 'save', target: t, start: debt ? Math.max(t, s) : s, deadline: $('deadline').value, rate: debt ? (parseAmount($('rate').value || '0') || 0) : 0, created: ymd(new Date()), contribs: [] };
+  store.data.savings.push(g); $('form').reset(); store.changed(); render();
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

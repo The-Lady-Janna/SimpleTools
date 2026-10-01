@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workout-Log</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 960px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  .ex { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:10px 0; background:var(--bg); }
+  .ex h3 { margin:0 0 4px; font-size:1.02rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; } .ex h3 span.sp { flex:1; }
+  .setrow { display:flex; align-items:center; gap:8px; margin:4px 0; } .setrow .n { width:2em; color:var(--muted); }
+  .setrow input { width:5.5em; } .hint { color:var(--muted); font-size:.82rem; }
+  .pick { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); }
+  table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Workout-Log</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="trainingsplan.html">Trainingsplan</a>.</p>
+  <div class="tabs"><button data-tab="train">Training</button><button data-tab="hist">Verlauf</button><button data-tab="prog">Fortschritt &amp; Rekorde</button><button data-tab="routines">Routinen</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'fitness',
+  defaults: () => ({ workouts: [], routines: [], plan: [], activities: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let tab = 'train', curId = null;
+function normalize() {
+  const d = store.data;
+  for (const k of ['workouts', 'routines', 'plan', 'activities']) if (!Array.isArray(d[k])) d[k] = [];
+  d.workouts.forEach((w) => { if (!Array.isArray(w.exercises)) w.exercises = []; w.exercises.forEach((e) => { if (!Array.isArray(e.sets)) e.sets = []; }); });
+  if (!d.workouts.find((w) => w.id === curId)) curId = d.workouts.length ? d.workouts.slice().sort((a, b) => b.date.localeCompare(a.date))[0].id : null;
+}
+const e1rm = (s) => s.weight > 0 && s.reps > 0 ? s.weight * (1 + s.reps / 30) : 0;
+const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+const volume = (w) => w.exercises.reduce((a, e) => a + e.sets.reduce((b, s) => b + (s.weight || 0) * (s.reps || 0), 0), 0);
+const exNames = () => [...new Set(store.data.workouts.flatMap((w) => w.exercises.map((e) => e.name)).concat(store.data.routines.flatMap((r) => r.exercises)))].sort();
+const cur = () => store.data.workouts.find((w) => w.id === curId);
+function lastTime(name, before) {
+  const ws = store.data.workouts.filter((w) => w.date <= before && w !== cur()).sort((a, b) => b.date.localeCompare(a.date));
+  for (const w of ws) { const e = w.exercises.find((x) => x.name.toLowerCase() === name.toLowerCase()); if (e && e.sets.length) return { w, e }; }
+  return null;
+}
+function bestBefore(name, w) {
+  let best = 0;
+  for (const o of store.data.workouts) if (o !== w && o.date < w.date) for (const e of o.exercises) if (e.name.toLowerCase() === name.toLowerCase()) for (const s of e.sets) best = Math.max(best, e1rm(s));
+  return best;
+}
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const v = $('view');
+  v.replaceChildren(tab === 'train' ? trainView() : tab === 'hist' ? histView() : tab === 'prog' ? progView() : routinesView());
+}
+function trainView() {
+  const date = h('input', { type: 'date', value: ymd(new Date()), 'aria-label': 'Datum' });
+  const name = h('input', { type: 'text', placeholder: 'Name (optional), z. B. Push', 'aria-label': 'Name' });
+  const rs = h('select', { 'aria-label': 'Routine' }, h('option', { value: '' }, 'Leere Einheit'), store.data.routines.map((r) => h('option', { value: r.id }, r.name)));
+  const nf = h('form', { class: 'card toolbar' }, date, name, rs, h('button', { class: 'primary' }, 'Einheit starten'));
+  nf.onsubmit = (e) => {
+    e.preventDefault();
+    const r = store.data.routines.find((x) => x.id === rs.value);
+    const w = { id: uid(), date: date.value, name: name.value.trim() || (r ? r.name : ''), notes: '', exercises: r ? r.exercises.map((n) => ({ id: uid(), name: n, sets: [] })) : [] };
+    store.data.workouts.push(w); curId = w.id; store.changed(); render();
+  };
+  const w = cur(), out = [nf];
+  const recent = store.data.workouts.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  if (recent.length) out.push(h('div', { class: 'card toolbar' }, 'Einheit:', recent.map((x) => { const b = h('button', { class: x.id === curId ? 'primary' : '' }, fmtDate(x.date).slice(0, 6) + (x.name ? ' ' + x.name : '')); b.onclick = () => { curId = x.id; render(); }; return b; })));
+  if (!w) return h('div', {}, ...out, h('div', { class: 'card muted' }, 'Starte oben eine Einheit – leer oder aus einer Routine.'));
+  const wn = h('input', { type: 'text', value: w.name, placeholder: 'Name', style: 'font-weight:600;flex:1;min-width:140px', 'aria-label': 'Name der Einheit' }); wn.oninput = () => { w.name = wn.value; store.changed(); };
+  const wd = h('input', { type: 'date', value: w.date, 'aria-label': 'Datum' }); wd.onchange = () => { if (wd.value) { w.date = wd.value; store.changed(); render(); } };
+  const card = h('div', { class: 'card' }, h('div', { class: 'row' }, wn, wd, h('span', { class: 'muted' }, 'Volumen: ' + Math.round(volume(w)).toLocaleString('de-DE') + ' kg'),
+    h('button', { class: 'small', onclick: () => { if (confirm('Einheit löschen?')) { store.data.workouts = store.data.workouts.filter((x) => x !== w); normalize(); store.changed(); render(); } } }, 'Löschen')));
+  w.exercises.forEach((ex) => {
+    const last = lastTime(ex.name, w.date);
+    const topSet = ex.sets.reduce((b, s) => (e1rm(s) > e1rm(b || {}) ? s : b), null);
+    const pr = topSet && e1rm(topSet) > 0 && e1rm(topSet) > bestBefore(ex.name, w) && bestBefore(ex.name, w) > 0;
+    card.append(h('div', { class: 'ex' }, h('h3', {}, ex.name, pr ? h('span', { class: 'badge ok', title: 'Neuer Rekord (geschätztes 1RM)' }, '🏅 PR') : null, h('span', { class: 'sp' }),
+      h('button', { class: 'small', title: 'Übung entfernen', onclick: () => { w.exercises = w.exercises.filter((x) => x !== ex); store.changed(); render(); } }, '✕')),
+      last ? h('div', { class: 'hint' }, 'Letztes Mal (' + fmtDate(last.w.date).slice(0, 6) + '): ' + last.e.sets.map((s) => fmt(s.weight || 0) + ' kg × ' + (s.reps || 0)).join(', ')) : null,
+      ex.sets.map((s, i) => {
+        const kg = h('input', { type: 'number', step: 'any', min: 0, value: s.weight ?? '', placeholder: 'kg', 'aria-label': 'Gewicht Satz ' + (i + 1) });
+        const re = h('input', { type: 'number', min: 0, value: s.reps ?? '', placeholder: 'Wdh', 'aria-label': 'Wiederholungen Satz ' + (i + 1) });
+        kg.onchange = () => { s.weight = parseFloat(kg.value) || 0; store.changed(); render(); }; re.onchange = () => { s.reps = parseInt(re.value, 10) || 0; store.changed(); render(); };
+        return h('div', { class: 'setrow' }, h('span', { class: 'n' }, (i + 1) + '.'), kg, '×', re, e1rm(s) ? h('span', { class: 'hint' }, '≈ 1RM ' + fmt(e1rm(s)) + ' kg') : null,
+          h('button', { class: 'small', title: 'Satz entfernen', onclick: () => { ex.sets.splice(i, 1); store.changed(); render(); } }, '✕'));
+      }),
+      h('button', { class: 'small', onclick: () => { const p = ex.sets[ex.sets.length - 1] || (last && last.e.sets[0]) || {}; ex.sets.push({ weight: p.weight || 0, reps: p.reps || 0 }); store.changed(); render(); } }, '+ Satz')));
+  });
+  const an = h('input', { type: 'text', list: 'exlist', placeholder: 'Übung hinzufügen, z. B. Kniebeuge', class: 'sp', 'aria-label': 'Übung' });
+  const af = h('form', { class: 'row', style: 'margin-top:10px' }, an, h('datalist', { id: 'exlist' }, exNames().map((n) => h('option', { value: n }))), h('button', { class: 'primary' }, '+ Übung'));
+  af.onsubmit = (e) => { e.preventDefault(); if (!an.value.trim()) return; w.exercises.push({ id: uid(), name: an.value.trim(), sets: [] }); store.changed(); render(); };
+  const notes = h('textarea', { placeholder: 'Notizen zur Einheit…', style: 'width:100%;margin-top:10px;min-height:50px', 'aria-label': 'Notizen' }); notes.value = w.notes || ''; notes.oninput = () => { w.notes = notes.value; store.changed(); };
+  card.append(af, notes);
+  out.push(card);
+  return h('div', {}, ...out);
+}
+function histView() {
+  const ws = store.data.workouts.slice().sort((a, b) => b.date.localeCompare(a.date));
+  return h('div', { class: 'card' }, ws.length ? ws.map((w) => h('div', { class: 'pick' }, h('strong', { style: 'width:6.5em' }, fmtDate(w.date)), h('span', { style: 'flex:1' }, w.name || '–', h('span', { class: 'hint' }, '  ' + w.exercises.length + ' Übungen · ' + w.exercises.reduce((a, e) => a + e.sets.length, 0) + ' Sätze · ' + Math.round(volume(w)).toLocaleString('de-DE') + ' kg')),
+    h('button', { class: 'small', onclick: () => { curId = w.id; tab = 'train'; render(); } }, 'Öffnen'))) : h('p', { class: 'muted' }, 'Noch keine Einheiten.'));
+}
+function chart(pts) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 220, L = 42, R = 12, T = 12, B = 26;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart');
+  const el = (tag, a, t) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; svg.append(n); return n; };
+  let lo = Math.min(...pts.map((p) => p.y)), hi = Math.max(...pts.map((p) => p.y)); const pad = (hi - lo || 1) * 0.15; lo -= pad; hi += pad;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = t1 - t0 || 1;
+  const X = (t) => pts.length === 1 ? (L + W - R) / 2 : L + (t - t0) / span * (W - L - R), Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4; el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, fmt(v)); }
+  el('text', { x: L, y: H - 6 }, fmtDate(ymd(new Date(t0)))); el('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, fmtDate(ymd(new Date(t1))));
+  if (pts.length > 1) el('polyline', { points: pts.map((p) => X(p.t) + ',' + Y(p.y)).join(' '), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2 });
+  pts.forEach((p) => { const c = el('circle', { cx: X(p.t), cy: Y(p.y), r: 3.5, fill: 'var(--accent)' }); c.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: fmtDate(p.d) + ': ' + fmt(p.y) + ' kg' })); });
+  return svg;
+}
+let progEx = '';
+function progView() {
+  const names = exNames().filter((n) => store.data.workouts.some((w) => w.exercises.some((e) => e.name === n && e.sets.length)));
+  if (!names.length) return h('div', { class: 'card muted' }, 'Sobald du Sätze eingetragen hast, siehst du hier Fortschritt und Rekorde.');
+  if (!names.includes(progEx)) progEx = names[0];
+  const sel = h('select', { 'aria-label': 'Übung' }, names.map((n) => h('option', { value: n, selected: n === progEx }, n))); sel.onchange = () => { progEx = sel.value; render(); };
+  const pts = store.data.workouts.slice().sort((a, b) => a.date.localeCompare(b.date)).map((w) => {
+    const e = w.exercises.find((x) => x.name === progEx); const best = e ? Math.max(0, ...e.sets.map(e1rm)) : 0;
+    return best ? { t: new Date(w.date).getTime(), d: w.date, y: best } : null;
+  }).filter(Boolean);
+  const rows = names.map((n) => {
+    let w1 = 0, e1 = 0, wd = '', ed = '';
+    for (const w of store.data.workouts) for (const e of w.exercises) if (e.name === n) for (const s of e.sets) { if ((s.weight || 0) > w1) { w1 = s.weight; wd = w.date; } if (e1rm(s) > e1) { e1 = e1rm(s); ed = w.date; } }
+    return h('tr', {}, h('td', {}, n), h('td', {}, fmt(w1) + ' kg', h('div', { class: 'hint' }, fmtDate(wd))), h('td', {}, fmt(e1) + ' kg', h('div', { class: 'hint' }, fmtDate(ed))));
+  });
+  return h('div', {}, h('div', { class: 'card' }, h('div', { class: 'toolbar' }, 'Geschätztes 1RM pro Einheit: ', sel), pts.length ? chart(pts) : h('p', { class: 'muted' }, 'Keine Daten.')),
+    h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 6px;font-size:1.05rem' }, '🏅 Persönliche Rekorde'), h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Übung'), h('th', {}, 'Höchstes Gewicht'), h('th', {}, 'Bestes ≈1RM'))), h('tbody', {}, rows)),
+      h('p', { class: 'hint', style: 'margin:6px 0 0' }, '1RM geschätzt nach Epley: Gewicht × (1 + Wdh / 30).')));
+}
+function routinesView() {
+  const name = h('input', { type: 'text', required: true, placeholder: 'Name, z. B. Push-Tag', 'aria-label': 'Name' });
+  const ta = h('textarea', { placeholder: 'Übungen, eine pro Zeile', style: 'width:100%;min-height:90px', 'aria-label': 'Übungen' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'row' }, name, h('button', { class: 'primary' }, 'Routine speichern')), h('div', { style: 'margin-top:6px' }, ta));
+  f.onsubmit = (e) => { e.preventDefault(); const ex = ta.value.split('\n').map((s) => s.trim()).filter(Boolean); store.data.routines.push({ id: uid(), name: name.value.trim(), exercises: ex }); store.changed(); render(); };
+  return h('div', {}, f, h('div', { class: 'card' }, store.data.routines.length ? store.data.routines.map((r) => h('div', { class: 'pick' }, h('strong', {}, r.name), h('span', { class: 'hint', style: 'flex:1' }, r.exercises.join(' · ')),
+    h('button', { class: 'small', onclick: () => { if (confirm('Routine „' + r.name + '“ löschen?')) { store.data.routines = store.data.routines.filter((x) => x !== r); store.changed(); render(); } } }, '✕'))) : h('p', { class: 'muted' }, 'Noch keine Routinen.')));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
