@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Packlisten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .layout { display:grid; grid-template-columns:260px 1fr; gap:12px; align-items:start; }
+  @media (max-width: 760px) { .layout { grid-template-columns:1fr; } }
+  .pick { display:block; width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); border-radius:0; background:transparent; padding:8px 6px; }
+  .pick.on { background:color-mix(in srgb, var(--accent) 14%, var(--card)); }
+  .pick small { display:block; color:var(--muted); }
+  .grp { margin:14px 0 4px; font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .item { display:flex; align-items:center; gap:10px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .item input[type=checkbox] { width:20px; height:20px; flex:none; } .item.done span { text-decoration:line-through; color:var(--muted); } .item span { flex:1; }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:6px 0; }
+  .bar > i { display:block; height:100%; background:var(--ok); }
+  textarea { width:100%; min-height:220px; font-family:inherit; }
+  .newtag { color:var(--warn); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Packlisten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs"><button data-tab="trips">Listen</button><button data-tab="tpl">Vorlagen</button></div>
+  <div class="layout">
+    <div>
+      <div class="card" id="side" style="padding:6px 8px"></div>
+    </div>
+    <div id="main"></div>
+  </div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'packlisten',
+  defaults: () => ({ templates: [], trips: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let tab = 'trips', tripId = null, tplId = null;
+function normalize() { for (const k of ['templates', 'trips']) if (!Array.isArray(store.data[k])) store.data[k] = []; }
+// Zeilen mit „# Titel“ sind Gruppen, alle anderen Zeilen Einträge
+function parseItems(text) {
+  let group = ''; const out = [];
+  for (const raw of text.split('\n')) {
+    const line = raw.trim(); if (!line) continue;
+    if (line.startsWith('#')) { group = line.replace(/^#+\s*/, ''); continue; }
+    out.push({ id: uid(), text: line, group });
+  }
+  return out;
+}
+const itemsToText = (items) => { let g = null, out = []; for (const i of items) { if ((i.group || '') !== g) { g = i.group || ''; if (g) out.push('# ' + g); } out.push(i.text); } return out.join('\n'); };
+const curTrip = () => store.data.trips.find((t) => t.id === tripId);
+const curTpl = () => store.data.templates.find((t) => t.id === tplId);
+function sideList(items, selected, onPick, label) {
+  return items.length ? items.map((x) => { const b = h('button', { class: 'pick' + (x.id === selected ? ' on' : '') }, h('strong', {}, x.name || 'Ohne Namen'), h('small', {}, label(x))); b.onclick = () => onPick(x.id); return b; })
+    : [h('p', { class: 'muted', style: 'padding:6px' }, 'Noch nichts angelegt.')];
+}
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const side = $('side'), main = $('main');
+  if (tab === 'trips') {
+    const trips = store.data.trips.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    side.replaceChildren(...sideList(trips, tripId, (id) => { tripId = id; render(); }, (t) => { const n = t.items.length, d = t.items.filter((i) => i.done).length; return (t.date ? fmtDate(t.date) + ' · ' : '') + d + '/' + n; }));
+    main.replaceChildren(newTripForm(), tripView());
+  } else {
+    side.replaceChildren(...sideList(store.data.templates, tplId, (id) => { tplId = id; render(); }, (t) => t.items.length + ' Einträge'),
+      h('button', { class: 'small', style: 'margin:6px', onclick: () => { const t = { id: uid(), name: 'Neue Vorlage', items: [] }; store.data.templates.push(t); tplId = t.id; store.changed(); render(); } }, '+ Neue Vorlage'));
+    main.replaceChildren(tplView());
+  }
+}
+function newTripForm() {
+  const name = h('input', { type: 'text', required: true, placeholder: 'z. B. Urlaub Italien', class: 'sp', 'aria-label': 'Name' });
+  const date = h('input', { type: 'date', 'aria-label': 'Datum' });
+  const tpl = h('select', { 'aria-label': 'Vorlage' }, h('option', { value: '' }, 'Leere Liste'), store.data.templates.map((t) => h('option', { value: t.id }, t.name)));
+  const f = h('form', { class: 'card toolbar' }, name, date, tpl, h('button', { class: 'primary' }, 'Liste anlegen'));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const t = store.data.templates.find((x) => x.id === tpl.value);
+    const trip = { id: uid(), name: name.value.trim(), date: date.value, tid: t ? t.id : '', items: t ? t.items.map((i) => ({ id: uid(), text: i.text, group: i.group || '', done: false })) : [] };
+    store.data.trips.push(trip); tripId = trip.id; store.changed(); render();
+  };
+  return f;
+}
+function tripView() {
+  const t = curTrip();
+  if (!t) return h('div', { class: 'card muted' }, 'Wähle links eine Liste oder lege oben eine neue an.');
+  const done = t.items.filter((i) => i.done).length, pct = t.items.length ? done / t.items.length * 100 : 0;
+  const tpl = store.data.templates.find((x) => x.id === t.tid);
+  const fresh = t.items.filter((i) => !tpl || !tpl.items.some((x) => x.text.toLowerCase() === i.text.toLowerCase()));
+  const groups = [...new Set(t.items.map((i) => i.group || ''))];
+  const add = h('input', { type: 'text', placeholder: 'Eintrag hinzufügen…', class: 'sp', 'aria-label': 'Eintrag' });
+  const addForm = h('form', { class: 'row', style: 'margin-top:10px' }, add, h('button', { class: 'primary' }, '+'));
+  addForm.onsubmit = (e) => { e.preventDefault(); if (!add.value.trim()) return; t.items.push({ id: uid(), text: add.value.trim(), group: '', done: false }); store.changed(); render(); };
+  const btns = h('div', { class: 'row', style: 'margin-top:12px' },
+    h('button', { onclick: () => { t.items.forEach((i) => i.done = false); store.changed(); render(); } }, 'Alle zurücksetzen'),
+    h('button', { onclick: () => { const nt = { id: uid(), name: t.name, items: t.items.map((i) => ({ id: uid(), text: i.text, group: i.group || '' })) }; store.data.templates.push(nt); store.changed(); tab = 'tpl'; tplId = nt.id; render(); } }, 'Als Vorlage speichern'),
+    tpl && fresh.length ? h('button', { onclick: () => { fresh.forEach((i) => tpl.items.push({ id: uid(), text: i.text, group: i.group || '' })); store.changed(); render(); } }, 'Neue Einträge in Vorlage „' + tpl.name + '“ übernehmen (' + fresh.length + ')') : null,
+    h('span', { class: 'sp' }), h('button', { onclick: () => { if (confirm('Liste „' + t.name + '“ löschen?')) { store.data.trips = store.data.trips.filter((x) => x !== t); tripId = null; store.changed(); render(); } } }, 'Liste löschen'));
+  return h('div', { class: 'card' }, h('h2', { style: 'margin:0;font-size:1.15rem' }, t.name, t.date ? h('span', { class: 'muted', style: 'font-weight:400' }, ' · ' + fmtDate(t.date)) : null),
+    h('div', { class: 'bar' }, h('i', { style: 'width:' + pct + '%' })), h('div', { class: 'muted' }, done + ' von ' + t.items.length + ' eingepackt' + (t.items.length && done === t.items.length ? ' 🎉' : '')),
+    groups.map((g) => [g ? h('div', { class: 'grp' }, g) : null, ...t.items.filter((i) => (i.group || '') === g).map((i) => {
+      const cb = h('input', { type: 'checkbox', checked: i.done, 'aria-label': i.text }); cb.onchange = () => { i.done = cb.checked; store.changed(); render(); };
+      return h('div', { class: 'item' + (i.done ? ' done' : '') }, cb, h('span', {}, i.text, tpl && !tpl.items.some((x) => x.text.toLowerCase() === i.text.toLowerCase()) ? h('small', { class: 'newtag' }, '  neu') : null),
+        h('button', { class: 'small', title: 'Entfernen', onclick: () => { t.items = t.items.filter((x) => x !== i); store.changed(); render(); } }, '✕'));
+    })]), addForm, btns);
+}
+function tplView() {
+  const t = curTpl();
+  if (!t) return h('div', { class: 'card muted' }, 'Wähle links eine Vorlage oder lege eine neue an.');
+  const name = h('input', { type: 'text', value: t.name, 'aria-label': 'Name', class: 'sp', style: 'font-weight:600' });
+  const ta = h('textarea', { 'aria-label': 'Einträge', placeholder: '# Kleidung\nT-Shirts\nSocken\n# Hygiene\nZahnbürste' });
+  ta.value = itemsToText(t.items);
+  name.oninput = () => { t.name = name.value; store.changed(); };
+  ta.onchange = () => {
+    t.items = parseItems(ta.value); store.changed(); render();
+  };
+  return h('div', { class: 'card' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, name,
+    h('button', { onclick: () => { if (confirm('Vorlage „' + t.name + '“ löschen?')) { store.data.templates = store.data.templates.filter((x) => x !== t); tplId = null; store.changed(); render(); } } }, 'Löschen')),
+    h('p', { class: 'muted', style: 'margin:0 0 6px' }, 'Ein Eintrag pro Zeile. Zeilen mit # davor sind Überschriften (Gruppen). Änderungen gelten für neue Listen.'), ta);
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

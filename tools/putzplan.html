@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haushalts- &amp; Putzplan</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .grp { margin:14px 0 4px; font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .grp.err { color:var(--err); } .grp.warn { color:var(--warn); }
+  .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
+  .item .nm { flex:1; min-width:160px; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .week { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; }
+  @media (max-width: 800px) { .week { grid-template-columns:1fr; } }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:6px; min-height:90px; min-width:0; }
+  .day.today { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .day h3 { margin:0 0 4px; font-size:.85rem; }
+  .chip { display:flex; align-items:center; gap:4px; font-size:.82rem; padding:2px 6px; margin-bottom:3px; border-radius:6px; background:var(--bg); border:1px solid var(--line); overflow-wrap:anywhere; }
+  .chip.err { border-color:var(--err); } .chip.done { text-decoration:line-through; opacity:.6; }
+  .chip button { padding:0 5px; font-size:.8rem; margin-left:auto; flex:none; }
+  .cal { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; }
+  .cal .dh { text-align:center; font-size:.8rem; color:var(--muted); }
+  .cal .d { background:var(--card); border:1px solid var(--line); border-radius:8px; min-height:84px; padding:4px; min-width:0; }
+  .cal .d.out { opacity:.4; } .cal .d.today { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .cal .d b { font-size:.8rem; } .cal .chip { font-size:.72rem; padding:1px 4px; }
+  @media (max-width: 700px) { .cal .chip { font-size:.65rem; } .cal .d { min-height:60px; } }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:5.5em; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Haushalts- &amp; Putzplan</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit den <a href="gewohnheiten.html">Gewohnheiten</a>.</p>
+  <div class="tabs"><button data-tab="plan">Plan</button><button data-tab="week">Woche</button><button data-tab="month">Monat</button><button data-tab="manage">Verwalten</button></div>
+  <div class="card toolbar" id="nav"><button id="prev" aria-label="Zurück">‹</button><strong id="label"></strong><button id="next" aria-label="Weiter">›</button><button id="now">Heute</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'routinen',
+  defaults: () => ({ habits: [], habitLog: {}, chores: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const wdIdx = (d) => (d.getDay() + 6) % 7;
+const UNITS = { tage: 'Tage', wochen: 'Wochen', monate: 'Monate' };
+let tab = 'plan', anchor = new Date(), editId = null, roomFilter = '';
+function normalize() {
+  const d = store.data;
+  for (const k of ['habits', 'chores']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!d.habitLog || typeof d.habitLog !== 'object' || Array.isArray(d.habitLog)) d.habitLog = {};
+}
+const today0 = () => parseYmd(ymd(new Date()));
+const addInterval = (d, c) => { const n = Math.max(1, +c.every || 1), x = new Date(d); if (c.unit === 'monate') return new Date(x.getFullYear(), x.getMonth() + n, x.getDate()); x.setDate(x.getDate() + n * (c.unit === 'wochen' ? 7 : 1)); return x; };
+// Nächste Fälligkeit: zuletzt erledigt + Intervall; ohne „zuletzt“ ab Anlage-Datum
+const dueOf = (c) => c.last ? addInterval(parseYmd(c.last), c) : parseYmd(c.start || c.created || ymd(new Date()));
+const daysTo = (d) => Math.round((d - today0()) / 86400000);
+function markDone(c) { c.last = ymd(new Date()); store.changed(); render(); }
+function undo(c) { c.last = c.prev || ''; c.prev = ''; store.changed(); render(); }
+function complete(c) { c.prev = c.last || ''; markDone(c); }
+// Termine eines Zeitraums, inkl. Wiederholungen (Vorschau nach dem ersten Fälligkeitstermin)
+function occurrences(c, from, to) {
+  const out = [], t = today0(), due = dueOf(c);
+  let d = due < t ? t : due, g = 0;   // Überfälliges wird heute angezeigt
+  while (d <= to && g++ < 800) { if (d >= from) out.push({ c, date: new Date(d) }); d = addInterval(d, c); }
+  return out;
+}
+function chipFor(o, withBtn) {
+  const c = o.c, isToday = ymd(o.date) === ymd(new Date());
+  const cls = 'chip' + (daysTo(dueOf(c)) < 0 && ymd(o.date) === ymd(new Date()) ? ' err' : '');
+  const el = h('div', { class: cls, title: c.name + (c.room ? ' · ' + c.room : '') }, c.name);
+  if (withBtn && isToday) el.append(h('button', { class: 'small primary', title: 'Erledigt', onclick: () => complete(c) }, '✓'));
+  return el;
+}
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('nav').hidden = tab === 'plan' || tab === 'manage';
+  const v = $('view');
+  if (tab === 'manage') return v.replaceChildren(manageView());
+  const all = store.data.chores;
+  if (!all.length) return v.replaceChildren(h('div', { class: 'card' }, 'Noch keine Aufgaben. Lege unter „Verwalten“ welche an.'));
+  const rooms = [...new Set(all.map((c) => c.room).filter(Boolean))].sort();
+  const chores = all.filter((c) => !roomFilter || c.room === roomFilter);
+  const filter = h('select', { 'aria-label': 'Raum' }, h('option', { value: '' }, 'Alle Räume'), rooms.map((r) => h('option', { value: r, selected: r === roomFilter }, r)));
+  filter.onchange = () => { roomFilter = filter.value; render(); };
+  const bar = h('div', { class: 'card toolbar' }, 'Filter: ', filter);
+  if (tab === 'plan') return v.replaceChildren(bar, planView(chores));
+  if (tab === 'week') {
+    const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - wdIdx(anchor));
+    const days = Array.from({ length: 7 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+    $('label').textContent = fmtDate(ymd(days[0])).slice(0, 6) + ' – ' + fmtDate(ymd(days[6]));
+    const occ = chores.flatMap((c) => occurrences(c, days[0], days[6])), t = ymd(new Date());
+    return v.replaceChildren(bar, h('div', { class: 'week' }, days.map((d) => h('div', { class: 'day' + (ymd(d) === t ? ' today' : '') },
+      h('h3', {}, WD[wdIdx(d)] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '.'), occ.filter((o) => ymd(o.date) === ymd(d)).map((o) => chipFor(o, true))))));
+  }
+  const y = anchor.getFullYear(), m = anchor.getMonth(), first = new Date(y, m, 1), gridStart = new Date(y, m, 1 - wdIdx(first));
+  const weeks = Math.ceil((wdIdx(first) + new Date(y, m + 1, 0).getDate()) / 7), gridEnd = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + weeks * 7 - 1);
+  $('label').textContent = anchor.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  const occ = chores.flatMap((c) => occurrences(c, gridStart, gridEnd)), t = ymd(new Date());
+  const cells = Array.from({ length: weeks * 7 }, (_, i) => new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i));
+  v.replaceChildren(bar, h('div', { class: 'cal' }, WD.map((w) => h('div', { class: 'dh' }, w)),
+    cells.map((d) => h('div', { class: 'd' + (d.getMonth() !== m ? ' out' : '') + (ymd(d) === t ? ' today' : '') }, h('b', {}, d.getDate()), occ.filter((o) => ymd(o.date) === ymd(d)).map((o) => chipFor(o, true))))));
+}
+function planView(chores) {
+  const groups = { over: [], today: [], week: [], later: [] };
+  for (const c of chores) { const n = daysTo(dueOf(c)); (n < 0 ? groups.over : n === 0 ? groups.today : n <= 7 ? groups.week : groups.later).push({ c, n }); }
+  const sec = (key, title, cls) => {
+    const list = groups[key].sort((a, b) => a.n - b.n);
+    if (!list.length) return null;
+    return [h('div', { class: 'grp ' + cls }, title + ' (' + list.length + ')'), ...list.map(({ c, n }) => h('div', { class: 'item' },
+      h('div', { class: 'nm' }, h('strong', {}, c.name), c.room ? h('span', { class: 'badge', style: 'margin-left:6px' }, c.room) : null,
+        h('div', { class: 'meta' }, 'alle ' + c.every + ' ' + UNITS[c.unit] + ' · ' + (c.last ? 'zuletzt ' + fmtDate(c.last) : 'noch nie erledigt') + ' · ' + (n < 0 ? (-n) + ' Tg. überfällig' : n === 0 ? 'heute fällig' : 'fällig ' + fmtDate(ymd(dueOf(c)))))),
+      c.prev !== undefined && c.last === ymd(new Date()) ? h('button', { class: 'small', onclick: () => undo(c) }, 'Rückgängig') : null,
+      h('button', { class: 'small primary', onclick: () => complete(c) }, '✓ Erledigt')))];
+  };
+  const card = h('div', { class: 'card' }, sec('over', 'Überfällig', 'err'), sec('today', 'Heute', 'warn'), sec('week', 'In den nächsten 7 Tagen', ''), sec('later', 'Später', ''));
+  if (!card.children.length) card.append(h('p', { class: 'muted' }, 'Keine Aufgaben in dieser Auswahl.'));
+  return card;
+}
+function manageView() {
+  const cur = editId && store.data.chores.find((x) => x.id === editId);
+  const f = (id) => document.getElementById(id);
+  const name = h('input', { type: 'text', required: true, placeholder: 'z. B. Bad putzen', style: 'min-width:160px', 'aria-label': 'Aufgabe', value: cur ? cur.name : '' });
+  const room = h('input', { type: 'text', list: 'rooms', placeholder: 'Raum', style: 'width:9em', 'aria-label': 'Raum', value: cur ? cur.room || '' : '' });
+  const rl = h('datalist', { id: 'rooms' }, [...new Set(store.data.chores.map((c) => c.room).filter(Boolean))].map((r) => h('option', { value: r })));
+  const every = h('input', { type: 'number', min: 1, class: 'w', value: cur ? cur.every : 1, 'aria-label': 'Intervall' });
+  const unit = h('select', { 'aria-label': 'Einheit' }, Object.entries(UNITS).map(([k, l]) => h('option', { value: k, selected: cur ? cur.unit === k : k === 'wochen' }, l)));
+  const last = h('input', { type: 'date', value: cur ? cur.last || '' : '', 'aria-label': 'Zuletzt erledigt' });
+  const start = h('input', { type: 'date', value: cur ? cur.start || '' : ymd(new Date()), 'aria-label': 'Erstmals fällig' });
+  const submit = h('button', { class: 'primary' }, cur ? 'Übernehmen' : 'Hinzufügen'), cancel = h('button', { type: 'button', hidden: !cur }, 'Abbrechen');
+  const L = (t, el) => h('label', { class: 'f' }, t, el);
+  const form = h('form', { class: 'card form' }, L('Aufgabe', name), L('Raum', room), L('Alle', every), L('Einheit', unit), L('Zuletzt erledigt', last), L('Erstmals fällig (wenn nie erledigt)', start), submit, cancel, rl);
+  cancel.onclick = () => { editId = null; render(); };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const rec = { name: name.value.trim(), room: room.value.trim(), every: Math.max(1, +every.value || 1), unit: unit.value, last: last.value, start: start.value };
+    if (cur) Object.assign(cur, rec); else store.data.chores.push({ id: uid(), created: ymd(new Date()), ...rec });
+    editId = null; store.changed(); render();
+  };
+  const list = store.data.chores.slice().sort((a, b) => (a.room || '').localeCompare(b.room || '') || a.name.localeCompare(b.name));
+  return h('div', {}, form, h('div', { class: 'card' }, list.length ? list.map((c) => h('div', { class: 'item' },
+    h('div', { class: 'nm' }, h('strong', {}, c.name), c.room ? h('span', { class: 'badge', style: 'margin-left:6px' }, c.room) : null, h('div', { class: 'meta' }, 'alle ' + c.every + ' ' + UNITS[c.unit] + (c.last ? ' · zuletzt ' + fmtDate(c.last) : ''))),
+    h('button', { class: 'small', onclick: () => { editId = c.id; render(); } }, '✎'),
+    h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('„' + c.name + '“ löschen?')) { store.data.chores = store.data.chores.filter((x) => x !== c); store.changed(); render(); } } }, '✕'))) : h('p', { class: 'muted' }, 'Noch keine Aufgaben.')));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; editId = null; render(); });
+const step = (dir) => { if (tab === 'week') anchor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 7 * dir); else anchor = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1); render(); };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1); $('now').onclick = () => { anchor = new Date(); render(); };
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

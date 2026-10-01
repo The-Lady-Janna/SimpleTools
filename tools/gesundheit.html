@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gesundheitsprotokoll</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:6em; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-top:8px; }
+  .stats div { text-align:center; padding:6px; border:1px solid var(--line); border-radius:8px; } .stats b { display:block; font-size:1.1rem; }
+  svg.chart { width:100%; height:auto; display:block; }
+  svg.chart text { fill:var(--muted); font-size:11px; }
+  table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  .legend { display:flex; gap:12px; font-size:.85rem; margin-top:4px; } .legend i { display:inline-block; width:12px; height:3px; margin-right:4px; vertical-align:middle; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Gesundheitsprotokoll</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <form id="form" class="card form">
+    <label class="f">Datum<input type="date" id="date" required></label>
+    <label class="f">Zeit<input type="time" id="time"></label>
+    <label class="f">Messwert<select id="metric"></select></label>
+    <span id="vals" class="form"></span>
+    <label class="f" style="flex:1;min-width:140px">Notiz<input type="text" id="note" placeholder="optional"></label>
+    <button class="primary">Eintragen</button>
+  </form>
+  <div class="card">
+    <div class="toolbar"><label>Verlauf <select id="cmetric"></select></label>
+      <label>Zeitraum <select id="range"><option value="30">30 Tage</option><option value="90" selected>90 Tage</option><option value="365">1 Jahr</option><option value="0">Alles</option></select></label>
+      <span class="sp"></span><button id="csv">CSV-Export (Arzt)</button></div>
+    <div id="chart" style="margin-top:8px"></div>
+    <div class="stats" id="stats"></div>
+  </div>
+  <div class="card"><h2 style="margin:0 0 6px;font-size:1.05rem">Einträge</h2><div id="list"></div></div>
+  <details class="card"><summary>Messwerte verwalten</summary>
+    <form id="mform" class="form" style="margin-top:8px">
+      <label class="f">Name<input type="text" id="mname" required placeholder="z. B. Puls"></label>
+      <label class="f">Einheit<input type="text" id="munit" class="w" placeholder="bpm"></label>
+      <label class="f">Art<select id="mkind"><option value="number">Zahl</option><option value="scale">Skala 0–10</option><option value="bp">Blutdruck</option><option value="note">Text/Symptom</option></select></label>
+      <button class="primary">Hinzufügen</button></form>
+    <div id="mlist" style="margin-top:8px"></div></details>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'gesundheit',
+  defaults: () => ({ metrics: [], entries: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const KINDS = { number: 'Zahl', scale: 'Skala 0–10', bp: 'Blutdruck', note: 'Text' };
+const COLORS = ['var(--accent)', 'var(--err)'];
+function defaultMetrics() {
+  return [{ id: 'gewicht', name: 'Gewicht', unit: 'kg', kind: 'number' }, { id: 'blutdruck', name: 'Blutdruck', unit: 'mmHg', kind: 'bp' },
+    { id: 'schlaf', name: 'Schlaf', unit: 'h', kind: 'number' }, { id: 'schmerz', name: 'Schmerz / Migräne', unit: '0–10', kind: 'scale' },
+    { id: 'stimmung', name: 'Stimmung', unit: '0–10', kind: 'scale' }, { id: 'symptom', name: 'Symptom / Notiz', unit: '', kind: 'note' }];
+}
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.metrics) || !d.metrics.length) d.metrics = defaultMetrics();
+  if (!Array.isArray(d.entries)) d.entries = [];
+}
+const metricOf = (id) => store.data.metrics.find((m) => m.id === id);
+const num = (s) => { const n = Number(String(s).trim().replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
+const fmtNum = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+function fmtVal(m, v) {
+  if (!m) return String(v);
+  if (m.kind === 'bp') return v.sys + '/' + v.dia + ' ' + (m.unit || '');
+  if (m.kind === 'note') return String(v);
+  return fmtNum(v) + (m.unit ? ' ' + m.unit : '');
+}
+const stamp = (e) => e.date + 'T' + (e.time || '12:00');
+function valueInputs() {
+  const m = metricOf($('metric').value), box = $('vals');
+  if (!m) return box.replaceChildren();
+  const mk = (id, label, ph) => h('label', { class: 'f' }, label, h('input', { type: 'text', id, class: 'w', inputMode: 'decimal', placeholder: ph || '', required: true }));
+  if (m.kind === 'bp') box.replaceChildren(mk('v1', 'Oben (sys)', '120'), mk('v2', 'Unten (dia)', '80'));
+  else if (m.kind === 'note') box.replaceChildren(h('label', { class: 'f', style: 'min-width:160px' }, 'Beschreibung', h('input', { type: 'text', id: 'v1', required: true })));
+  else if (m.kind === 'scale') box.replaceChildren(h('label', { class: 'f' }, 'Wert (0–10)', h('input', { type: 'number', id: 'v1', class: 'w', min: 0, max: 10, step: 1, required: true })));
+  else box.replaceChildren(mk('v1', 'Wert' + (m.unit ? ' (' + m.unit + ')' : ''), ''));
+}
+function fill(sel, keep, withNote) {
+  const v = sel.value;
+  sel.replaceChildren(...store.data.metrics.filter((m) => withNote || m.kind !== 'note').map((m) => h('option', { value: m.id }, m.name)));
+  if ([...sel.options].some((o) => o.value === v)) sel.value = v;
+}
+function series(m, days) {
+  const cut = days ? Date.now() - days * 86400000 : 0;
+  return store.data.entries.filter((e) => e.metric === m.id).map((e) => ({ e, t: new Date(stamp(e)).getTime() })).filter((x) => x.t >= cut).sort((a, b) => a.t - b.t);
+}
+function drawChart(m, pts) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 240, L = 40, R = 12, T = 12, B = 26;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Verlauf ' + m.name);
+  const el = (tag, attrs, text) => { const n = document.createElementNS(NS, tag); for (const k in attrs) n.setAttribute(k, attrs[k]); if (text != null) n.textContent = text; svg.append(n); return n; };
+  const lines = m.kind === 'bp' ? [['sys', COLORS[0]], ['dia', COLORS[1]]] : [[null, COLORS[0]]];
+  const val = (p, key) => key ? p.e.value[key] : p.e.value;
+  const all = pts.flatMap((p) => lines.map(([k]) => val(p, k)));
+  let lo = Math.min(...all), hi = Math.max(...all);
+  if (m.kind === 'scale') { lo = 0; hi = 10; } else { const pad = (hi - lo || 1) * 0.15; lo -= pad; hi += pad; }
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = t1 - t0 || 1;
+  const X = (t) => pts.length === 1 ? (L + W - R) / 2 : L + (t - t0) / span * (W - L - R), Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4, y = Y(v); el('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: 'var(--line)' }); el('text', { x: L - 6, y: y + 4, 'text-anchor': 'end' }, fmtNum(v)); }
+  el('text', { x: L, y: H - 6 }, fmtDate(ymd(new Date(t0)))); el('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, fmtDate(ymd(new Date(t1))));
+  for (const [k, color] of lines) {
+    if (pts.length > 1) el('polyline', { points: pts.map((p) => X(p.t) + ',' + Y(val(p, k))).join(' '), fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' });
+    pts.forEach((p) => { const c = el('circle', { cx: X(p.t), cy: Y(val(p, k)), r: 3.5, fill: color }); c.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: fmtDate(p.e.date) + ': ' + fmtVal(m, p.e.value) })); });
+  }
+  return svg;
+}
+function render() {
+  if (!$('date').value) $('date').value = ymd(new Date());
+  fill($('metric'), 0, true); fill($('cmetric'), 0, false);
+  if (!$('vals').children.length) valueInputs();
+  const m = metricOf($('cmetric').value), box = $('chart'), st = $('stats');
+  const pts = m ? series(m, +$('range').value) : [];
+  if (!m || !pts.length) { box.replaceChildren(h('p', { class: 'muted' }, 'Noch keine Werte im gewählten Zeitraum.')); st.replaceChildren(); }
+  else {
+    box.replaceChildren(...[drawChart(m, pts), m.kind === 'bp' ? h('div', { class: 'legend' }, h('span', {}, h('i', { style: 'background:' + COLORS[0] }), 'Oben (sys)'), h('span', {}, h('i', { style: 'background:' + COLORS[1] }), 'Unten (dia)')) : null].filter(Boolean));
+    const keys = m.kind === 'bp' ? ['sys', 'dia'] : [null];
+    const cells = [];
+    for (const k of keys) {
+      const vs = pts.map((p) => k ? p.e.value[k] : p.e.value), lab = k ? (k === 'sys' ? 'Oben ' : 'Unten ') : '';
+      cells.push(h('div', {}, h('b', {}, fmtNum(vs[vs.length - 1])), lab + 'zuletzt'), h('div', {}, h('b', {}, fmtNum(vs.reduce((a, b) => a + b, 0) / vs.length)), lab + 'Ø'),
+        h('div', {}, h('b', {}, fmtNum(Math.min(...vs)) + ' – ' + fmtNum(Math.max(...vs))), lab + 'Min–Max'));
+    }
+    st.replaceChildren(...cells);
+  }
+  const rows = store.data.entries.slice().sort((a, b) => stamp(b).localeCompare(stamp(a))).slice(0, 60);
+  $('list').replaceChildren(...[rows.length ? h('table', {}, h('tbody', {}, rows.map((e) => { const mm = metricOf(e.metric);
+    return h('tr', {}, h('td', {}, fmtDate(e.date) + (e.time ? ' ' + e.time : '')), h('td', {}, mm ? mm.name : e.metric), h('td', {}, fmtVal(mm, e.value)), h('td', { class: 'muted' }, e.note || ''),
+      h('td', {}, h('button', { class: 'small', title: 'Löschen', onclick: () => { store.data.entries = store.data.entries.filter((x) => x !== e); store.changed(); render(); } }, '✕')));
+  }))) : h('p', { class: 'muted' }, 'Noch keine Einträge.'), store.data.entries.length > 60 ? h('p', { class: 'muted' }, 'Es werden die letzten 60 Einträge angezeigt (der Export enthält alle).') : null].filter(Boolean));
+  $('mlist').replaceChildren(...store.data.metrics.map((mm) => h('div', { class: 'row', style: 'padding:3px 0' }, h('span', { style: 'flex:1' }, mm.name + (mm.unit ? ' (' + mm.unit + ')' : '') + ' · ' + KINDS[mm.kind]),
+    h('button', { class: 'small', title: 'Löschen', onclick: () => { const n = store.data.entries.filter((e) => e.metric === mm.id).length;
+      if (confirm('Messwert „' + mm.name + '“' + (n ? ' und seine ' + n + ' Einträge' : '') + ' löschen?')) { store.data.metrics = store.data.metrics.filter((x) => x !== mm); store.data.entries = store.data.entries.filter((e) => e.metric !== mm.id); store.changed(); $('vals').replaceChildren(); render(); } } }, '✕'))));
+}
+$('metric').onchange = valueInputs;
+$('cmetric').onchange = render; $('range').onchange = render;
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const m = metricOf($('metric').value); if (!m) return;
+  let value;
+  if (m.kind === 'bp') { const s = num($('v1').value), d = num($('v2').value); if (!(s > 0 && d > 0)) { alert('Bitte beide Blutdruckwerte als Zahl eingeben.'); return; } value = { sys: s, dia: d }; }
+  else if (m.kind === 'note') value = $('v1').value.trim();
+  else { value = num($('v1').value); if (isNaN(value)) { alert('Bitte eine Zahl eingeben.'); return; } if (m.kind === 'scale') value = Math.min(10, Math.max(0, value)); }
+  store.data.entries.push({ id: uid(), date: $('date').value, time: $('time').value, metric: m.id, value, note: $('note').value.trim() });
+  $('note').value = ''; $('time').value = ''; valueInputs(); store.changed(); render();
+};
+$('mform').onsubmit = (e) => {
+  e.preventDefault();
+  const name = $('mname').value.trim(); let id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-') || uid(); if (metricOf(id)) id += '-' + uid().slice(0, 3);
+  store.data.metrics.push({ id, name, unit: $('munit').value.trim(), kind: $('mkind').value }); $('mform').reset(); store.changed(); render();
+};
+$('csv').onclick = () => {
+  const cell = (v) => { v = String(v ?? ''); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const rows = [['Datum', 'Zeit', 'Messwert', 'Wert', 'Einheit', 'Notiz']].concat(store.data.entries.slice().sort((a, b) => stamp(a).localeCompare(stamp(b))).map((e) => {
+    const m = metricOf(e.metric) || { name: e.metric, unit: '', kind: 'note' };
+    const v = m.kind === 'bp' ? e.value.sys + '/' + e.value.dia : m.kind === 'note' ? e.value : String(e.value).replace('.', ',');
+    return [e.date, e.time || '', m.name, v, m.unit, e.note || ''];
+  }));
+  download('gesundheitsprotokoll.csv', '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
