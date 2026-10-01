@@ -73,3 +73,7 @@ html[data-bgimg] .tile { background:color-mix(in srgb, var(--card) 90%, transpar
 .tile-icon { font-size:2rem; line-height:1; }
 .tile strong { font-size:1.05rem; }
 .tile small { color:var(--muted); line-height:1.4; }
+.tile-groups .tiles { margin:0; }
+.tile-group { margin:16px 0; padding:10px 14px 14px; border:1px dashed var(--accent); border-radius:16px; }
+.tile-group h2 { font-size:1rem; margin:0 0 10px; } .tile-group h2 small { color:var(--muted); font-weight:400; }
+.tile-groups > .tiles { margin-top:16px; }
