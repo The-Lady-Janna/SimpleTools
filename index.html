@@ -5,17 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>SimpleTools</title>
 <link rel="stylesheet" href="shared/style.css">
+<script src="shared/ui.js"></script>
 </head>
 <body>
-<main>
+<main style="max-width:1000px">
   <h1>SimpleTools</h1>
-  <p>Kleine Tools als einzelne HTML-Seiten. Die Daten bleiben lokal auf deinem Rechner (JSON-Datei). Bitte Chrome oder Edge verwenden.</p>
-  <div class="card"><a href="tools/adhs-werkzeuge.html"><strong>ADHS-Werkzeuge</strong></a><br><small>Brain Dump, Zeitschätzung, Entscheidungshilfe – mit Link zur Extra-Seite</small></div>
-  <div class="card"><a href="tools/adhs-werkzeuge-extra.html"><strong>ADHS-Werkzeuge Extra</strong></a><br><small>Tagesplan, Gewohnheiten, Energie-Tagebuch, Belohnungen, Body Doubling, Ablage-Merker (gleiche Datei wie die Hauptseite)</small></div>
-  <div class="card"><a href="tools/zeitraster.html"><strong>Zeitraster</strong></a><br><small>Visueller Timer (100×100 Raster), Fokus-Runden, Aufgaben-Zerleger und Routinen</small></div>
-  <div class="card"><a href="tools/raumplan.html"><strong>Raumplan</strong></a><br><small>Raum als Raster zeichnen, Assets mit Typ, Icon, Status (farbig) und konfigurierbaren Feldern</small></div>
-  <div class="card"><a href="tools/kanban.html"><strong>Kanban</strong></a><br><small>Mehrere Boards, Swimlanes, Spalten, Farben, Markdown, Tags, Fälligkeit, Archiv, Export</small></div>
-  <div class="card"><a href="tools/todo.html"><strong>Aufgabenliste</strong></a><br><small>Einfache To-do-Liste – Beispiel-Tool</small></div>
+  <p>Kleine Tools als einzelne HTML-Seiten. Die Daten bleiben lokal auf deinem Rechner (JSON-Datei). Bitte Chrome oder Edge verwenden. Design und Hintergrundbild stellst du über 🎨 unten rechts ein.</p>
+  <div class="tiles">
+    <a class="tile" href="tools/adhs-werkzeuge.html"><span class="tile-icon" aria-hidden="true">🧠</span><strong>ADHS-Werkzeuge</strong><small>Brain Dump, Zeitschätzung, Entscheidungshilfe – mit Link zur Extra-Seite</small></a>
+    <a class="tile" href="tools/adhs-werkzeuge-extra.html"><span class="tile-icon" aria-hidden="true">✨</span><strong>ADHS-Werkzeuge Extra</strong><small>Tagesplan, Gewohnheiten, Energie-Tagebuch, Belohnungen, Body Doubling, Ablage-Merker (gleiche Datei wie die Hauptseite)</small></a>
+    <a class="tile" href="tools/zeitraster.html"><span class="tile-icon" aria-hidden="true">⏱️</span><strong>Zeitraster</strong><small>Visueller Timer (100×100 Raster), Fokus-Runden, Aufgaben-Zerleger und Routinen</small></a>
+    <a class="tile" href="tools/raumplan.html"><span class="tile-icon" aria-hidden="true">🗺️</span><strong>Raumplan</strong><small>Raum als Raster zeichnen, Assets mit Typ, Icon, Status (farbig) und konfigurierbaren Feldern</small></a>
+    <a class="tile" href="tools/kanban.html"><span class="tile-icon" aria-hidden="true">📋</span><strong>Kanban</strong><small>Mehrere Boards, Swimlanes, Spalten, Farben, Markdown, Tags, Fälligkeit, Archiv, Export</small></a>
+    <a class="tile" href="tools/todo.html"><span class="tile-icon" aria-hidden="true">✅</span><strong>Aufgabenliste</strong><small>Einfache To-do-Liste – Beispiel-Tool</small></a>
+  </div>
 </main>
 </body>
 </html>
