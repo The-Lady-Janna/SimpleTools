@@ -11,18 +11,30 @@
 <main style="max-width:1000px">
   <h1>SimpleTools</h1>
   <p>Kleine Tools als einzelne HTML-Seiten. Die Daten bleiben lokal auf deinem Rechner (JSON-Datei). Bitte Chrome oder Edge verwenden. Design und Hintergrundbild stellst du über 🎨 unten rechts ein.</p>
-  <div class="tiles">
-    <a class="tile" href="tools/adhs-werkzeuge.html"><span class="tile-icon" aria-hidden="true">🧠</span><strong>ADHS-Werkzeuge</strong><small>Brain Dump, Zeitschätzung, Entscheidungshilfe – mit Link zur Extra-Seite</small></a>
-    <a class="tile" href="tools/adhs-werkzeuge-extra.html"><span class="tile-icon" aria-hidden="true">✨</span><strong>ADHS-Werkzeuge Extra</strong><small>Tagesplan, Gewohnheiten, Energie-Tagebuch, Belohnungen, Body Doubling, Ablage-Merker (gleiche Datei wie die Hauptseite)</small></a>
-    <a class="tile" href="tools/zeitraster.html"><span class="tile-icon" aria-hidden="true">⏱️</span><strong>Zeitraster</strong><small>Visueller Timer (100×100 Raster), Fokus-Runden, Aufgaben-Zerleger und Routinen</small></a>
-    <a class="tile" href="tools/raumplan.html"><span class="tile-icon" aria-hidden="true">🗺️</span><strong>Raumplan</strong><small>Raum als Raster zeichnen, Assets mit Typ, Icon, Status (farbig) und konfigurierbaren Feldern</small></a>
-    <a class="tile" href="tools/kanban.html"><span class="tile-icon" aria-hidden="true">📋</span><strong>Kanban</strong><small>Mehrere Boards, Swimlanes, Spalten, Farben, Markdown, Tags, Fälligkeit, Archiv, Export</small></a>
-    <a class="tile" href="tools/todo.html"><span class="tile-icon" aria-hidden="true">✅</span><strong>Aufgabenliste</strong><small>Einfache To-do-Liste – Beispiel-Tool</small></a>
-    <a class="tile" href="tools/haushaltsbuch.html"><span class="tile-icon" aria-hidden="true">💶</span><strong>Haushaltsbuch</strong><small>Einnahmen und Ausgaben mit Kategorien, Monatsübersicht, Budgets, Diagramm und CSV-Export</small></a>
-    <a class="tile" href="tools/einkauf.html"><span class="tile-icon" aria-hidden="true">🛒</span><strong>Einkaufsliste &amp; Vorrat</strong><small>Liste nach Bereichen, wiederkehrende Artikel, Vorrat mit Mindestmenge und Haltbarkeit</small></a>
-    <a class="tile" href="tools/essensplaner.html"><span class="tile-icon" aria-hidden="true">🍽️</span><strong>Essensplaner</strong><small>Wochenplan per Drag &amp; Drop, Rezepte mit Zutaten und automatische Einkaufsliste</small></a>
-    <a class="tile" href="tools/fristen.html"><span class="tile-icon" aria-hidden="true">📅</span><strong>Fristen &amp; Verträge</strong><small>Abos, Versicherungen, Garantien und Termine mit Kündigungsfrist, Kosten und Kalender-Export</small></a>
-    <a class="tile" href="tools/notizen.html"><span class="tile-icon" aria-hidden="true">📝</span><strong>Notizbuch</strong><small>Notizen mit Tags, Volltextsuche und Verknüpfungen per [[Titel]]</small></a>
+  <div class="tile-groups">
+    <section class="tile-group" aria-label="ADHS-Werkzeuge">
+      <h2>ADHS-Werkzeuge <small>· Teilen sich eine Datei</small></h2>
+      <div class="tiles">
+        <a class="tile" href="tools/adhs-werkzeuge.html"><span class="tile-icon" aria-hidden="true">🧠</span><strong>ADHS-Werkzeuge</strong><small>Brain Dump, Zeitschätzung, Entscheidungshilfe – mit Link zur Extra-Seite</small></a>
+        <a class="tile" href="tools/adhs-werkzeuge-extra.html"><span class="tile-icon" aria-hidden="true">✨</span><strong>ADHS-Werkzeuge Extra</strong><small>Tagesplan, Gewohnheiten, Energie-Tagebuch, Belohnungen, Body Doubling, Ablage-Merker (gleiche Datei wie die Hauptseite)</small></a>
+      </div>
+    </section>
+    <section class="tile-group" aria-label="Essen &amp; Einkauf">
+      <h2>Essen &amp; Einkauf <small>· Teilen sich eine Datei</small></h2>
+      <div class="tiles">
+        <a class="tile" href="tools/essensplaner.html"><span class="tile-icon" aria-hidden="true">🍽️</span><strong>Essensplaner</strong><small>Wochenplan per Drag &amp; Drop, Rezepte mit Zutaten und automatische Einkaufsliste</small></a>
+        <a class="tile" href="tools/einkauf.html"><span class="tile-icon" aria-hidden="true">🛒</span><strong>Einkaufsliste &amp; Vorrat</strong><small>Liste nach Bereichen, wiederkehrende Artikel, Vorrat mit Mindestmenge und Haltbarkeit</small></a>
+      </div>
+    </section>
+    <div class="tiles">
+      <a class="tile" href="tools/zeitraster.html"><span class="tile-icon" aria-hidden="true">⏱️</span><strong>Zeitraster</strong><small>Visueller Timer (100×100 Raster), Fokus-Runden, Aufgaben-Zerleger und Routinen</small></a>
+      <a class="tile" href="tools/raumplan.html"><span class="tile-icon" aria-hidden="true">🗺️</span><strong>Raumplan</strong><small>Raum als Raster zeichnen, Assets mit Typ, Icon, Status (farbig) und konfigurierbaren Feldern</small></a>
+      <a class="tile" href="tools/kanban.html"><span class="tile-icon" aria-hidden="true">📋</span><strong>Kanban</strong><small>Mehrere Boards, Swimlanes, Spalten, Farben, Markdown, Tags, Fälligkeit, Archiv, Export</small></a>
+      <a class="tile" href="tools/todo.html"><span class="tile-icon" aria-hidden="true">✅</span><strong>Aufgabenliste</strong><small>Einfache To-do-Liste – Beispiel-Tool</small></a>
+      <a class="tile" href="tools/haushaltsbuch.html"><span class="tile-icon" aria-hidden="true">💶</span><strong>Haushaltsbuch</strong><small>Einnahmen und Ausgaben mit Kategorien, Monatsübersicht, Budgets, Diagramm und CSV-Export</small></a>
+      <a class="tile" href="tools/fristen.html"><span class="tile-icon" aria-hidden="true">📅</span><strong>Fristen &amp; Verträge</strong><small>Abos, Versicherungen, Garantien und Termine mit Kündigungsfrist, Kosten und Kalender-Export</small></a>
+      <a class="tile" href="tools/notizen.html"><span class="tile-icon" aria-hidden="true">📝</span><strong>Notizbuch</strong><small>Notizen mit Tags, Volltextsuche und Verknüpfungen per [[Titel]]</small></a>
+    </div>
   </div>
 </main>
 </body>
