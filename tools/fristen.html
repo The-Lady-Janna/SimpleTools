@@ -82,7 +82,7 @@ function h(tag, props, ...kids) {
     else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
     else e[k] = props[k];
   }
-  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
   return e;
 }
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);

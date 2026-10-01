@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gewohnheiten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  table.grid { border-collapse:separate; border-spacing:0; width:100%; }
+  table.grid th, table.grid td { padding:4px 3px; text-align:center; border-bottom:1px solid var(--line); }
+  table.grid th.nm, table.grid td.nm { text-align:left; position:sticky; left:0; background:var(--card); z-index:1; padding-right:10px; min-width:130px; max-width:200px; }
+  .scroll { overflow-x:auto; }
+  .cell { width:30px; height:30px; padding:0; border-radius:8px; border:1px solid var(--line); background:var(--bg); font-size:.95rem; line-height:1; }
+  .cell.sched { border-color:color-mix(in srgb, var(--accent) 45%, var(--line)); }
+  .cell.done { background:var(--ok); border-color:var(--ok); color:var(--on-ok); }
+  .cell.today { box-shadow:0 0 0 2px var(--accent); }
+  .cell.future { opacity:.45; }
+  th.today { color:var(--accent); }
+  .streak { white-space:nowrap; font-size:.85rem; color:var(--muted); }
+  .big { display:flex; align-items:center; gap:12px; width:100%; text-align:left; padding:12px 14px; margin:6px 0; font-size:1.05rem; }
+  .big.done { background:color-mix(in srgb, var(--ok) 16%, var(--card)); border-color:var(--ok); }
+  .big .ck { width:26px; height:26px; border-radius:50%; border:2px solid var(--line); display:flex; align-items:center; justify-content:center; flex:none; }
+  .big.done .ck { background:var(--ok); border-color:var(--ok); color:var(--on-ok); }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--ok); }
+  .days { display:flex; gap:4px; } .days label { display:flex; flex-direction:column; align-items:center; font-size:.75rem; color:var(--muted); }
+  .hrow { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Gewohnheiten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="putzplan.html">Putzplan</a>.</p>
+  <div class="tabs"><button data-tab="today">Heute</button><button data-tab="week">Woche</button><button data-tab="month">Monat</button><button data-tab="manage">Verwalten</button></div>
+  <div class="card toolbar" id="nav">
+    <button id="prev" aria-label="Zurück">‹</button><strong id="label"></strong><button id="next" aria-label="Weiter">›</button><button id="now">Heute</button>
+  </div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'routinen',
+  defaults: () => ({ habits: [], habitLog: {}, chores: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const wdIdx = (d) => (d.getDay() + 6) % 7;
+let tab = 'today', anchor = new Date(), editId = null;
+function normalize() {
+  const d = store.data;
+  for (const k of ['habits', 'chores']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!d.habitLog || typeof d.habitLog !== 'object' || Array.isArray(d.habitLog)) d.habitLog = {};
+}
+const today0 = () => parseYmd(ymd(new Date()));
+const isDone = (h, key) => (store.data.habitLog[key] || []).includes(h.id);
+const scheduled = (h, date) => (h.days && h.days.length ? h.days : [0, 1, 2, 3, 4, 5, 6]).includes(wdIdx(date));
+function toggle(h, key) {
+  const log = store.data.habitLog, arr = log[key] || (log[key] = []), i = arr.indexOf(h.id);
+  if (i >= 0) arr.splice(i, 1); else arr.push(h.id);
+  if (!arr.length) delete log[key];
+  store.changed(); render();
+}
+function streak(h) {
+  let n = 0; const d = today0();
+  for (let g = 0; g < 1500; g++, d.setDate(d.getDate() - 1)) {
+    if (!scheduled(h, d)) continue;
+    if (isDone(h, ymd(d))) n++; else if (g === 0) continue; else break;
+  }
+  return n;
+}
+function dayCell(hb, date) {
+  const key = ymd(date), t = ymd(new Date());
+  const b = h('button', { class: 'cell' + (scheduled(hb, date) ? ' sched' : '') + (isDone(hb, key) ? ' done' : '') + (key === t ? ' today' : '') + (key > t ? ' future' : ''),
+    title: hb.name + ' – ' + fmtDate(key), 'aria-pressed': String(isDone(hb, key)), 'aria-label': hb.name + ' ' + fmtDate(key) }, isDone(hb, key) ? '✓' : '');
+  b.onclick = () => toggle(hb, key);
+  return b;
+}
+const monday = (d) => { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - wdIdx(x)); return x; };
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('nav').hidden = tab === 'today' || tab === 'manage';
+  const v = $('view'), hs = store.data.habits;
+  if (tab === 'manage') return v.replaceChildren(manageView());
+  if (!hs.length && tab !== 'manage') return v.replaceChildren(h('div', { class: 'card' }, 'Noch keine Gewohnheiten. Lege unter „Verwalten“ welche an.'));
+  if (tab === 'today') return v.replaceChildren(todayView());
+  if (tab === 'week') {
+    const start = monday(anchor), days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
+    $('label').textContent = fmtDate(ymd(days[0])).slice(0, 6) + ' – ' + fmtDate(ymd(days[6]));
+    const t = ymd(new Date());
+    return v.replaceChildren(h('div', { class: 'card scroll' }, h('table', { class: 'grid' },
+      h('thead', {}, h('tr', {}, h('th', { class: 'nm' }, ''), days.map((d) => h('th', { class: ymd(d) === t ? 'today' : '' }, WD[wdIdx(d)], h('div', { class: 'muted', style: 'font-size:.75rem;font-weight:400' }, d.getDate()))), h('th', {}, 'Woche'), h('th', {}, 'Serie'))),
+      h('tbody', {}, hs.map((hb) => {
+        const sched = days.filter((d) => scheduled(hb, d)), done = sched.filter((d) => isDone(hb, ymd(d))).length;
+        return h('tr', {}, h('td', { class: 'nm' }, (hb.icon ? hb.icon + ' ' : '') + hb.name), days.map((d) => h('td', {}, dayCell(hb, d))),
+          h('td', { class: 'streak' }, done + '/' + sched.length), h('td', { class: 'streak' }, streak(hb) ? '🔥 ' + streak(hb) : '–'));
+      })))));
+  }
+  const y = anchor.getFullYear(), m = anchor.getMonth(), n = new Date(y, m + 1, 0).getDate();
+  $('label').textContent = anchor.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  const days = Array.from({ length: n }, (_, i) => new Date(y, m, i + 1)), t = ymd(new Date());
+  v.replaceChildren(h('div', { class: 'card scroll' }, h('table', { class: 'grid' },
+    h('thead', {}, h('tr', {}, h('th', { class: 'nm' }, ''), days.map((d) => h('th', { class: ymd(d) === t ? 'today' : '', style: 'font-size:.75rem' }, d.getDate(), h('div', { class: 'muted', style: 'font-weight:400' }, WD[wdIdx(d)][0]))), h('th', {}, '%'))),
+    h('tbody', {}, hs.map((hb) => {
+      const past = days.filter((d) => ymd(d) <= t && scheduled(hb, d)), done = past.filter((d) => isDone(hb, ymd(d))).length;
+      return h('tr', {}, h('td', { class: 'nm' }, (hb.icon ? hb.icon + ' ' : '') + hb.name), days.map((d) => h('td', {}, dayCell(hb, d))), h('td', { class: 'streak' }, past.length ? Math.round(done / past.length * 100) + ' %' : '–'));
+    })))));
+}
+function todayView() {
+  const d = today0(), key = ymd(d), due = store.data.habits.filter((x) => scheduled(x, d));
+  const done = due.filter((x) => isDone(x, key)).length;
+  return h('div', { class: 'card' },
+    h('h2', { style: 'margin:0 0 6px;font-size:1.1rem' }, d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })),
+    due.length ? [h('div', { class: 'bar' }, h('i', { style: 'width:' + (done / due.length * 100) + '%' })), h('p', { class: 'muted', style: 'margin:4px 0 8px' }, done + ' von ' + due.length + ' erledigt' + (done === due.length ? ' 🎉' : ''))] : h('p', { class: 'muted' }, 'Heute ist nichts geplant.'),
+    due.map((hb) => { const b = h('button', { class: 'big' + (isDone(hb, key) ? ' done' : ''), 'aria-pressed': String(isDone(hb, key)) },
+      h('span', { class: 'ck' }, isDone(hb, key) ? '✓' : ''), h('span', { style: 'flex:1' }, (hb.icon ? hb.icon + ' ' : '') + hb.name), h('span', { class: 'streak' }, streak(hb) ? '🔥 ' + streak(hb) : ''));
+      b.onclick = () => toggle(hb, key); return b; }));
+}
+function manageView() {
+  const form = h('form', { class: 'card toolbar' });
+  const name = h('input', { type: 'text', required: true, placeholder: 'Neue Gewohnheit, z. B. Wasser trinken', class: 'sp', 'aria-label': 'Name' });
+  const icon = h('input', { type: 'text', maxLength: 4, placeholder: '🙂', style: 'width:3.5em', 'aria-label': 'Symbol' });
+  const boxes = WD.map((w, i) => h('input', { type: 'checkbox', checked: true, 'aria-label': w }));
+  const days = h('div', { class: 'days' }, WD.map((w, i) => h('label', {}, w, boxes[i])));
+  const submit = h('button', { class: 'primary' }, 'Hinzufügen'), cancel = h('button', { type: 'button', hidden: true }, 'Abbrechen');
+  const cur = editId && store.data.habits.find((x) => x.id === editId);
+  if (cur) { name.value = cur.name; icon.value = cur.icon || ''; boxes.forEach((b, i) => b.checked = !cur.days || !cur.days.length || cur.days.includes(i)); submit.textContent = 'Übernehmen'; cancel.hidden = false; }
+  form.append(icon, name, days, submit, cancel);
+  cancel.onclick = () => { editId = null; render(); };
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const ds = boxes.map((b, i) => b.checked ? i : -1).filter((i) => i >= 0);
+    const rec = { name: name.value.trim(), icon: icon.value.trim(), days: ds.length === 7 ? [] : ds.length ? ds : [] };
+    if (cur) Object.assign(cur, rec); else store.data.habits.push({ id: uid(), ...rec });
+    editId = null; store.changed(); render();
+  };
+  return h('div', {}, form, h('div', { class: 'card' }, store.data.habits.length ? store.data.habits.map((hb) => h('div', { class: 'hrow' },
+    h('span', { style: 'flex:1' }, (hb.icon ? hb.icon + ' ' : '') + hb.name, ' ', h('span', { class: 'muted' }, hb.days && hb.days.length ? hb.days.map((i) => WD[i]).join(' ') : 'täglich')),
+    h('button', { class: 'small', onclick: () => { editId = hb.id; render(); } }, '✎'),
+    h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('„' + hb.name + '“ und alle Haken dazu löschen?')) {
+      store.data.habits = store.data.habits.filter((x) => x !== hb);
+      for (const k of Object.keys(store.data.habitLog)) { store.data.habitLog[k] = store.data.habitLog[k].filter((i) => i !== hb.id); if (!store.data.habitLog[k].length) delete store.data.habitLog[k]; }
+      store.changed(); render(); } } }, '✕'))) : h('p', { class: 'muted' }, 'Noch keine Gewohnheiten.')));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; editId = null; render(); });
+const step = (dir) => { if (tab === 'week') anchor.setDate(anchor.getDate() + 7 * dir); else anchor = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1); render(); };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1); $('now').onclick = () => { anchor = new Date(); render(); };
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

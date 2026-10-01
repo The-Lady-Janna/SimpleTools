@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entscheidungs-Matrix</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .scroll { overflow-x:auto; }
+  table.m { border-collapse:collapse; width:100%; } table.m th, table.m td { padding:6px; border-bottom:1px solid var(--line); text-align:center; vertical-align:middle; }
+  table.m th.l, table.m td.l { text-align:left; min-width:140px; }
+  table.m select, table.m input[type=text] { max-width:100%; }
+  td.score select { width:4.2em; }
+  .rank { display:flex; align-items:center; gap:10px; padding:5px 0; }
+  .rank .nm { width:30%; min-width:110px; } .rank .bar { flex:1; height:16px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .rank .bar i { display:block; height:100%; background:var(--accent); } .rank.first .bar i { background:var(--ok); } .rank.first .nm { font-weight:700; }
+  .rank .pct { width:4.5em; text-align:right; }
+  .small-in { width:100%; min-width:90px; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Entscheidungs-Matrix</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="card toolbar">
+    <label>Entscheidung <select id="sel"></select></label>
+    <button id="newm" class="primary">+ Neue Entscheidung</button>
+    <button id="delm">Löschen</button>
+  </div>
+  <div id="main"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'entscheidung',
+  defaults: () => ({ matrices: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let curId = null;
+function normalize() { if (!Array.isArray(store.data.matrices)) store.data.matrices = []; if (!store.data.matrices.find((m) => m.id === curId)) curId = store.data.matrices[0] ? store.data.matrices[0].id : null; }
+const cur = () => store.data.matrices.find((m) => m.id === curId);
+function totals(m) {
+  const wsum = m.criteria.reduce((a, c) => a + c.weight, 0) || 1;
+  return m.options.map((o) => ({ o, pct: m.criteria.reduce((a, c) => a + (o.scores[c.id] ?? 0) * c.weight, 0) / (10 * wsum) * 100 }));
+}
+const sel = (value, opts, onchange, label) => { const s = h('select', { 'aria-label': label }, opts.map(([v, l]) => h('option', { value: v, selected: String(v) === String(value) }, l))); s.onchange = () => onchange(s.value); return s; };
+function render() {
+  const s = $('sel'); s.replaceChildren(...store.data.matrices.map((m) => h('option', { value: m.id, selected: m.id === curId }, m.name || 'Ohne Namen')));
+  $('delm').disabled = !cur();
+  const m = cur(), main = $('main');
+  if (!m) return main.replaceChildren(h('div', { class: 'card muted' }, 'Lege eine Entscheidung an, z. B. „Neues Handy“, und vergleiche Optionen nach gewichteten Kriterien.'));
+  const tot = totals(m), ranked = tot.slice().sort((a, b) => b.pct - a.pct);
+  const name = h('input', { type: 'text', value: m.name, class: 'small-in', style: 'font-size:1.1rem;font-weight:600', 'aria-label': 'Name der Entscheidung' });
+  name.oninput = () => { m.name = name.value; store.changed(); const o = $('sel').selectedOptions[0]; if (o) o.textContent = m.name || 'Ohne Namen'; };
+  const rank = h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 6px;font-size:1.05rem' }, 'Ergebnis'),
+    ranked.length && m.criteria.length ? ranked.map((r, i) => h('div', { class: 'rank' + (i === 0 && r.pct > 0 ? ' first' : '') }, h('span', { class: 'nm' }, (i === 0 && r.pct > 0 ? '🏆 ' : (i + 1) + '. ') + (r.o.name || '–')),
+      h('span', { class: 'bar' }, h('i', { style: 'width:' + r.pct + '%' })), h('span', { class: 'pct' }, Math.round(r.pct) + ' %'))) : h('p', { class: 'muted', style: 'margin:0' }, 'Füge unten Kriterien und Optionen hinzu.'));
+
+  const head = h('tr', {}, h('th', { class: 'l' }, 'Option'),
+    m.criteria.map((c) => { const n = h('input', { type: 'text', value: c.name, class: 'small-in', 'aria-label': 'Kriterium' }); n.oninput = () => { c.name = n.value; store.changed(); };
+      return h('th', {}, n, h('div', {}, h('small', { class: 'muted' }, 'Gewicht '), sel(c.weight, [1, 2, 3, 4, 5].map((x) => [x, x]), (v) => { c.weight = +v; store.changed(); render(); }, 'Gewicht ' + c.name)),
+        h('button', { class: 'small', title: 'Kriterium entfernen', onclick: () => { m.criteria = m.criteria.filter((x) => x !== c); m.options.forEach((o) => delete o.scores[c.id]); store.changed(); render(); } }, '✕')); }),
+    h('th', {}, 'Summe'), h('th', {}, ''));
+  const rows = m.options.map((o) => {
+    const n = h('input', { type: 'text', value: o.name, class: 'small-in', 'aria-label': 'Option' }); n.oninput = () => { o.name = n.value; store.changed(); };
+    const t = tot.find((x) => x.o === o);
+    return h('tr', {}, h('td', { class: 'l' }, n), m.criteria.map((c) => h('td', { class: 'score' }, sel(o.scores[c.id] ?? 0, Array.from({ length: 11 }, (_, i) => [i, i]), (v) => { o.scores[c.id] = +v; store.changed(); render(); }, o.name + ' – ' + c.name))),
+      h('td', {}, h('strong', {}, Math.round(t.pct) + ' %')), h('td', {}, h('button', { class: 'small', title: 'Option entfernen', onclick: () => { m.options = m.options.filter((x) => x !== o); store.changed(); render(); } }, '✕')));
+  });
+  const addC = h('button', { onclick: () => { m.criteria.push({ id: uid(), name: 'Kriterium ' + (m.criteria.length + 1), weight: 3 }); store.changed(); render(); } }, '+ Kriterium');
+  const addO = h('button', { onclick: () => { m.options.push({ id: uid(), name: 'Option ' + (m.options.length + 1), scores: {} }); store.changed(); render(); } }, '+ Option');
+  main.replaceChildren(h('div', { class: 'card' }, name), rank,
+    h('div', { class: 'card' }, h('div', { class: 'scroll' }, h('table', { class: 'm' }, h('thead', {}, head), h('tbody', {}, rows))), h('div', { class: 'row', style: 'margin-top:10px' }, addC, addO),
+      h('p', { class: 'muted', style: 'margin:8px 0 0' }, 'Punkte 0–10 pro Kriterium (10 = optimal). Das Gewicht (1–5) bestimmt, wie wichtig das Kriterium ist. Bei Kosten: wenig Kosten = viele Punkte.')));
+}
+$('sel').onchange = () => { curId = $('sel').value; render(); };
+$('newm').onclick = () => {
+  const name = prompt('Worüber entscheidest du?', ''); if (name === null) return;
+  const c = ['Preis', 'Qualität', 'Aufwand'].map((n) => ({ id: uid(), name: n, weight: 3 }));
+  const m = { id: uid(), name: name.trim() || 'Neue Entscheidung', criteria: c, options: [{ id: uid(), name: 'Option 1', scores: {} }, { id: uid(), name: 'Option 2', scores: {} }] };
+  store.data.matrices.push(m); curId = m.id; store.changed(); render();
+};
+$('delm').onclick = () => { const m = cur(); if (m && confirm('„' + m.name + '“ löschen?')) { store.data.matrices = store.data.matrices.filter((x) => x !== m); curId = null; normalize(); store.changed(); render(); } };
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
