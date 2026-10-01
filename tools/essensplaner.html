@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Essensplaner</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .week { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:8px; }
+  @media (max-width: 800px) { .week { grid-template-columns:1fr; } }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px; min-width:0; }
+  .day.today { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .day h3 { margin:0 0 6px; font-size:.9rem; }
+  .slot { margin-bottom:6px; }
+  .slot label { font-size:.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  .slot input { width:100%; min-width:0; font-size:.9rem; padding:4px 6px; }
+  .slot.over input { border-color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { padding:3px 10px; border:1px solid var(--line); border-radius:99px; background:var(--bg); cursor:grab; user-select:none; }
+  .chip:hover { border-color:var(--accent); }
+  .recipe { border-bottom:1px solid var(--line); padding:6px 0; display:flex; gap:8px; align-items:flex-start; }
+  .recipe .nm { flex:1; } .recipe pre { margin:2px 0 0; font:inherit; font-size:.85rem; color:var(--muted); white-space:pre-wrap; }
+  textarea { width:100%; min-height:90px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; } @media (max-width: 800px) { .grid2 { grid-template-columns:1fr; } }
+  .shop li { padding:2px 0; } .shop { margin:6px 0 0; padding-left:20px; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Essensplaner</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="card toolbar">
+    <button id="prev" aria-label="Vorherige Woche">‹</button>
+    <strong id="wlabel"></strong>
+    <button id="next" aria-label="Nächste Woche">›</button>
+    <button id="today">Heute</button>
+    <span class="sp"></span>
+    <button id="clearw">Woche leeren</button>
+  </div>
+  <div class="week" id="week"></div>
+  <p class="muted" style="margin:6px 2px">Rezepte aus der Liste unten per Drag &amp; Drop in ein Feld ziehen – oder den Rezeptnamen / freien Text eintippen.</p>
+  <div class="grid2">
+    <div class="card"><h2 style="margin:0 0 8px;font-size:1.05rem">Rezepte</h2>
+      <div class="chips" id="chips" style="margin-bottom:10px"></div>
+      <form id="form">
+        <div class="row"><input type="text" id="rname" placeholder="Name des Gerichts" required class="sp" aria-label="Name"></div>
+        <textarea id="ring" placeholder="Zutaten, eine pro Zeile (z. B. 200 g Nudeln)" aria-label="Zutaten" style="margin-top:6px"></textarea>
+        <div class="row" style="margin-top:6px"><button class="primary" id="rsave">Rezept speichern</button><button type="button" id="rcancel" hidden>Abbrechen</button></div>
+      </form>
+      <div id="recipes" style="margin-top:10px"></div></div>
+    <div class="card"><h2 style="margin:0 0 8px;font-size:1.05rem">Einkaufsliste der Woche</h2>
+      <div id="shop"></div>
+      <div class="row" style="margin-top:8px"><button id="copy">Als Text kopieren</button></div></div>
+  </div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'essensplaner',
+  defaults: () => ({ recipes: [], plan: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const SLOTS = [['lunch', 'Mittag'], ['dinner', 'Abend']];
+const UNITS = ['g', 'kg', 'ml', 'l', 'el', 'tl', 'stk', 'stück', 'pck', 'pck.', 'dose', 'dosen', 'bund', 'prise'];
+let weekStart = mondayOf(new Date());
+let editId = null;
+function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.recipes)) d.recipes = [];
+  if (!d.plan || typeof d.plan !== 'object' || Array.isArray(d.plan)) d.plan = {};
+}
+const recipeByName = (n) => store.data.recipes.find((r) => r.name.toLowerCase() === n.trim().toLowerCase());
+const weekDays = () => Array.from({ length: 7 }, (_, i) => { const d = new Date(weekStart); d.setDate(d.getDate() + i); return d; });
+function setSlot(date, slot, text) {
+  text = text.trim();
+  const day = store.data.plan[date] || (store.data.plan[date] = {});
+  if (!text) delete day[slot]; else day[slot] = text;
+  if (!Object.keys(day).length) delete store.data.plan[date];
+  store.changed();
+}
+function parseIng(line) {
+  const m = line.trim().match(/^(\d+(?:[.,]\d+)?)\s*([^\s\d]+)?\s+(.+)$/) || line.trim().match(/^(\d+(?:[.,]\d+)?)()\s*(.+)$/);
+  if (!m) return { n: null, unit: '', name: line.trim() };
+  let unit = m[2] || '', name = m[3];
+  if (unit && !UNITS.includes(unit.toLowerCase())) { name = unit + ' ' + name; unit = ''; }
+  return { n: parseFloat(m[1].replace(',', '.')), unit, name: name.trim() };
+}
+function shoppingList() {
+  const acc = new Map();
+  for (const d of weekDays()) {
+    const day = store.data.plan[ymd(d)] || {};
+    for (const [slot] of SLOTS) {
+      const r = day[slot] && recipeByName(day[slot]);
+      if (!r) continue;
+      for (const line of (r.ingredients || '').split('\n').map((s) => s.trim()).filter(Boolean)) {
+        const p = parseIng(line), key = p.name.toLowerCase() + '|' + p.unit.toLowerCase();
+        const cur = acc.get(key) || { name: p.name, unit: p.unit, sum: 0, count: 0, plain: 0 };
+        if (p.n == null) cur.plain++; else cur.sum += p.n;
+        cur.count++;
+        acc.set(key, cur);
+      }
+    }
+  }
+  return [...acc.values()].sort((a, b) => a.name.localeCompare(b.name)).map((c) => {
+    const num = c.sum ? (Math.round(c.sum * 100) / 100).toString().replace('.', ',') + (c.unit ? ' ' + c.unit : '') + ' ' : '';
+    const times = c.plain ? (c.plain > 1 ? c.plain + '× ' : '') : '';
+    return times + num + c.name;
+  });
+}
+function render() {
+  const days = weekDays();
+  const fmt = (d) => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
+  $('wlabel').textContent = fmt(days[0]) + ' – ' + fmt(days[6]) + days[6].getFullYear();
+  const todayS = ymd(new Date());
+  $('week').replaceChildren(...days.map((d) => {
+    const key = ymd(d), plan = store.data.plan[key] || {};
+    return h('div', { class: 'day' + (key === todayS ? ' today' : '') },
+      h('h3', {}, d.toLocaleDateString('de-DE', { weekday: 'short' }) + ' ' + fmt(d)),
+      SLOTS.map(([slot, label]) => {
+        const inp = h('input', { type: 'text', value: plan[slot] || '', list: 'rlist', placeholder: '–', 'aria-label': label + ' ' + fmt(d) });
+        inp.onchange = () => { setSlot(key, slot, inp.value); render(); };
+        const box = h('div', { class: 'slot' }, h('label', {}, label), inp);
+        box.ondragover = (e) => { e.preventDefault(); box.classList.add('over'); };
+        box.ondragleave = () => box.classList.remove('over');
+        box.ondrop = (e) => {
+          e.preventDefault(); box.classList.remove('over');
+          const t = e.dataTransfer.getData('text/plain'); if (t) { setSlot(key, slot, t); render(); }
+        };
+        return box;
+      }));
+  }));
+  const dl = $('rlist') || document.body.appendChild(h('datalist', { id: 'rlist' }));
+  dl.replaceChildren(...store.data.recipes.map((r) => h('option', { value: r.name })));
+
+  const rs = store.data.recipes.slice().sort((a, b) => a.name.localeCompare(b.name));
+  $('chips').replaceChildren(...(rs.length ? rs.map((r) => {
+    const c = h('span', { class: 'chip', draggable: true, title: 'In ein Feld ziehen' }, r.name);
+    c.ondragstart = (e) => { e.dataTransfer.setData('text/plain', r.name); e.dataTransfer.effectAllowed = 'copy'; };
+    return c;
+  }) : [h('span', { class: 'muted' }, 'Noch keine Rezepte.')]));
+  $('recipes').replaceChildren(...rs.map((r) => h('div', { class: 'recipe' },
+    h('div', { class: 'nm' }, h('strong', {}, r.name), r.ingredients ? h('pre', {}, r.ingredients) : null),
+    h('button', { class: 'small', onclick: () => { editId = r.id; $('rname').value = r.name; $('ring').value = r.ingredients || ''; $('rcancel').hidden = false; $('rname').focus(); } }, '✎'),
+    h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('Rezept „' + r.name + '“ löschen?')) { store.data.recipes = store.data.recipes.filter((x) => x !== r); store.changed(); render(); } } }, '✕'))));
+
+  const list = shoppingList();
+  $('shop').replaceChildren(list.length ? h('ul', { class: 'shop' }, list.map((l) => h('li', {}, l))) : h('p', { class: 'muted' }, 'Plane Rezepte mit Zutaten ein, dann erscheint hier die Einkaufsliste für die Woche.'));
+}
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const name = $('rname').value.trim(), ing = $('ring').value.trim();
+  const dup = recipeByName(name);
+  if (dup && dup.id !== editId) { alert('Ein Rezept mit diesem Namen gibt es schon.'); return; }
+  if (editId) {
+    const r = store.data.recipes.find((x) => x.id === editId);
+    if (r) {
+      const old = r.name; r.name = name; r.ingredients = ing;
+      if (old !== name) for (const day of Object.values(store.data.plan)) for (const s in day) if (day[s] === old) day[s] = name;
+    }
+  } else store.data.recipes.push({ id: uid(), name, ingredients: ing });
+  editId = null; $('form').reset(); $('rcancel').hidden = true; store.changed(); render();
+};
+$('rcancel').onclick = () => { editId = null; $('form').reset(); $('rcancel').hidden = true; };
+$('prev').onclick = () => { weekStart.setDate(weekStart.getDate() - 7); render(); };
+$('next').onclick = () => { weekStart.setDate(weekStart.getDate() + 7); render(); };
+$('today').onclick = () => { weekStart = mondayOf(new Date()); render(); };
+$('clearw').onclick = () => {
+  if (!confirm('Alle Einträge dieser Woche löschen?')) return;
+  weekDays().forEach((d) => delete store.data.plan[ymd(d)]); store.changed(); render();
+};
+$('copy').onclick = () => copyText(shoppingList().map((l) => '- ' + l).join('\n'), $('copy'));
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

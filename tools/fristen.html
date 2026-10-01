@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fristen &amp; Verträge</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.25rem; }
+  .item { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+  .item .nm { flex:1; min-width:180px; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .item.past { opacity:.6; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  input.w { width:6.5em; }
+  #banner { border-color:var(--warn); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Fristen &amp; Verträge</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="card" id="banner" hidden></div>
+  <div class="sum">
+    <div class="card"><span class="muted">Kosten pro Jahr</span><b id="syear"></b></div>
+    <div class="card"><span class="muted">Kosten pro Monat</span><b id="smonth"></b></div>
+    <div class="card"><span class="muted">Einträge</span><b id="scount"></b></div>
+  </div>
+  <form id="form" class="card form">
+    <label class="f" style="flex:1;min-width:160px">Name<input type="text" id="name" required placeholder="z. B. Handyvertrag"></label>
+    <label class="f">Art<select id="type"></select></label>
+    <label class="f">Läuft bis / Termin<input type="date" id="end" required></label>
+    <label class="f">Kündigungsfrist (Tage)<input type="number" id="notice" class="w" min="0" value="0"></label>
+    <label class="f">Verlängert sich (Monate)<input type="number" id="renew" class="w" min="0" value="0" title="0 = keine automatische Verlängerung"></label>
+    <label class="f">Kosten (€)<input type="text" id="cost" class="w" inputmode="decimal" placeholder="0"></label>
+    <label class="f">Zahlweise<select id="interval"><option value="monat">pro Monat</option><option value="jahr">pro Jahr</option><option value="einmalig">einmalig</option></select></label>
+    <label class="f" style="flex:1;min-width:140px">Notiz<input type="text" id="note"></label>
+    <button class="primary" id="submit">Hinzufügen</button><button type="button" id="cancel" hidden>Abbrechen</button>
+  </form>
+  <div class="card toolbar">
+    <label>Filter <select id="filter"></select></label>
+    <label><input type="checkbox" id="showpast"> Abgelaufene zeigen</label>
+    <span class="sp"></span>
+    <button id="ics">Kalender-Datei (.ics)</button>
+  </div>
+  <div class="card"><div id="list"></div></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'fristen',
+  defaults: () => ({ items: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const TYPES = ['Abo', 'Vertrag', 'Versicherung', 'Garantie', 'TÜV / Termin', 'Sonstiges'];
+let editId = null;
+function normalize() { if (!Array.isArray(store.data.items)) store.data.items = []; }
+function parseAmount(s) {
+  s = String(s || '').trim().replace(/\s|€/g, '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+const today0 = () => parseYmd(ymd(new Date()));
+const daysBetween = (a, b) => Math.round((b - a) / 86400000);
+// Ende nach automatischer Verlängerung (so oft verschieben, bis es nicht mehr in der Vergangenheit liegt)
+function effectiveEnd(it) {
+  let end = parseYmd(it.end);
+  const r = Math.max(0, +it.renew || 0), t = today0();
+  if (r > 0) { let guard = 0; while (end < t && guard++ < 1200) end = new Date(end.getFullYear(), end.getMonth() + r, end.getDate()); }
+  return end;
+}
+function info(it) {
+  const end = effectiveEnd(it), t = today0();
+  const notice = Math.max(0, +it.notice || 0);
+  const deadline = new Date(end); deadline.setDate(deadline.getDate() - notice);
+  const toEnd = daysBetween(t, end), toDeadline = daysBetween(t, deadline);
+  let sort, text, kind;
+  if (toEnd < 0) { sort = 1e9 + (-toEnd); text = 'abgelaufen seit ' + (-toEnd) + ' Tg.'; kind = 'past'; }
+  else if (notice > 0 && toDeadline < 0) { sort = toEnd; text = 'Kündigungsfrist verpasst – Ende in ' + toEnd + ' Tg.'; kind = 'err'; }
+  else if (notice > 0) { sort = toDeadline; text = toDeadline === 0 ? 'Heute kündigen!' : 'Kündigen in ' + toDeadline + ' Tg.'; kind = toDeadline <= 7 ? 'err' : toDeadline <= 30 ? 'warn' : 'ok'; }
+  else { sort = toEnd; text = toEnd === 0 ? 'Heute' : 'in ' + toEnd + ' Tg.'; kind = toEnd <= 7 ? 'err' : toEnd <= 30 ? 'warn' : 'ok'; }
+  return { end, deadline, toEnd, toDeadline, sort, text, kind, notice };
+}
+const yearly = (it) => { const c = +it.cost || 0; return it.interval === 'monat' ? c * 12 : it.interval === 'jahr' ? c : 0; };
+function render() {
+  const d = store.data, filter = $('filter').value || 'all';
+  if (!$('type').options.length) $('type').replaceChildren(...TYPES.map((t) => h('option', { value: t }, t)));
+  const fv = $('filter').value;
+  $('filter').replaceChildren(h('option', { value: 'all' }, 'Alle'), ...TYPES.map((t) => h('option', { value: t }, t)));
+  $('filter').value = fv || 'all';
+
+  const infos = d.items.map((it) => ({ it, i: info(it) }));
+  const active = infos.filter((x) => x.i.kind !== 'past');
+  const yr = active.reduce((a, x) => a + yearly(x.it), 0);
+  $('syear').textContent = eur(yr); $('smonth').textContent = eur(yr / 12); $('scount').textContent = active.length + (infos.length !== active.length ? ' (+' + (infos.length - active.length) + ' abgelaufen)' : '');
+
+  const urgent = active.filter((x) => x.i.kind === 'err' || x.i.kind === 'warn').sort((a, b) => a.i.sort - b.i.sort);
+  $('banner').hidden = !urgent.length;
+  if (urgent.length) $('banner').replaceChildren(h('strong', {}, '⚠ Bald fällig: '), urgent.map((x, k) => (k ? ' · ' : '') + x.it.name + ' (' + x.i.text + ')').join(''));
+
+  const showPast = $('showpast').checked;
+  const rows = infos.filter((x) => (filter === 'all' || x.it.type === filter) && (showPast || x.i.kind !== 'past')).sort((a, b) => a.i.sort - b.i.sort);
+  $('list').replaceChildren(...(rows.length ? rows.map(({ it, i }) => h('div', { class: 'item' + (i.kind === 'past' ? ' past' : '') },
+    h('div', { class: 'nm' }, h('strong', {}, it.name), ' ', h('span', { class: 'badge' }, it.type),
+      h('div', { class: 'meta' }, 'Ende: ' + fmtDate(ymd(i.end)) + (i.notice ? ' · kündigen bis ' + fmtDate(ymd(i.deadline)) : '') +
+        (+it.renew ? ' · verlängert sich um ' + it.renew + ' Mon.' : '') + (+it.cost ? ' · ' + eur(+it.cost) + (it.interval === 'monat' ? '/Monat' : it.interval === 'jahr' ? '/Jahr' : ' einmalig') : '') +
+        (it.note ? ' · ' + it.note : ''))),
+    h('span', { class: 'badge ' + (i.kind === 'past' ? '' : i.kind) }, i.text),
+    h('button', { class: 'small', title: 'Bearbeiten', onclick: () => startEdit(it) }, '✎'),
+    h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('„' + it.name + '“ löschen?')) { store.data.items = store.data.items.filter((x) => x !== it); store.changed(); render(); } } }, '✕')))
+    : [h('p', { class: 'muted' }, 'Keine Einträge.')]));
+}
+function startEdit(it) {
+  editId = it.id; $('name').value = it.name; $('type').value = it.type; $('end').value = it.end; $('notice').value = it.notice || 0; $('renew').value = it.renew || 0;
+  $('cost').value = it.cost ? String(it.cost).replace('.', ',') : ''; $('interval').value = it.interval || 'monat'; $('note').value = it.note || '';
+  $('submit').textContent = 'Übernehmen'; $('cancel').hidden = false; $('name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function resetForm() { editId = null; $('form').reset(); $('submit').textContent = 'Hinzufügen'; $('cancel').hidden = true; }
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const rec = { name: $('name').value.trim(), type: $('type').value, end: $('end').value, notice: Math.max(0, +$('notice').value || 0), renew: Math.max(0, +$('renew').value || 0),
+    cost: parseAmount($('cost').value), interval: $('interval').value, note: $('note').value.trim() };
+  if (editId) Object.assign(store.data.items.find((x) => x.id === editId) || {}, rec); else store.data.items.push({ id: uid(), ...rec });
+  resetForm(); store.changed(); render();
+};
+$('cancel').onclick = resetForm;
+$('filter').onchange = render; $('showpast').onchange = render;
+$('ics').onclick = () => {
+  const stamp = ymd(new Date()).replace(/-/g, '') + 'T000000';
+  const ev = [];
+  const add = (it, date, title) => {
+    const s = ymd(date).replace(/-/g, ''), n = new Date(date); n.setDate(n.getDate() + 1);
+    ev.push('BEGIN:VEVENT', 'UID:' + it.id + '-' + s + '@simpletools', 'DTSTAMP:' + stamp, 'DTSTART;VALUE=DATE:' + s, 'DTEND;VALUE=DATE:' + ymd(n).replace(/-/g, ''),
+      'SUMMARY:' + title.replace(/([,;\\])/g, '\\$1').replace(/\n/g, ' '), 'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + it.name.replace(/[,;\\\n]/g, ' '), 'TRIGGER:-P3D', 'END:VALARM', 'END:VEVENT');
+  };
+  for (const it of store.data.items) {
+    const i = info(it); if (i.kind === 'past') continue;
+    if (i.notice) add(it, i.deadline, 'Kündigen bis heute: ' + it.name);
+    add(it, i.end, 'Fällig / Ende: ' + it.name);
+  }
+  download('fristen.ics', ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//SimpleTools//Fristen//DE', ...ev, 'END:VCALENDAR'].join('\r\n'), 'text/calendar;charset=utf-8');
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

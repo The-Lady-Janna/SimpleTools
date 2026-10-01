@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haushaltsbuch</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.3rem; }
+  .pos { color:var(--ok); } .neg { color:var(--err); }
+  table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; vertical-align:middle; }
+  td.num, th.num { text-align:right; white-space:nowrap; }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; min-width:80px; }
+  .bar > i { display:block; height:100%; background:var(--accent); } .bar.over > i { background:var(--err); }
+  .months { display:flex; gap:8px; align-items:flex-end; height:130px; padding-top:6px; }
+  .months .m { flex:1; display:flex; flex-direction:column; align-items:center; gap:4px; height:100%; justify-content:flex-end; }
+  .months .bars { display:flex; gap:3px; align-items:flex-end; width:100%; flex:1; justify-content:center; }
+  .months .bars i { width:40%; max-width:22px; border-radius:4px 4px 0 0; display:block; min-height:1px; }
+  .months .bars i.in { background:var(--ok); } .months .bars i.out { background:var(--err); }
+  .months small { color:var(--muted); font-size:.75rem; }
+  input.amt { width:7em; } input.bud { width:6.5em; text-align:right; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Haushaltsbuch</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="card toolbar">
+    <button id="prev" aria-label="Vorheriger Monat">‹</button>
+    <input type="month" id="month" aria-label="Monat">
+    <button id="next" aria-label="Nächster Monat">›</button>
+    <span class="sp"></span>
+    <button id="csvm">CSV (Monat)</button>
+    <button id="csva">CSV (alles)</button>
+  </div>
+  <div class="sum">
+    <div class="card"><span class="muted">Einnahmen</span><b class="pos" id="sin"></b></div>
+    <div class="card"><span class="muted">Ausgaben</span><b class="neg" id="sout"></b></div>
+    <div class="card"><span class="muted">Saldo</span><b id="ssum"></b></div>
+  </div>
+  <form id="form" class="card toolbar">
+    <input type="date" id="fdate" required aria-label="Datum">
+    <select id="ftype" aria-label="Art"><option value="out">Ausgabe</option><option value="in">Einnahme</option></select>
+    <input type="text" id="famt" class="amt" inputmode="decimal" placeholder="Betrag" required aria-label="Betrag">
+    <input type="text" id="fcat" list="cats" placeholder="Kategorie" required aria-label="Kategorie">
+    <datalist id="cats"></datalist>
+    <input type="text" id="fnote" placeholder="Notiz" class="sp" aria-label="Notiz">
+    <button class="primary" id="fsubmit">Hinzufügen</button>
+    <button type="button" id="fcancel" hidden>Abbrechen</button>
+  </form>
+  <div class="card"><h2 style="margin:0 0 6px;font-size:1.05rem">Buchungen</h2><div id="entries"></div></div>
+  <div class="card"><h2 style="margin:0 0 6px;font-size:1.05rem">Kategorien &amp; Budget (Ausgaben im Monat)</h2><div id="catsum"></div></div>
+  <div class="card"><h2 style="margin:0 0 6px;font-size:1.05rem">Letzte 6 Monate</h2><div class="months" id="months"></div>
+    <p class="muted" style="margin:6px 0 0"><span class="pos">■</span> Einnahmen &nbsp; <span class="neg">■</span> Ausgaben</p></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'haushaltsbuch',
+  defaults: () => ({ entries: [], budgets: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let month = ymd(new Date()).slice(0, 7);
+let editId = null;
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.entries)) d.entries = [];
+  if (!d.budgets || typeof d.budgets !== 'object' || Array.isArray(d.budgets)) d.budgets = {};
+}
+function parseAmount(s) {
+  s = String(s).trim().replace(/\s|€/g, '');
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return Number.isFinite(n) ? Math.round(Math.abs(n) * 100) / 100 : NaN;
+}
+const inMonth = (m) => store.data.entries.filter((e) => e.date && e.date.slice(0, 7) === m);
+const sumOf = (list, type) => list.filter((e) => e.type === type).reduce((a, e) => a + e.amount, 0);
+function shiftMonth(m, delta) { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + delta, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); }
+function csvCell(v) { v = String(v ?? ''); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function exportCsv(list, name) {
+  const rows = [['Datum', 'Art', 'Betrag', 'Kategorie', 'Notiz']]
+    .concat(list.slice().sort((a, b) => a.date.localeCompare(b.date)).map((e) => [e.date, e.type === 'in' ? 'Einnahme' : 'Ausgabe', String(e.amount).replace('.', ','), e.category, e.note]));
+  download(name, '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+function resetForm() {
+  editId = null; $('form').reset(); $('fdate').value = ymd(new Date());
+  $('fsubmit').textContent = 'Hinzufügen'; $('fcancel').hidden = true;
+}
+function render() {
+  $('month').value = month;
+  const list = inMonth(month);
+  const inc = sumOf(list, 'in'), out = sumOf(list, 'out');
+  $('sin').textContent = eur(inc); $('sout').textContent = eur(out);
+  const bal = inc - out; $('ssum').textContent = eur(bal); $('ssum').className = bal < 0 ? 'neg' : 'pos';
+  const cats = new Set(store.data.entries.map((e) => e.category).concat(Object.keys(store.data.budgets)));
+  $('cats').replaceChildren(...[...cats].sort().map((c) => h('option', { value: c })));
+
+  const box = $('entries');
+  if (!list.length) box.replaceChildren(h('p', { class: 'muted' }, 'Keine Buchungen in diesem Monat.'));
+  else box.replaceChildren(h('table', {},
+    h('tbody', {}, list.slice().sort((a, b) => b.date.localeCompare(a.date)).map((e) => h('tr', {},
+      h('td', {}, fmtDate(e.date)),
+      h('td', {}, e.category, e.note ? h('div', { class: 'muted', style: 'font-size:.85rem' }, e.note) : null),
+      h('td', { class: 'num ' + (e.type === 'in' ? 'pos' : 'neg') }, (e.type === 'in' ? '+' : '−') + eur(e.amount)),
+      h('td', { class: 'num' },
+        h('button', { class: 'small', onclick: () => startEdit(e), title: 'Bearbeiten' }, '✎'), ' ',
+        h('button', { class: 'small', title: 'Löschen', onclick: () => {
+          store.data.entries = store.data.entries.filter((x) => x !== e); store.changed(); render();
+        } }, '✕')))))));
+
+  const spent = {};
+  list.filter((e) => e.type === 'out').forEach((e) => { spent[e.category] = (spent[e.category] || 0) + e.amount; });
+  const names = [...new Set(Object.keys(spent).concat(Object.keys(store.data.budgets)))].sort((a, b) => (spent[b] || 0) - (spent[a] || 0));
+  const cs = $('catsum');
+  if (!names.length) cs.replaceChildren(h('p', { class: 'muted' }, 'Noch keine Ausgaben. Ein Budget kannst du setzen, sobald eine Kategorie existiert.'));
+  else cs.replaceChildren(h('table', {}, h('tbody', {}, names.map((c) => {
+    const s = spent[c] || 0, b = store.data.budgets[c] || 0;
+    const pct = b ? Math.min(100, s / b * 100) : (out ? s / out * 100 : 0);
+    const bud = h('input', { type: 'text', class: 'bud', inputMode: 'decimal', value: b ? String(b).replace('.', ',') : '', placeholder: 'Budget', 'aria-label': 'Budget ' + c });
+    bud.onchange = () => {
+      const n = parseAmount(bud.value);
+      if (bud.value.trim() === '' || n === 0) delete store.data.budgets[c]; else if (!isNaN(n)) store.data.budgets[c] = n;
+      store.changed(); render();
+    };
+    return h('tr', {},
+      h('td', {}, c),
+      h('td', { style: 'width:35%' }, h('div', { class: 'bar' + (b && s > b ? ' over' : '') }, h('i', { style: 'width:' + pct + '%' }))),
+      h('td', { class: 'num' }, eur(s), b ? h('div', { class: 'muted', style: 'font-size:.8rem' }, (s > b ? 'über Budget: ' + eur(s - b) : 'noch ' + eur(b - s))) : null),
+      h('td', { class: 'num' }, bud));
+  }))));
+
+  const ms = [];
+  for (let i = 5; i >= 0; i--) { const m = shiftMonth(month, -i), l = inMonth(m); ms.push({ m, i: sumOf(l, 'in'), o: sumOf(l, 'out') }); }
+  const max = Math.max(1, ...ms.map((x) => Math.max(x.i, x.o)));
+  $('months').replaceChildren(...ms.map((x) => h('div', { class: 'm', title: x.m + ': +' + eur(x.i) + ' / −' + eur(x.o) },
+    h('div', { class: 'bars' }, h('i', { class: 'in', style: 'height:' + (x.i / max * 100) + '%' }), h('i', { class: 'out', style: 'height:' + (x.o / max * 100) + '%' })),
+    h('small', {}, parseYmd(x.m + '-01').toLocaleDateString('de-DE', { month: 'short' })))));
+}
+function startEdit(e) {
+  editId = e.id; $('fdate').value = e.date; $('ftype').value = e.type; $('famt').value = String(e.amount).replace('.', ',');
+  $('fcat').value = e.category; $('fnote').value = e.note || '';
+  $('fsubmit').textContent = 'Übernehmen'; $('fcancel').hidden = false; $('famt').focus();
+}
+$('form').onsubmit = (ev) => {
+  ev.preventDefault();
+  const amount = parseAmount($('famt').value);
+  if (!(amount > 0)) { $('famt').setCustomValidity('Bitte einen Betrag größer 0 eingeben'); $('famt').reportValidity(); return; }
+  const rec = { date: $('fdate').value, type: $('ftype').value, amount, category: $('fcat').value.trim(), note: $('fnote').value.trim() };
+  if (editId) Object.assign(store.data.entries.find((e) => e.id === editId) || {}, rec);
+  else store.data.entries.push({ id: uid(), ...rec });
+  if (rec.date.slice(0, 7) !== month) month = rec.date.slice(0, 7);
+  const keepDate = $('fdate').value, keepType = $('ftype').value;
+  store.changed(); resetForm(); $('fdate').value = keepDate; $('ftype').value = keepType; render(); $('famt').focus();
+};
+$('famt').oninput = () => $('famt').setCustomValidity('');
+$('fcancel').onclick = () => { resetForm(); };
+$('month').onchange = () => { if ($('month').value) { month = $('month').value; render(); } };
+$('prev').onclick = () => { month = shiftMonth(month, -1); render(); };
+$('next').onclick = () => { month = shiftMonth(month, 1); render(); };
+$('csvm').onclick = () => exportCsv(inMonth(month), 'haushaltsbuch-' + month + '.csv');
+$('csva').onclick = () => exportCsv(store.data.entries, 'haushaltsbuch-alles.csv');
+resetForm();
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
