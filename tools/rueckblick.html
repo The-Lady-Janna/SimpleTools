@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rückblick &amp; Tagebuch</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 900px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.85rem; color:var(--muted); gap:2px; }
+  textarea { width:100%; min-height:60px; resize:vertical; }
+  .mood { display:flex; gap:6px; } .mood button { font-size:1.4rem; padding:2px 8px; line-height:1.3; } .mood button.on { background:var(--accent); border-color:var(--accent); }
+  .entry { border-bottom:1px solid var(--line); padding:10px 0; } .entry h3 { margin:0 0 4px; font-size:1rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .entry p { margin:2px 0; white-space:pre-wrap; overflow-wrap:anywhere; } .entry b { color:var(--muted); font-weight:600; font-size:.8rem; text-transform:uppercase; letter-spacing:.03em; }
+  .moodbars { display:flex; gap:3px; align-items:flex-end; height:60px; } .moodbars i { flex:1; background:var(--accent); border-radius:3px 3px 0 0; min-height:3px; opacity:.85; }
+  .goalrow { display:flex; gap:8px; align-items:center; margin-top:4px; } .goalrow span { width:30%; min-width:110px; } .goalrow input { flex:1; }
+  .ago { border-color:var(--accent); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Rückblick &amp; Tagebuch</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit <a href="ziele.html">Ziele &amp; OKRs</a> – im Wochenrückblick kannst du direkt Check-ins für deine Ziele schreiben.</p>
+  <div class="card" id="ago" hidden></div>
+  <form id="form" class="card">
+    <div class="form">
+      <label class="f">Art<select id="kind"><option value="day">Tagesrückblick</option><option value="week">Wochenrückblick</option></select></label>
+      <label class="f">Datum<input type="date" id="date" required></label>
+      <div class="f" style="font-size:.85rem;color:var(--muted)">Stimmung<div class="mood" id="mood"></div></div>
+    </div>
+    <label class="f" style="margin-top:8px">Was lief gut?<textarea id="wins"></textarea></label>
+    <label class="f" style="margin-top:8px">Was habe ich gelernt / was würde ich anders machen?<textarea id="lessons"></textarea></label>
+    <label class="f" style="margin-top:8px">Wofür bin ich dankbar?<textarea id="grat"></textarea></label>
+    <label class="f" style="margin-top:8px">Mein Fokus für die nächste Zeit<textarea id="focus"></textarea></label>
+    <div id="goals" style="margin-top:10px"></div>
+    <div class="row" style="margin-top:10px"><button class="primary" id="save2">Rückblick speichern</button><button type="button" id="cancel" hidden>Abbrechen</button><span class="muted" id="hint"></span></div>
+  </form>
+  <div class="card"><div class="toolbar"><input type="text" id="q" placeholder="Suchen…" class="sp" aria-label="Suche"><label>Zeigen <select id="filter"><option value="">Alle</option><option value="day">Tage</option><option value="week">Wochen</option></select></label></div>
+    <div class="muted" style="margin-top:8px">Stimmung (letzte 30 Einträge)</div><div class="moodbars" id="bars"></div><div id="entries" style="margin-top:6px"></div></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'ziele',
+  defaults: () => ({ goals: [], journal: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const MOODS = ['😞', '😕', '😐', '🙂', '😄'];
+let mood = 0, editId = null, goalsKey = null;
+function normalize() { if (!Array.isArray(store.data.journal)) store.data.journal = []; if (!Array.isArray(store.data.goals)) store.data.goals = []; store.data.goals.forEach((g) => { if (!Array.isArray(g.checkins)) g.checkins = []; }); }
+function setMood(n) { mood = n; [...$('mood').children].forEach((b, i) => { b.classList.toggle('on', i + 1 === n); b.setAttribute('aria-pressed', String(i + 1 === n)); }); }
+function formFor(kind, date) {
+  const e = store.data.journal.find((x) => x.kind === kind && x.date === date);
+  editId = e ? e.id : null;
+  $('wins').value = e ? e.wins : ''; $('lessons').value = e ? e.lessons : ''; $('grat').value = e ? e.grat : ''; $('focus').value = e ? e.focus : '';
+  setMood(e ? e.mood : 0);
+  $('hint').textContent = e ? 'Du bearbeitest den vorhandenen Eintrag dieses Datums.' : '';
+  $('cancel').hidden = !e;
+}
+function renderGoals() {
+  const act = store.data.goals;
+  goalsKey = act.map((g) => g.id + g.title).join('|');
+  $('goals').replaceChildren(...(act.length ? [h('div', { class: 'muted', style: 'font-size:.85rem' }, 'Check-in für deine Ziele (optional, wird bei „Ziele & OKRs“ gespeichert)'),
+    ...act.map((g) => h('div', { class: 'goalrow' }, h('span', {}, g.title), h('input', { type: 'text', 'data-goal': g.id, placeholder: 'Kurzer Stand…', 'aria-label': 'Check-in ' + g.title })))] : []));
+}
+function render() {
+  if (!$('date').value) { $('date').value = ymd(new Date()); formFor($('kind').value, $('date').value); }
+  if (!$('mood').children.length) $('mood').replaceChildren(...MOODS.map((m, i) => { const b = h('button', { type: 'button', 'aria-label': 'Stimmung ' + (i + 1) }, m); b.onclick = () => setMood(mood === i + 1 ? 0 : i + 1); return b; }));
+  if (store.data.goals.map((g) => g.id + g.title).join('|') !== goalsKey) renderGoals();
+  // Vor einem Jahr
+  const d = parseYmd($('date').value || ymd(new Date())), lo = new Date(d.getFullYear() - 1, d.getMonth(), d.getDate() - 3), hi = new Date(d.getFullYear() - 1, d.getMonth(), d.getDate() + 3);
+  const old = store.data.journal.filter((e) => { const x = parseYmd(e.date); return x >= lo && x <= hi; });
+  $('ago').hidden = !old.length; $('ago').classList.add('ago');
+  $('ago').replaceChildren(...(old.length ? [h('strong', {}, 'Vor einem Jahr'), ...old.map((e) => entryBody(e, true))] : []));
+  const q = $('q').value.trim().toLowerCase(), f = $('filter').value;
+  const all = store.data.journal.slice().sort((a, b) => b.date.localeCompare(a.date));
+  const list = all.filter((e) => (!f || e.kind === f) && (!q || [e.wins, e.lessons, e.grat, e.focus].join(' ').toLowerCase().includes(q)));
+  const last = all.slice(0, 30).reverse().filter((e) => e.mood);
+  $('bars').replaceChildren(...last.map((e) => h('i', { style: 'height:' + e.mood / 5 * 100 + '%', title: fmtDate(e.date) + ' ' + MOODS[e.mood - 1] })));
+  $('entries').replaceChildren(...(list.length ? list.slice(0, 80).map((e) => entryBody(e, false)) : [h('p', { class: 'muted' }, all.length ? 'Nichts gefunden.' : 'Noch keine Einträge.')]));
+}
+function entryBody(e, compact) {
+  const part = (l, t) => t ? h('p', {}, h('b', {}, l + ' '), t) : null;
+  return h('div', { class: 'entry' }, h('h3', {}, e.mood ? MOODS[e.mood - 1] : '', ' ', (e.kind === 'week' ? 'Woche ab ' : '') + fmtDate(e.date), h('span', { class: 'badge' }, e.kind === 'week' ? 'Woche' : 'Tag'),
+    compact ? null : [h('button', { class: 'small', onclick: () => { $('kind').value = e.kind; $('date').value = e.date; formFor(e.kind, e.date); render(); window.scrollTo({ top: 0, behavior: 'smooth' }); } }, '✎'),
+      h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('Eintrag vom ' + fmtDate(e.date) + ' löschen?')) { store.data.journal = store.data.journal.filter((x) => x !== e); store.changed(); formFor($('kind').value, $('date').value); render(); } } }, '✕')]),
+    part('Gut', e.wins), part('Gelernt', e.lessons), part('Dankbar', e.grat), part('Fokus', e.focus));
+}
+$('kind').onchange = $('date').onchange = () => { formFor($('kind').value, $('date').value); render(); };
+$('cancel').onclick = () => { $('form').reset(); $('date').value = ymd(new Date()); formFor($('kind').value, $('date').value); render(); };
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const rec = { kind: $('kind').value, date: $('date').value, mood, wins: $('wins').value.trim(), lessons: $('lessons').value.trim(), grat: $('grat').value.trim(), focus: $('focus').value.trim() };
+  const existing = store.data.journal.find((x) => x.id === editId);
+  if (existing) Object.assign(existing, rec); else if (rec.mood || rec.wins || rec.lessons || rec.grat || rec.focus) { editId = uid(); store.data.journal.push({ id: editId, ...rec }); }
+  document.querySelectorAll('[data-goal]').forEach((inp) => {
+    const note = inp.value.trim(), g = store.data.goals.find((x) => x.id === inp.dataset.goal);
+    if (note && g) g.checkins.push({ date: rec.date, note, rating: 0 });
+    inp.value = '';
+  });
+  store.changed(); formFor(rec.kind, rec.date); renderGoals(); render();
+  $('hint').textContent = 'Gespeichert ✓';
+};
+$('q').oninput = render; $('filter').onchange = render;
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

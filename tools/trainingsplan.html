@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trainingsplan &amp; Aktivitäten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .week { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:6px; } @media (max-width: 800px) { .week { grid-template-columns:1fr; } }
+  .day { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:6px; min-height:100px; min-width:0; } .day.today { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .day h3 { margin:0 0 4px; font-size:.85rem; }
+  .chip { font-size:.82rem; padding:3px 6px; margin-bottom:4px; border-radius:6px; background:var(--bg); border:1px solid var(--line); overflow-wrap:anywhere; }
+  .chip.done { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 14%, var(--bg)); } .chip.miss { border-color:var(--warn); }
+  .chip .a { display:flex; gap:4px; margin-top:3px; flex-wrap:wrap; } .chip button { padding:0 6px; font-size:.78rem; }
+  .chip input { width:4.8em; font-size:.8rem; padding:1px 4px; }
+  .cal { display:grid; grid-template-columns:repeat(7, minmax(0,1fr)); gap:4px; } .cal .dh { text-align:center; font-size:.8rem; color:var(--muted); }
+  .cal .d { background:var(--card); border:1px solid var(--line); border-radius:8px; min-height:80px; padding:4px; min-width:0; } .cal .d.out { opacity:.4; } .cal .d.today { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .cal .d b { font-size:.8rem; } .cal .chip { font-size:.7rem; padding:1px 4px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; } label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; } input.w { width:6em; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin:10px 0; } .sum div { text-align:center; padding:6px; border:1px solid var(--line); border-radius:8px; background:var(--card); } .sum b { display:block; font-size:1.1rem; }
+  table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  .wk { display:flex; gap:6px; align-items:flex-end; height:100px; } .wk div { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:2px; font-size:.72rem; color:var(--muted); } .wk i { width:70%; background:var(--accent); border-radius:4px 4px 0 0; min-height:2px; display:block; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Trainingsplan &amp; Aktivitäten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="training.html">Workout-Log</a> – Krafteinheiten dort zählen hier automatisch als erledigt.</p>
+  <div class="tabs"><button data-tab="week">Woche</button><button data-tab="month">Monat</button><button data-tab="acts">Aktivitäten</button></div>
+  <form id="pform" class="card form">
+    <label class="f">Datum<input type="date" id="pdate" required></label>
+    <label class="f">Art<select id="ptype"></select></label>
+    <label class="f" style="flex:1;min-width:130px">Titel<input type="text" id="ptitle" placeholder="optional, z. B. Longrun"></label>
+    <label class="f">Dauer (min)<input type="number" id="pmin" class="w" min="0"></label>
+    <label class="f">Distanz (km)<input type="text" id="pkm" class="w" inputmode="decimal"></label>
+    <label class="f">Wöchentlich bis<input type="date" id="puntil" title="optional: Einheit jede Woche wiederholen"></label>
+    <button class="primary">Einplanen</button>
+  </form>
+  <div class="card toolbar" id="nav"><button id="prev" aria-label="Zurück">‹</button><strong id="label"></strong><button id="next" aria-label="Weiter">›</button><button id="now">Heute</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'fitness',
+  defaults: () => ({ workouts: [], routines: [], plan: [], activities: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const TYPES = { Krafttraining: '🏋️', Laufen: '🏃', Radfahren: '🚴', Schwimmen: '🏊', 'Yoga / Mobility': '🧘', Sonstiges: '⚡' };
+const DIST = ['Laufen', 'Radfahren', 'Schwimmen'];
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const wdIdx = (d) => (d.getDay() + 6) % 7;
+let tab = 'week', anchor = new Date(), logging = null;
+function normalize() { for (const k of ['workouts', 'routines', 'plan', 'activities']) if (!Array.isArray(store.data[k])) store.data[k] = []; }
+const pnum = (s) => { s = String(s || '').trim().replace(',', '.'); const n = parseFloat(s); return Number.isFinite(n) && n >= 0 ? n : 0; };
+const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+const pace = (min, km) => { if (!(km > 0 && min > 0)) return ''; const t = min / km, m = Math.floor(t), s = Math.round((t - m) * 60); return (s === 60 ? m + 1 : m) + ':' + pad(s === 60 ? 0 : s) + ' min/km'; };
+const actOf = (p) => store.data.activities.find((a) => a.planId === p.id);
+const workoutOn = (date) => store.data.workouts.filter((w) => w.date === date);
+function isDone(p) { return !!actOf(p) || (p.type === 'Krafttraining' && workoutOn(p.date).length > 0); }
+function addMonday(d, n) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() - wdIdx(d) + n); }
+function dayItems(key) {
+  const plans = store.data.plan.filter((p) => p.date === key);
+  const acts = store.data.activities.filter((a) => a.date === key && !plans.some((p) => p.id === a.planId));
+  const ws = workoutOn(key).filter(() => !plans.some((p) => p.type === 'Krafttraining'));
+  return { plans, acts, ws };
+}
+function chipPlan(p, full) {
+  const done = isDone(p), late = !done && p.date < ymd(new Date()), a = actOf(p);
+  const label = TYPES[p.type] + ' ' + (p.title || p.type) + (p.minutes ? ' · ' + p.minutes + ' min' : '') + (p.km ? ' · ' + fmt(p.km) + ' km' : '');
+  const el = h('div', { class: 'chip' + (done ? ' done' : late ? ' miss' : '') }, (done ? '✓ ' : '') + label);
+  if (!full) return el;
+  if (logging === p.id) {
+    const km = h('input', { type: 'text', inputMode: 'decimal', value: p.km ? String(p.km).replace('.', ',') : '', placeholder: 'km', 'aria-label': 'Distanz' });
+    const mi = h('input', { type: 'number', value: p.minutes || '', placeholder: 'min', 'aria-label': 'Minuten' });
+    const ok = h('button', { class: 'small primary', onclick: () => { store.data.activities.push({ id: uid(), date: p.date, type: p.type, km: pnum(km.value), minutes: parseInt(mi.value, 10) || 0, note: p.title || '', planId: p.id }); logging = null; store.changed(); render(); } }, 'OK');
+    el.append(h('div', { class: 'a' }, DIST.includes(p.type) ? km : null, mi, ok, h('button', { class: 'small', onclick: () => { logging = null; render(); } }, '✕')));
+  } else el.append(h('div', { class: 'a' },
+    !done ? h('button', { class: 'small primary', title: 'Als erledigt eintragen', onclick: () => { logging = p.id; render(); } }, '✓ Erledigt') : (a ? h('button', { class: 'small', onclick: () => { store.data.activities = store.data.activities.filter((x) => x !== a); store.changed(); render(); } }, 'Zurücknehmen') : null),
+    h('button', { class: 'small', title: 'Entfernen', onclick: () => { store.data.plan = store.data.plan.filter((x) => x !== p); store.data.activities.forEach((x) => { if (x.planId === p.id) delete x.planId; }); store.changed(); render(); } }, '✕')));
+  return el;
+}
+const chipAct = (a) => h('div', { class: 'chip done', title: 'Nicht eingeplant' }, '✓ ' + TYPES[a.type] + ' ' + (a.note || a.type) + (a.minutes ? ' · ' + a.minutes + ' min' : '') + (a.km ? ' · ' + fmt(a.km) + ' km' : ''));
+const chipWorkout = (w) => h('div', { class: 'chip done', title: 'Aus dem Workout-Log' }, '✓ 🏋️ ' + (w.name || 'Krafttraining'));
+function cellsFor(key, full) { const it = dayItems(key); return [...it.plans.map((p) => chipPlan(p, full)), ...it.acts.map(chipAct), ...it.ws.map(chipWorkout)]; }
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('nav').hidden = tab === 'acts';
+  if (!$('ptype').options.length) $('ptype').replaceChildren(...Object.keys(TYPES).map((t) => h('option', { value: t }, TYPES[t] + ' ' + t)));
+  if (!$('pdate').value) $('pdate').value = ymd(new Date());
+  $('pform').hidden = tab === 'acts';
+  const v = $('view'), t = ymd(new Date());
+  if (tab === 'week') {
+    const start = addMonday(anchor, 0), days = Array.from({ length: 7 }, (_, i) => addMonday(anchor, i));
+    $('label').textContent = fmtDate(ymd(days[0])).slice(0, 6) + ' – ' + fmtDate(ymd(days[6]));
+    const keys = days.map(ymd), plans = store.data.plan.filter((p) => keys.includes(p.date)), done = plans.filter(isDone).length;
+    const acts = store.data.activities.filter((a) => keys.includes(a.date)), mins = acts.reduce((s, a) => s + (a.minutes || 0), 0), km = acts.reduce((s, a) => s + (a.km || 0), 0);
+    const nW = store.data.workouts.filter((w) => keys.includes(w.date)).length;
+    return v.replaceChildren(h('div', { class: 'week' }, days.map((d) => h('div', { class: 'day' + (ymd(d) === t ? ' today' : '') }, h('h3', {}, WD[wdIdx(d)] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '.'), cellsFor(ymd(d), true)))),
+      h('div', { class: 'sum' }, h('div', {}, h('b', {}, done + ' / ' + plans.length), 'Geplant erledigt'), h('div', {}, h('b', {}, mins), 'Minuten (Aktivitäten)'), h('div', {}, h('b', {}, fmt(km) + ' km'), 'Distanz'), h('div', {}, h('b', {}, nW), 'Krafteinheiten')));
+  }
+  if (tab === 'month') {
+    const y = anchor.getFullYear(), m = anchor.getMonth(), first = new Date(y, m, 1), gs = new Date(y, m, 1 - wdIdx(first)), weeks = Math.ceil((wdIdx(first) + new Date(y, m + 1, 0).getDate()) / 7);
+    $('label').textContent = anchor.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+    return v.replaceChildren(h('div', { class: 'cal' }, WD.map((w) => h('div', { class: 'dh' }, w)), Array.from({ length: weeks * 7 }, (_, i) => { const d = new Date(gs.getFullYear(), gs.getMonth(), gs.getDate() + i);
+      return h('div', { class: 'd' + (d.getMonth() !== m ? ' out' : '') + (ymd(d) === t ? ' today' : '') }, h('b', {}, d.getDate()), cellsFor(ymd(d), false)); })));
+  }
+  v.replaceChildren(actsView());
+}
+function actsView() {
+  const type = h('select', { 'aria-label': 'Art' }, Object.keys(TYPES).filter((x) => x !== 'Krafttraining').map((t) => h('option', { value: t }, TYPES[t] + ' ' + t)));
+  const date = h('input', { type: 'date', value: ymd(new Date()), 'aria-label': 'Datum' }), km = h('input', { type: 'text', inputMode: 'decimal', placeholder: 'km', class: 'w', 'aria-label': 'Distanz' });
+  const mi = h('input', { type: 'number', min: 0, placeholder: 'min', class: 'w', required: true, 'aria-label': 'Minuten' }), note = h('input', { type: 'text', placeholder: 'Notiz', class: 'sp', 'aria-label': 'Notiz' });
+  const f = h('form', { class: 'card toolbar' }, date, type, km, mi, note, h('button', { class: 'primary' }, 'Eintragen'));
+  f.onsubmit = (e) => { e.preventDefault(); store.data.activities.push({ id: uid(), date: date.value, type: type.value, km: pnum(km.value), minutes: parseInt(mi.value, 10) || 0, note: note.value.trim() }); store.changed(); render(); };
+  const acts = store.data.activities.slice().sort((a, b) => b.date.localeCompare(a.date));
+  // Kilometer der letzten 8 Wochen
+  const mon = addMonday(new Date(), 0), wk = Array.from({ length: 8 }, (_, i) => { const s = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() - 7 * (7 - i)), e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6);
+    return { s, km: acts.filter((a) => a.date >= ymd(s) && a.date <= ymd(e)).reduce((x, a) => x + (a.km || 0), 0) }; });
+  const max = Math.max(1, ...wk.map((x) => x.km));
+  const runs = acts.filter((a) => a.type === 'Laufen' && a.km >= 1 && a.minutes > 0);
+  const longest = runs.reduce((b, a) => (!b || a.km > b.km ? a : b), null), fastest = runs.reduce((b, a) => (!b || a.minutes / a.km < b.minutes / b.km ? a : b), null);
+  const year = String(new Date().getFullYear()), yk = acts.filter((a) => a.date.startsWith(year)).reduce((x, a) => x + (a.km || 0), 0);
+  return h('div', {}, f,
+    h('div', { class: 'card' }, h('strong', {}, 'Kilometer pro Woche (8 Wochen)'), h('div', { class: 'wk', style: 'margin-top:8px' }, wk.map((x) => h('div', { title: fmt(x.km) + ' km' }, fmt(x.km), h('i', { style: 'height:' + x.km / max * 70 + 'px' }), x.s.getDate() + '.' + (x.s.getMonth() + 1) + '.'))),
+      h('div', { class: 'sum' }, h('div', {}, h('b', {}, fmt(yk) + ' km'), 'in ' + year), h('div', {}, h('b', {}, longest ? fmt(longest.km) + ' km' : '–'), 'Längster Lauf'), h('div', {}, h('b', {}, fastest ? pace(fastest.minutes, fastest.km) : '–'), 'Schnellster Schnitt'))),
+    h('div', { class: 'card' }, acts.length ? h('table', {}, h('tbody', {}, acts.slice(0, 80).map((a) => h('tr', {}, h('td', {}, fmtDate(a.date)), h('td', {}, TYPES[a.type] + ' ' + a.type, a.note ? h('div', { class: 'muted', style: 'font-size:.82rem' }, a.note) : null), h('td', {}, a.km ? fmt(a.km) + ' km' : ''), h('td', {}, a.minutes ? a.minutes + ' min' : ''), h('td', { class: 'muted' }, a.type === 'Laufen' || a.type === 'Radfahren' ? pace(a.minutes, a.km) : ''),
+      h('td', {}, h('button', { class: 'small', title: 'Löschen', onclick: () => { store.data.activities = store.data.activities.filter((x) => x !== a); store.changed(); render(); } }, '✕')))))) : h('p', { class: 'muted' }, 'Noch keine Aktivitäten.')));
+}
+$('pform').onsubmit = (e) => {
+  e.preventDefault();
+  const base = { type: $('ptype').value, title: $('ptitle').value.trim(), minutes: parseInt($('pmin').value, 10) || 0, km: pnum($('pkm').value) };
+  let d = parseYmd($('pdate').value); const until = $('puntil').value ? parseYmd($('puntil').value) : d; let n = 0;
+  while (d <= until && n++ < 200) { store.data.plan.push({ id: uid(), date: ymd(d), ...base }); d = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 7); }
+  $('ptitle').value = ''; $('puntil').value = ''; store.changed(); render();
+};
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+const step = (dir) => { if (tab === 'week') anchor = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() + 7 * dir); else anchor = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1); render(); };
+$('prev').onclick = () => step(-1); $('next').onclick = () => step(1); $('now').onclick = () => { anchor = new Date(); render(); };
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
