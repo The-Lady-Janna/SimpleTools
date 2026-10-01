@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Einkaufsliste &amp; Vorrat</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .area { margin:14px 0 4px; font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .item { display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .item.done .nm { text-decoration:line-through; color:var(--muted); }
+  .item .nm { flex:1; } .item input[type=checkbox] { width:20px; height:20px; }
+  .qty { color:var(--muted); font-size:.9rem; }
+  .stepper { display:inline-flex; align-items:center; gap:4px; }
+  .stepper b { min-width:2em; text-align:center; }
+  input.w { width:5em; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Einkaufsliste &amp; Vorrat</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="essensplaner.html">Essensplaner</a> – Zutaten aus dem Wochenplan landen direkt hier auf der Liste.</p>
+  <div class="tabs" role="tablist">
+    <button data-tab="list" class="on">Einkaufsliste</button>
+    <button data-tab="favs">Wiederkehrend</button>
+    <button data-tab="pantry">Vorrat</button>
+  </div>
+  <section id="tab-list">
+    <form id="fl" class="card toolbar">
+      <input type="text" id="lname" list="known" placeholder="Artikel…" required class="sp" aria-label="Artikel">
+      <datalist id="known"></datalist>
+      <input type="text" id="lqty" class="w" placeholder="Menge" aria-label="Menge">
+      <select id="larea" aria-label="Bereich"></select>
+      <button class="primary">Hinzufügen</button>
+    </form>
+    <div class="card"><div id="list"></div>
+      <div class="row" style="margin-top:10px"><button id="clean">Erledigte entfernen</button><button id="copy">Als Text kopieren</button></div></div>
+  </section>
+  <section id="tab-favs" hidden>
+    <form id="ff" class="card toolbar">
+      <input type="text" id="fname" placeholder="Artikel, den du oft brauchst…" required class="sp" aria-label="Artikel">
+      <select id="farea" aria-label="Bereich"></select>
+      <button class="primary">Merken</button>
+    </form>
+    <div class="card"><div class="row" style="margin-bottom:6px"><button id="allfav">Alle auf die Liste</button></div><div id="favs"></div></div>
+  </section>
+  <section id="tab-pantry" hidden>
+    <form id="fp" class="card toolbar">
+      <input type="text" id="pname" placeholder="Vorrat, z. B. Reis" required class="sp" aria-label="Name">
+      <input type="number" id="phave" class="w" min="0" value="1" title="Vorhanden" aria-label="Vorhanden">
+      <input type="number" id="pmin" class="w" min="0" value="1" title="Mindestmenge" aria-label="Mindestmenge">
+      <input type="text" id="punit" class="w" placeholder="Einheit" aria-label="Einheit">
+      <input type="date" id="pexp" title="Haltbar bis" aria-label="Haltbar bis">
+      <select id="parea" aria-label="Bereich"></select>
+      <button class="primary">Hinzufügen</button>
+    </form>
+    <div class="card"><div class="row" style="margin-bottom:6px"><button id="missing">Fehlendes auf die Liste</button>
+      <span class="muted">Vorhanden / Mindestmenge · Haltbarkeit wird farbig markiert</span></div><div id="pantry"></div></div>
+  </section>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'essen-einkauf',
+  defaults: () => ({ list: [], favs: [], pantry: [], recipes: [], plan: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const AREAS = ['Obst & Gemüse', 'Brot & Backwaren', 'Milch & Kühlregal', 'Fleisch & Fisch', 'Tiefkühl', 'Vorrat', 'Getränke', 'Drogerie', 'Sonstiges'];
+let tab = 'list';
+function normalize() {
+  const d = store.data;
+  for (const k of ['list', 'favs', 'pantry', 'recipes']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!d.plan || typeof d.plan !== 'object' || Array.isArray(d.plan)) d.plan = {};
+}
+const areaOf = (a) => AREAS.includes(a) ? a : 'Sonstiges';
+function addToList(name, area, qty) {
+  const key = name.trim().toLowerCase();
+  if (!key) return false;
+  if (store.data.list.some((i) => !i.done && i.name.toLowerCase() === key)) return false;
+  store.data.list.push({ id: uid(), name: name.trim(), qty: qty || '', area: areaOf(area), done: false });
+  return true;
+}
+function lookupArea(name) {
+  const k = name.trim().toLowerCase();
+  const hit = store.data.favs.concat(store.data.pantry, store.data.list).find((x) => x.name.toLowerCase() === k);
+  return hit ? hit.area : null;
+}
+function daysTo(s) { return Math.round((parseYmd(s) - parseYmd(ymd(new Date()))) / 86400000); }
+function expiryBadge(p) {
+  if (!p.expiry) return null;
+  const d = daysTo(p.expiry);
+  if (d < 0) return h('span', { class: 'badge err' }, 'abgelaufen');
+  if (d <= 7) return h('span', { class: 'badge warn' }, d === 0 ? 'heute' : 'noch ' + d + ' Tg.');
+  return h('span', { class: 'badge' }, fmtDate(p.expiry));
+}
+function fillAreas() {
+  for (const id of ['larea', 'farea', 'parea']) { const s = $(id), v = s.value; s.replaceChildren(...AREAS.map((a) => h('option', { value: a }, a))); if (v) s.value = v; }
+}
+function render() {
+  fillAreas();
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  for (const t of ['list', 'favs', 'pantry']) $('tab-' + t).hidden = t !== tab;
+  const names = [...new Set(store.data.favs.concat(store.data.pantry, store.data.list).map((x) => x.name))].sort();
+  $('known').replaceChildren(...names.map((n) => h('option', { value: n })));
+
+  // Liste
+  const box = $('list');
+  const items = store.data.list;
+  if (!items.length) box.replaceChildren(h('p', { class: 'muted' }, 'Die Liste ist leer.'));
+  else {
+    const out = [];
+    for (const a of AREAS) {
+      const its = items.filter((i) => areaOf(i.area) === a);
+      if (!its.length) continue;
+      out.push(h('div', { class: 'area' }, a));
+      its.sort((x, y) => x.done - y.done).forEach((i) => {
+        const cb = h('input', { type: 'checkbox', checked: i.done, 'aria-label': i.name + ' erledigt' });
+        cb.onchange = () => { i.done = cb.checked; store.changed(); render(); };
+        out.push(h('div', { class: 'item' + (i.done ? ' done' : '') }, cb,
+          h('span', { class: 'nm' }, i.name, i.qty ? h('span', { class: 'qty' }, ' · ' + i.qty) : null),
+          h('button', { class: 'small', title: 'Entfernen', onclick: () => { store.data.list = store.data.list.filter((x) => x !== i); store.changed(); render(); } }, '✕')));
+      });
+    }
+    box.replaceChildren(...out);
+  }
+
+  // Wiederkehrend
+  const fb = $('favs');
+  if (!store.data.favs.length) fb.replaceChildren(h('p', { class: 'muted' }, 'Noch nichts gemerkt.'));
+  else fb.replaceChildren(...store.data.favs.slice().sort((a, b) => areaOf(a.area).localeCompare(areaOf(b.area)) || a.name.localeCompare(b.name)).map((f) =>
+    h('div', { class: 'item' }, h('span', { class: 'nm' }, f.name, h('span', { class: 'qty' }, ' · ' + areaOf(f.area))),
+      h('button', { class: 'small', onclick: () => { if (addToList(f.name, f.area)) { store.changed(); render(); } } }, '+ Liste'),
+      h('button', { class: 'small', title: 'Entfernen', onclick: () => { store.data.favs = store.data.favs.filter((x) => x !== f); store.changed(); render(); } }, '✕'))));
+
+  // Vorrat
+  const pb = $('pantry');
+  if (!store.data.pantry.length) pb.replaceChildren(h('p', { class: 'muted' }, 'Noch kein Vorrat erfasst.'));
+  else pb.replaceChildren(...store.data.pantry.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => {
+    const low = p.have < p.min;
+    const step = (d) => () => { p.have = Math.max(0, p.have + d); store.changed(); render(); };
+    return h('div', { class: 'item' },
+      h('span', { class: 'nm' }, p.name, ' ', low ? h('span', { class: 'badge err' }, 'fehlt') : null, ' ', expiryBadge(p)),
+      h('span', { class: 'stepper' }, h('button', { class: 'small', onclick: step(-1), 'aria-label': 'weniger' }, '−'),
+        h('b', {}, p.have + (p.unit ? ' ' + p.unit : '')), h('button', { class: 'small', onclick: step(1), 'aria-label': 'mehr' }, '+'),
+        h('span', { class: 'muted' }, '/ ' + p.min)),
+      h('button', { class: 'small', title: 'Entfernen', onclick: () => { store.data.pantry = store.data.pantry.filter((x) => x !== p); store.changed(); render(); } }, '✕'));
+  }));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+$('lname').onchange = () => { const a = lookupArea($('lname').value); if (a) $('larea').value = areaOf(a); };
+$('fl').onsubmit = (e) => {
+  e.preventDefault();
+  addToList($('lname').value, $('larea').value, $('lqty').value.trim());
+  $('lname').value = ''; $('lqty').value = ''; store.changed(); render(); $('lname').focus();
+};
+$('ff').onsubmit = (e) => {
+  e.preventDefault();
+  const n = $('fname').value.trim();
+  if (n && !store.data.favs.some((f) => f.name.toLowerCase() === n.toLowerCase())) store.data.favs.push({ name: n, area: $('farea').value });
+  $('fname').value = ''; store.changed(); render();
+};
+$('fp').onsubmit = (e) => {
+  e.preventDefault();
+  store.data.pantry.push({ id: uid(), name: $('pname').value.trim(), have: Math.max(0, +$('phave').value || 0), min: Math.max(0, +$('pmin').value || 0),
+    unit: $('punit').value.trim(), expiry: $('pexp').value, area: $('parea').value });
+  $('pname').value = ''; $('pexp').value = ''; store.changed(); render();
+};
+$('allfav').onclick = () => { let n = 0; store.data.favs.forEach((f) => { if (addToList(f.name, f.area)) n++; }); if (n) { store.changed(); tab = 'list'; } render(); };
+$('missing').onclick = () => {
+  let n = 0;
+  store.data.pantry.forEach((p) => { if (p.have < p.min && addToList(p.name, p.area, (p.min - p.have) + (p.unit ? ' ' + p.unit : ''))) n++; });
+  if (n) { store.changed(); tab = 'list'; } render();
+};
+$('clean').onclick = () => { store.data.list = store.data.list.filter((i) => !i.done); store.changed(); render(); };
+$('copy').onclick = () => {
+  const lines = [];
+  for (const a of AREAS) {
+    const its = store.data.list.filter((i) => !i.done && areaOf(i.area) === a);
+    if (its.length) lines.push(a + ':', ...its.map((i) => '- ' + i.name + (i.qty ? ' (' + i.qty + ')' : '')), '');
+  }
+  copyText(lines.join('\n').trim(), $('copy'));
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

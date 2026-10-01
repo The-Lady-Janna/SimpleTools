@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notizbuch</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .layout { display:grid; grid-template-columns:280px 1fr; gap:12px; align-items:start; }
+  @media (max-width: 760px) { .layout { grid-template-columns:1fr; } }
+  .nlist { max-height:70vh; overflow:auto; }
+  .nitem { display:block; width:100%; text-align:left; border:0; border-bottom:1px solid var(--line); border-radius:0; padding:8px 6px; background:transparent; }
+  .nitem.on { background:color-mix(in srgb, var(--accent) 14%, var(--card)); }
+  .nitem small { display:block; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .tag { display:inline-block; padding:0 8px; margin:0 4px 4px 0; border-radius:99px; border:1px solid var(--line); background:var(--bg); font-size:.8rem; cursor:pointer; }
+  .tag.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  #title { width:100%; font-size:1.2rem; font-weight:600; }
+  #body { width:100%; min-height:300px; resize:vertical; }
+  #tags { width:100%; }
+  .view { white-space:pre-wrap; overflow-wrap:anywhere; min-height:200px; }
+  a.wl { cursor:pointer; text-decoration:underline; }
+  a.wl.new { text-decoration:underline dashed; color:var(--muted); }
+  .back a { cursor:pointer; margin-right:10px; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Notizbuch</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="layout">
+    <div>
+      <div class="card">
+        <div class="row"><input type="text" id="q" placeholder="Suchen…" class="sp" aria-label="Suche"><button id="add" class="primary">+ Neu</button></div>
+        <div id="tagbar" style="margin-top:8px"></div>
+      </div>
+      <div class="card nlist" id="nlist" style="padding:4px 8px"></div>
+    </div>
+    <div class="card" id="editor">
+      <div id="empty" class="muted">Wähle links eine Notiz oder lege eine neue an. Mit <code>[[Titel]]</code> verlinkst du auf andere Notizen.</div>
+      <div id="ed" hidden>
+        <input type="text" id="title" placeholder="Titel" aria-label="Titel">
+        <input type="text" id="tags" placeholder="Tags, mit Komma getrennt" style="margin:6px 0" aria-label="Tags">
+        <div class="row" style="margin-bottom:6px"><button id="mode"></button><button id="del">Löschen</button><span class="sp"></span><span class="muted" id="meta"></span></div>
+        <textarea id="body" placeholder="Text… Links zu anderen Notizen: [[Titel]]" aria-label="Text"></textarea>
+        <div class="view" id="view" hidden></div>
+        <div class="back" id="back" style="margin-top:10px"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat()) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'notizen',
+  defaults: () => ({ notes: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let curId = null, preview = false, tagFilter = null;
+function normalize() { if (!Array.isArray(store.data.notes)) store.data.notes = []; }
+const byId = (id) => store.data.notes.find((n) => n.id === id);
+const byTitle = (t) => store.data.notes.find((n) => n.title.trim().toLowerCase() === t.trim().toLowerCase());
+const cur = () => byId(curId);
+const LINK = /\[\[([^\[\]]+)\]\]/g;
+function linksOf(n) { return [...(n.body || '').matchAll(LINK)].map((m) => m[1].trim().toLowerCase()); }
+function open(id) { curId = id; preview = false; render(); }
+function renderView(n) {
+  const out = []; let last = 0; const text = n.body || '';
+  for (const m of text.matchAll(LINK)) {
+    out.push(text.slice(last, m.index));
+    const target = byTitle(m[1]);
+    const a = h('a', { class: 'wl' + (target ? '' : ' new'), title: target ? 'Öffnen' : 'Notiz anlegen' }, m[1]);
+    a.onclick = () => {
+      if (target) return open(target.id);
+      const t = Date.now(); const nn = { id: uid(), title: m[1].trim(), body: '', tags: [], created: t, updated: t };
+      store.data.notes.push(nn); store.changed(); open(nn.id);
+    };
+    out.push(a); last = m.index + m[0].length;
+  }
+  out.push(text.slice(last));
+  return out;
+}
+function renderList() {
+  const q = $('q').value.trim().toLowerCase();
+  const all = store.data.notes;
+  const tags = [...new Set(all.flatMap((n) => n.tags || []))].sort();
+  if (tagFilter && !tags.includes(tagFilter)) tagFilter = null;
+  $('tagbar').replaceChildren(...tags.map((t) => { const s = h('span', { class: 'tag' + (t === tagFilter ? ' on' : ''), role: 'button', tabIndex: 0 }, '#' + t);
+    s.onclick = () => { tagFilter = tagFilter === t ? null : t; renderList(); }; s.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); s.click(); } }; return s; }));
+  const list = all.filter((n) => (!tagFilter || (n.tags || []).includes(tagFilter)) &&
+    (!q || (n.title + ' ' + n.body + ' ' + (n.tags || []).join(' ')).toLowerCase().includes(q)))
+    .sort((a, b) => (b.updated || 0) - (a.updated || 0));
+  $('nlist').replaceChildren(...(list.length ? list.map((n) => {
+    const b = h('button', { class: 'nitem' + (n.id === curId ? ' on' : '') }, h('strong', {}, n.title || 'Ohne Titel'), h('small', {}, (n.body || '').replace(/\s+/g, ' ').slice(0, 80) || ' '));
+    b.onclick = () => open(n.id); return b;
+  }) : [h('p', { class: 'muted', style: 'padding:6px' }, all.length ? 'Nichts gefunden.' : 'Noch keine Notizen.')]));
+}
+function render() {
+  renderList();
+  const n = cur();
+  $('empty').hidden = !!n; $('ed').hidden = !n;
+  if (!n) return;
+  if (document.activeElement !== $('title')) $('title').value = n.title;
+  if (document.activeElement !== $('tags')) $('tags').value = (n.tags || []).join(', ');
+  if (document.activeElement !== $('body')) $('body').value = n.body || '';
+  $('body').hidden = preview; $('view').hidden = !preview;
+  $('mode').textContent = preview ? '✎ Bearbeiten' : '👁 Ansicht';
+  if (preview) $('view').replaceChildren(...renderView(n));
+  $('meta').textContent = 'Geändert: ' + new Date(n.updated || Date.now()).toLocaleString('de-DE');
+  const t = (n.title || '').trim().toLowerCase();
+  const backs = t ? store.data.notes.filter((x) => x !== n && linksOf(x).includes(t)) : [];
+  const links = [...new Set(linksOf(n))].map(byTitleLower).filter((x) => x && x !== n);
+  $('back').replaceChildren(
+    ...(backs.length ? [h('span', { class: 'muted' }, 'Verlinkt von: '), ...backs.map((x) => h('a', { class: 'wl', onclick: () => open(x.id) }, x.title || 'Ohne Titel'))] : []),
+    ...(links.length ? [h('br'), h('span', { class: 'muted' }, 'Verweist auf: '), ...links.map((x) => h('a', { class: 'wl', onclick: () => open(x.id) }, x.title))] : []));
+}
+const byTitleLower = (t) => byTitle(t);
+function touch(n) { n.updated = Date.now(); store.changed(); }
+$('add').onclick = () => {
+  const t = Date.now(), n = { id: uid(), title: '', body: '', tags: [], created: t, updated: t };
+  store.data.notes.push(n); store.changed(); curId = n.id; preview = false; render(); $('title').focus();
+};
+$('q').oninput = renderList;
+$('title').oninput = () => { const n = cur(); if (n) { n.title = $('title').value; touch(n); renderList(); } };
+$('tags').oninput = () => { const n = cur(); if (n) { n.tags = $('tags').value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean); touch(n); renderList(); } };
+$('body').oninput = () => { const n = cur(); if (n) { n.body = $('body').value; touch(n); renderList(); } };
+$('mode').onclick = () => { preview = !preview; render(); };
+$('del').onclick = () => {
+  const n = cur(); if (!n || !confirm('Notiz „' + (n.title || 'Ohne Titel') + '“ löschen?')) return;
+  store.data.notes = store.data.notes.filter((x) => x !== n); curId = null; store.changed(); render();
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
