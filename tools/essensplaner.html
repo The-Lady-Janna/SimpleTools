@@ -52,6 +52,7 @@
   </div>
   <div id="status"></div>
 
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit <a href="einkauf.html">Einkaufsliste &amp; Vorrat</a>.</p>
   <div class="card toolbar">
     <button id="prev" aria-label="Vorherige Woche">‹</button>
     <strong id="wlabel"></strong>
@@ -73,7 +74,8 @@
       <div id="recipes" style="margin-top:10px"></div></div>
     <div class="card"><h2 style="margin:0 0 8px;font-size:1.05rem">Einkaufsliste der Woche</h2>
       <div id="shop"></div>
-      <div class="row" style="margin-top:8px"><button id="copy">Als Text kopieren</button></div></div>
+      <div class="row" style="margin-top:8px"><button id="toshop" class="primary">Auf die Einkaufsliste</button><button id="copy">Als Text kopieren</button></div>
+      <p class="muted" id="shopmsg" style="margin:6px 0 0" role="status"></p></div>
   </div>
 
 </main>
@@ -109,8 +111,8 @@ async function copyText(text, btn) {
   if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
 }
 const store = SimpleStorage.create({
-  name: 'essensplaner',
-  defaults: () => ({ recipes: [], plan: {} }),
+  name: 'essen-einkauf',
+  defaults: () => ({ list: [], favs: [], pantry: [], recipes: [], plan: {} }),
   onChange: () => { normalize(); render(); },
   statusEl: $('status'),
 });
@@ -126,7 +128,7 @@ let editId = null;
 function mondayOf(d) { const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 function normalize() {
   const d = store.data;
-  if (!Array.isArray(d.recipes)) d.recipes = [];
+  for (const k of ['recipes', 'list', 'favs', 'pantry']) if (!Array.isArray(d[k])) d[k] = [];
   if (!d.plan || typeof d.plan !== 'object' || Array.isArray(d.plan)) d.plan = {};
 }
 const recipeByName = (n) => store.data.recipes.find((r) => r.name.toLowerCase() === n.trim().toLowerCase());
@@ -162,9 +164,10 @@ function shoppingList() {
     }
   }
   return [...acc.values()].sort((a, b) => a.name.localeCompare(b.name)).map((c) => {
-    const num = c.sum ? (Math.round(c.sum * 100) / 100).toString().replace('.', ',') + (c.unit ? ' ' + c.unit : '') + ' ' : '';
-    const times = c.plain ? (c.plain > 1 ? c.plain + '× ' : '') : '';
-    return times + num + c.name;
+    const num = c.sum ? (Math.round(c.sum * 100) / 100).toString().replace('.', ',') + (c.unit ? ' ' + c.unit : '') : '';
+    const times = c.plain ? (c.plain > 1 ? c.plain + '×' : '') : '';
+    const qty = [times, num].filter(Boolean).join(' + ');
+    return { name: c.name, qty, text: (qty ? qty + ' ' : '') + c.name };
   });
 }
 function render() {
@@ -204,7 +207,7 @@ function render() {
     h('button', { class: 'small', title: 'Löschen', onclick: () => { if (confirm('Rezept „' + r.name + '“ löschen?')) { store.data.recipes = store.data.recipes.filter((x) => x !== r); store.changed(); render(); } } }, '✕'))));
 
   const list = shoppingList();
-  $('shop').replaceChildren(list.length ? h('ul', { class: 'shop' }, list.map((l) => h('li', {}, l))) : h('p', { class: 'muted' }, 'Plane Rezepte mit Zutaten ein, dann erscheint hier die Einkaufsliste für die Woche.'));
+  $('shop').replaceChildren(list.length ? h('ul', { class: 'shop' }, list.map((l) => h('li', {}, l.text))) : h('p', { class: 'muted' }, 'Plane Rezepte mit Zutaten ein, dann erscheint hier die Einkaufsliste für die Woche.'));
 }
 $('form').onsubmit = (e) => {
   e.preventDefault();
@@ -228,7 +231,21 @@ $('clearw').onclick = () => {
   if (!confirm('Alle Einträge dieser Woche löschen?')) return;
   weekDays().forEach((d) => delete store.data.plan[ymd(d)]); store.changed(); render();
 };
-$('copy').onclick = () => copyText(shoppingList().map((l) => '- ' + l).join('\n'), $('copy'));
+$('copy').onclick = () => copyText(shoppingList().map((l) => '- ' + l.text).join('\n'), $('copy'));
+$('toshop').onclick = () => {
+  const d = store.data; let added = 0, onList = 0, inPantry = 0;
+  for (const l of shoppingList()) {
+    const k = l.name.toLowerCase();
+    const p = d.pantry.find((x) => x.name.toLowerCase() === k);
+    if (p && p.have > 0 && p.have >= p.min) { inPantry++; continue; }
+    if (d.list.some((x) => !x.done && x.name.toLowerCase() === k)) { onList++; continue; }
+    const known = d.favs.concat(d.pantry, d.list).find((x) => x.name.toLowerCase() === k);
+    d.list.push({ id: uid(), name: l.name, qty: l.qty, area: known && known.area ? known.area : 'Sonstiges', done: false });
+    added++;
+  }
+  if (added) store.changed();
+  $('shopmsg').textContent = added + ' Artikel hinzugefügt' + (onList ? ', ' + onList + ' standen schon auf der Liste' : '') + (inPantry ? ', ' + inPantry + ' sind im Vorrat vorhanden' : '') + '.';
+};
 
 { // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
   const inner = render; let busy = false, again = false;

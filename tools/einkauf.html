@@ -42,6 +42,7 @@
   </div>
   <div id="status"></div>
 
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="essensplaner.html">Essensplaner</a> – Zutaten aus dem Wochenplan landen direkt hier auf der Liste.</p>
   <div class="tabs" role="tablist">
     <button data-tab="list" class="on">Einkaufsliste</button>
     <button data-tab="favs">Wiederkehrend</button>
@@ -113,8 +114,8 @@ async function copyText(text, btn) {
   if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
 }
 const store = SimpleStorage.create({
-  name: 'einkauf',
-  defaults: () => ({ list: [], favs: [], pantry: [] }),
+  name: 'essen-einkauf',
+  defaults: () => ({ list: [], favs: [], pantry: [], recipes: [], plan: {} }),
   onChange: () => { normalize(); render(); },
   statusEl: $('status'),
 });
@@ -127,7 +128,8 @@ const AREAS = ['Obst & Gemüse', 'Brot & Backwaren', 'Milch & Kühlregal', 'Flei
 let tab = 'list';
 function normalize() {
   const d = store.data;
-  for (const k of ['list', 'favs', 'pantry']) if (!Array.isArray(d[k])) d[k] = [];
+  for (const k of ['list', 'favs', 'pantry', 'recipes']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!d.plan || typeof d.plan !== 'object' || Array.isArray(d.plan)) d.plan = {};
 }
 const areaOf = (a) => AREAS.includes(a) ? a : 'Sonstiges';
 function addToList(name, area, qty) {
