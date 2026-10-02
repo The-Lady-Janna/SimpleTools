@@ -22,8 +22,8 @@
   .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
   label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
   .sm { font-size:.82rem; }
-  .layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; grid-template-areas:"list queue" "list goals"; column-gap:16px; align-items:start; }
-  @media (max-width: 960px) { .layout { grid-template-columns:minmax(0,1fr); grid-template-areas:"queue" "list" "goals"; } }
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; grid-template-areas:"list queue" "list goals"; grid-template-rows:auto 1fr; column-gap:16px; align-items:start; }
+  @media (max-width: 960px) { .layout { grid-template-columns:minmax(0,1fr); grid-template-areas:"queue" "list" "goals"; grid-template-rows:auto; } }
   #queueBox { grid-area:queue; min-width:0; } #listBox { grid-area:list; min-width:0; } #goalsBox { grid-area:goals; min-width:0; }
   .side h2 { margin:0 0 8px; font-size:1.05rem; }
   .filters .tabs { margin:0 0 10px; }
@@ -295,7 +295,7 @@ function card(it) {
       kids.push(h('div', { class: 'pg' }, h('div', { class: 'pgl' }, first, pctEl), bar)); upd();
     }
     const meta = [];
-    if (it.status !== 'Wunsch' || it.rating) meta.push(h('span', { class: 'stars', role: 'group', 'aria-label': 'Bewertung' }, [1, 2, 3, 4, 5].map((n) => h('button', {
+    if (it.status === 'Fertig' || it.status === 'Abgebrochen' || it.rating) meta.push(h('span', { class: 'stars', role: 'group', 'aria-label': 'Bewertung' }, [1, 2, 3, 4, 5].map((n) => h('button', {
       type: 'button', class: n <= it.rating ? 'on' : '', title: n + (n === 1 ? ' Stern' : ' Sterne') + (n === it.rating ? ' (erneut klicken zum Entfernen)' : ''), 'aria-label': n + (n === 1 ? ' Stern' : ' Sterne'), 'aria-pressed': String(n === it.rating), dataset: { fk: 'r' + n + ':' + it.id },
       onclick: () => { it.rating = it.rating === n ? 0 : n; store.changed(); render(); } }, n <= it.rating ? '★' : '☆'))));
     const dates = [it.started && 'Gestartet ' + fmtDate(it.started), it.finished && 'Beendet ' + fmtDate(it.finished)].filter(Boolean).join(' · ');
@@ -336,7 +336,7 @@ function card(it) {
       L('Fortschritt gesamt', numIn('total')),
       L('Einheit', sel([['', 'Standard (' + UNITS[T.unit] + ')'], ...Object.keys(UNITS).map((u) => [u, UNITS[u]])], it.unit, (v) => { it.unit = v; store.changed(); render(); }, 'du:')),
       L('Gestartet', date('started')),
-      it.status === 'Fertig' ? h('label', { class: 'f', title: 'Ohne Datum zählt der Eintrag nicht für das Jahresziel.' }, 'Beendet', date('finished')) : null,
+      ...(it.status === 'Fertig' ? [h('label', { class: 'f', title: 'Ohne Datum zählt der Eintrag nicht für das Jahresziel.' }, 'Beendet', date('finished'))] : []),
       L('Tags (optional)', tags, 'wide'),
       L('Notizen', notes, 'wide'),
       h('div', { class: 'row acts wide' }, btn('Schließen', () => { openIds.delete(it.id); render(); })));

@@ -49,7 +49,8 @@
   .crow:last-child { border-bottom:0; } .crow .ct { flex:1 1 220px; min-width:0; overflow-wrap:anywhere; } .crow .cf { font-weight:600; } .crow .cb { color:var(--muted); }
   .crow .cm { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:.8rem; color:var(--muted); }
   .crow.edit input, .crow.edit select { flex:1 1 140px; min-width:0; }
-  .row input[type=text] { flex:1 1 160px; min-width:0; }
+  .row input[type=text] { flex:1 1 160px; min-width:0; } form.addf input[type=text] { flex:1 1 230px; }
+  @media (hover:none) { .hint { display:none; } }
   details.io summary { cursor:pointer; font-weight:600; } details.io h3 { margin:12px 0 6px; font-size:.95rem; }
   .brow { display:grid; grid-template-columns:7.5em minmax(0,1fr) 2.6em; gap:8px; align-items:center; margin:7px 0; }
   .brow .tr { height:18px; background:var(--bg); border:1px solid var(--line); border-radius:9px; overflow:hidden; } .brow .tr i { display:block; height:100%; background:var(--bc); }
@@ -328,7 +329,7 @@ function cardsView() {
   // Karte hinzufügen
   const fr = h('input', { type: 'text', id: 'newfront', placeholder: 'Vorderseite (Frage)', 'aria-label': 'Vorderseite' }), bk = h('input', { type: 'text', placeholder: 'Rückseite (Antwort)', 'aria-label': 'Rückseite' });
   const ds = deckSelect('Stapel für die neue Karte', curDeck === 'all' ? d.decks[0].id : curDeck); ds.hidden = curDeck !== 'all';
-  const af = h('form', { class: 'card row' }, fr, bk, ds, h('button', { class: 'primary' }, '+ Karte'));
+  const af = h('form', { class: 'card row addf' }, fr, bk, ds, h('button', { class: 'primary' }, '+ Karte'));
   af.onsubmit = (e) => {
     e.preventDefault(); const a = fr.value.trim(), b = bk.value.trim();
     if (!a || !b) { (a ? bk : fr).focus(); return; }

@@ -30,7 +30,7 @@
   .notes .disc { border-color:var(--warn); background:color-mix(in srgb, var(--warn) 9%, var(--card)); }
   .notes .disc b { color:var(--warn); }
   .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
-  .sum .card { margin:0; text-align:center; display:flex; flex-direction:column; gap:2px; justify-content:center; }
+  .sum .card { margin:0; text-align:center; display:flex; flex-direction:column; gap:2px; justify-content:flex-start; }
   .sum b { font-size:1.25rem; line-height:1.25; } .sum .sub { font-size:.82rem; }
   .warnc { color:var(--warn); }
   .layout { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start; margin:12px 0; }
@@ -83,7 +83,7 @@
   .hgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; margin:8px 0 12px; }
   .hgrid .card { margin:0; min-width:0; }
   table { width:100%; border-collapse:collapse; font-size:.92rem; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; } th { font-weight:600; color:var(--muted); font-size:.8rem; }
-  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; } svg.chart text.val { fill:var(--fg); font-weight:600; }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; } svg.chart text.val { fill:var(--fg); font-weight:600; paint-order:stroke; stroke:var(--card); stroke-width:3px; }
   .srow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 10px; margin:8px 0; font-size:.92rem; }
   .bar { grid-column:1 / -1; height:8px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
   .bar > i { display:block; height:100%; background:var(--c4); }
@@ -107,7 +107,7 @@
   <div id="status"></div>
 
   <div class="notes">
-    <div class="card priv"><b>🔒 Nur lokal gespeichert – nichts wird gesendet</b><span>Deine Einträge liegen ausschließlich in der Datei, die du oben speicherst, auf diesem Gerät. Diese Seite verschickt keine Daten und braucht kein Konto.</span></div>
+    <div class="card priv"><b>🔒 Nur lokal gespeichert – nichts wird gesendet</b><span>Deine Einträge liegen ausschließlich in der Datei, die du oben speicherst, auf diesem Gerät. Diese Seite verschickt keine Daten und braucht kein Konto.</span><span class="muted">Tipp: Lege die Datei an einem privaten Ort ab (z. B. verschlüsselter Ordner) und gib sie nicht weiter – sie enthält deine Einträge im Klartext.</span></div>
     <div class="card disc" role="note"><b>⚠ Keine medizinische Beratung – nicht zur Verhütung geeignet</b><span>Alle Vorhersagen (nächste Periode, fruchtbares Fenster, Eisprung) sind grobe Schätzungen aus deinen eigenen Eingaben und können deutlich danebenliegen. Verlasse dich nicht darauf, um eine Schwangerschaft zu vermeiden oder zu planen. Bei Beschwerden oder auffälligen Zyklen sprich mit einer Ärztin oder einem Arzt.</span></div>
   </div>
   <div class="sum" id="sum"></div>

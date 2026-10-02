@@ -55,11 +55,13 @@
   .brow { padding:8px 8px 8px 10px; border-bottom:1px solid var(--line); border-left:4px solid transparent; } .brow.over { border-left-color:var(--err); background:color-mix(in srgb, var(--err) 8%, var(--card)); }
   .brow input { width:100%; min-width:0; } .brow .bl { grid-column:1 / -1; display:flex; gap:10px; align-items:center; } .brow .diff { font-size:.82rem; color:var(--muted); min-width:9em; text-align:right; } .brow.over .diff { color:var(--err); font-weight:600; }
   .bhead { font-size:.78rem; color:var(--muted); padding:0 8px 4px 14px; }
-  @media (max-width: 600px) { .bhead { display:none; } .brow, .bhead { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 2.4em; } .brow .bi { grid-column:1 / -1; } }
+  @media (max-width: 600px) { .brow .diff { min-width:0; } .brow .diff:empty { display:none; } .bhead { display:none; } .brow, .bhead { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 2.4em; } .brow .bi { grid-column:1 / -1; } }
   .two { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; align-items:start; } .two .card { margin:0; }
   .course { margin:12px 0 2px; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
   .tpl-msg { margin:4px 0 0; font-size:.88rem; }
   summary { cursor:pointer; font-weight:600; }
+  input[type=time] { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+  .evform label.f { flex:1 1 150px; } .evform label.f.fx { flex:1 1 100%; } .evform label.f input, .evform label.f select, .evform label.f textarea { width:100%; min-width:0; } .evform label.f input, .evform label.f select { min-height:2.4rem; }
 
 </style>
 </head>
@@ -214,7 +216,7 @@ function evForm(ev) {
   const place = h('input', { type: 'text', id: 'e-place', value: ev ? ev.place : '', placeholder: 'Ort / Adresse' });
   const notes = h('textarea', { id: 'e-notes', rows: 2, placeholder: 'Notizen, Motto, Dresscode …' }); notes.value = ev ? ev.notes : '';
   const cancel = h('button', { type: 'button', id: 'e-cancel', onclick: () => { editing = null; render(); } }, 'Abbrechen');
-  const f = h('form', { class: 'card form' }, L('Name', name, 'fx'), L('Art', type), L('Datum', date), L('Uhrzeit', time), L('Ort', place, 'fx'), L('Notizen', notes, 'fx'), h('button', { class: 'primary', id: 'e-save' }, ev ? 'Übernehmen' : 'Event anlegen'), (ev || store.data.events.length) ? cancel : null);
+  const f = h('form', { class: 'card form evform' }, L('Name', name, 'fx'), L('Art', type), L('Datum', date), L('Uhrzeit', time), L('Ort', place, 'fx'), L('Notizen', notes, 'fx'), h('button', { class: 'primary', id: 'e-save' }, ev ? 'Übernehmen' : 'Event anlegen'), (ev || store.data.events.length) ? cancel : null);
   f.onsubmit = (e) => {
     e.preventDefault();
     const rec = { name: name.value.trim(), type: type.value, date: date.value, time: time.value, place: place.value.trim(), notes: notes.value.trim() };

@@ -24,8 +24,10 @@
   label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
   input.w { width:6.5em; } input.n { width:3.4em; text-align:center; }
   h2.sec { margin:0 0 8px; font-size:1.05rem; }
-  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .sum { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
   .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.25rem; }
+  @media (max-width: 520px) { .sum { gap:6px; } .sum .card { padding:8px 6px; } .sum b { font-size:1.02rem; } .sum .muted { font-size:.78rem; } }
+  .form input, .form select { min-height:36px; }
   .pets { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin:12px 0; }
   .pets .card { margin:0; display:flex; flex-direction:column; gap:6px; min-width:0; }
   .em { font-size:2.2rem; line-height:1; }
@@ -40,6 +42,14 @@
   .item .done-form { flex-basis:100%; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
   .quick { display:flex; gap:4px; align-items:flex-end; }
   .tw { overflow-x:auto; }
+  @media (max-width: 600px) {
+    #evtable thead { display:none; } #evtable, #evtable tbody { display:block; }
+    #evtable tr { display:flex; flex-wrap:wrap; gap:2px 10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+    #evtable td { border:0; padding:0; } #evtable td.z, #evtable td.n:empty { display:none; }
+    #evtable td.d { font-weight:600; } #evtable td.t { flex:1; } #evtable td.r { order:2; } #evtable td.x { order:3; }
+    #evtable td.n { order:4; flex-basis:100%; color:var(--muted); } #evtable td.nx { order:5; flex-basis:100%; font-size:.88rem; }
+    #evtable td.nx::before { content:'Nächster Termin: '; color:var(--muted); }
+  }
   table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
   th { font-size:.8rem; color:var(--muted); font-weight:600; } td.n, td.nw { overflow-wrap:anywhere; } td.r, th.r { text-align:right; white-space:nowrap; } td.nw { white-space:nowrap; }
   .br { display:grid; grid-template-columns:8.5em 1fr 6.5em; gap:8px; align-items:center; margin:5px 0; font-size:.92rem; }
@@ -215,7 +225,7 @@ function overview() {
   const due = openDue(), over = due.filter((e) => daysTo(e.nextDue) < 0).length, soon = due.filter((e) => { const n = daysTo(e.nextDue); return n >= 0 && n <= 14; }).length;
   const sum = h('div', { class: 'sum' },
     h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Tiere'), h('b', { id: 'ntiere' }, d.pets.length)),
-    h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Überfällig / bald (14 Tage)'), h('b', {}, h('span', { class: over ? 'neg' : '' }, over), ' / ', soon)),
+    h('div', { class: 'card' }, h('span', { class: 'muted', title: 'bald = in den nächsten 14 Tagen' }, 'Überfällig / bald'), h('b', {}, h('span', { class: over ? 'neg' : '' }, over), ' / ', soon)),
     h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Kosten ' + y), h('b', {}, eur(yearCost(null, y)))));
   const cards = d.pets.map((p) => {
     const nd = openDue(p.id)[0], lw = lastWeight(p.id), di = nd ? dueInfo(nd.nextDue) : null, a = age(p.birth);
@@ -296,10 +306,10 @@ function logView(p) {
   const due = openDue(p.id);
   const evs = store.data.events.filter((e) => e.petId === p.id).sort((a, b) => b.date.localeCompare(a.date));
   const open = new Set(due.map((e) => e.id));
-  const rows = evs.map((e) => h('tr', { dataset: { id: e.id } }, h('td', { class: 'nw' }, fmtDate(e.date)), h('td', {}, (TICON[e.type] || '📌') + ' ' + e.type), h('td', { class: 'n' }, e.note),
-    h('td', { class: 'r' }, e.cost ? eur(e.cost) : '–'),
-    h('td', { class: 'nw' }, e.nextDue ? [fmtDate(e.nextDue), open.has(e.id) ? [' ', h('span', { class: 'badge ' + dueInfo(e.nextDue).cls }, dueInfo(e.nextDue).text)] : null] : '–'),
-    h('td', {}, h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Eintrag löschen', onclick: () => { if (confirm('Eintrag „' + e.type + '“ vom ' + fmtDate(e.date) + ' löschen?')) { store.data.events = store.data.events.filter((x) => x !== e); store.changed(); render(); } } }, '✕'))));
+  const rows = evs.map((e) => h('tr', { dataset: { id: e.id } }, h('td', { class: 'nw d' }, fmtDate(e.date)), h('td', { class: 't' }, (TICON[e.type] || '📌') + ' ' + e.type), h('td', { class: 'n' }, e.note),
+    h('td', { class: 'r' + (e.cost ? '' : ' z') }, e.cost ? eur(e.cost) : '–'),
+    h('td', { class: 'nw nx' + (e.nextDue ? '' : ' z') }, e.nextDue ? [fmtDate(e.nextDue), open.has(e.id) ? [' ', h('span', { class: 'badge ' + dueInfo(e.nextDue).cls }, dueInfo(e.nextDue).text)] : null] : '–'),
+    h('td', { class: 'x' }, h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Eintrag löschen', onclick: () => { if (confirm('Eintrag „' + e.type + '“ vom ' + fmtDate(e.date) + ' löschen?')) { store.data.events = store.data.events.filter((x) => x !== e); store.changed(); render(); } } }, '✕'))));
   const log = h('div', { class: 'card' }, h('div', { class: 'row', style: 'margin-bottom:6px' }, h('h2', { class: 'sec', style: 'margin:0;flex:1' }, 'Verlauf (' + evs.length + ')'), evs.length ? h('button', { class: 'small', id: 'csvpet', onclick: () => exportCsv(p) }, '⬇ CSV') : null),
     evs.length ? h('div', { class: 'tw' }, h('table', { id: 'evtable' }, h('thead', {}, h('tr', {}, h('th', {}, 'Datum'), h('th', {}, 'Art'), h('th', {}, 'Notiz'), h('th', { class: 'r' }, 'Kosten'), h('th', {}, 'Nächster Termin'), h('th', {}))), h('tbody', {}, rows)))
       : h('p', { class: 'muted', style: 'margin:0' }, 'Noch keine Einträge für ' + p.name + '. Trage oben Impfungen, Tierarztbesuche, Entwurmungen usw. ein.'));
@@ -346,19 +356,24 @@ function redrawChart() {
   const pts = wpts(sel).map((w) => ({ t: parseYmd(w.date).getTime(), d: w.date, y: w.kg }));
   if (pts.length) box.replaceChildren(chart(pts, box.clientWidth || 600));
 }
+function niceTicks(lo, hi, n) {
+  const raw = (hi - lo) / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p, step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p, out = [];
+  for (let i = Math.ceil(lo / step - 1e-9); i * step <= hi + 1e-9; i++) out.push(Math.round(i * step * 1e6) / 1e6);
+  return out;
+}
 function chart(pts, width) {
-  const NS = 'http://www.w3.org/2000/svg', W = Math.max(280, Math.min(760, width)), H = W < 480 ? 200 : 240, L = 46, R = 14, T = 12, B = 26;
+  const NS = 'http://www.w3.org/2000/svg', W = Math.max(280, Math.min(1000, width)), H = W < 480 ? 200 : 260, L = 48, R = 14, T = 12, B = 26;
   const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Gewichtsverlauf');
   const el = (tag, a, t) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; svg.append(n); return n; };
-  let lo = Math.min(...pts.map((p) => p.y)), hi = Math.max(...pts.map((p) => p.y)); const pd = (hi - lo || hi * 0.1 || 1) * 0.2; lo = Math.max(0, lo - pd); hi += pd;
+  const grams = Math.max(...pts.map((p) => p.y)) < 1, k = grams ? 1000 : 1;
+  let lo = Math.min(...pts.map((p) => p.y)) * k, hi = Math.max(...pts.map((p) => p.y)) * k; const pd = (hi - lo || hi * 0.1 || 1) * 0.2; lo = Math.max(0, lo - pd); hi += pd;
   const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = t1 - t0;
   const X = (t) => span === 0 ? (L + W - R) / 2 : L + (t - t0) / span * (W - L - R), Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
-  const tick = (v) => hi < 1 ? Math.round(v * 1000) + ' g' : num(v, 2);
-  for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4; el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, tick(v)); }
+  niceTicks(lo, hi, 4).forEach((v) => { el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, num(v, 3) + (grams ? ' g' : '')); });
   if (span === 0) el('text', { x: X(t0), y: H - 6, 'text-anchor': 'middle' }, fmtDate(pts[0].d));
   else { el('text', { x: L, y: H - 6 }, fmtDate(ymd(new Date(t0)))); el('text', { x: (L + W - R) / 2, y: H - 6, 'text-anchor': 'middle' }, fmtDate(ymd(new Date((t0 + t1) / 2)))); el('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, fmtDate(ymd(new Date(t1)))); }
-  if (pts.length > 1) el('polyline', { points: pts.map((p) => X(p.t) + ',' + Y(p.y)).join(' '), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round' });
-  pts.forEach((p) => { const c = el('circle', { cx: X(p.t), cy: Y(p.y), r: 3.5, fill: 'var(--accent)' }); c.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: fmtDate(p.d) + ': ' + fmtKg(p.y) })); });
+  if (pts.length > 1) el('polyline', { points: pts.map((p) => X(p.t) + ',' + Y(p.y * k)).join(' '), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round' });
+  pts.forEach((p) => { const c = el('circle', { cx: X(p.t), cy: Y(p.y * k), r: 3.5, fill: 'var(--accent)' }); c.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: fmtDate(p.d) + ': ' + fmtKg(p.y) })); });
   return svg;
 }
 let rsz = 0; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(redrawChart, 150); });
