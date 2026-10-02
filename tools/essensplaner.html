@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Essensplaner</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -164,7 +165,7 @@ function shoppingList() {
     }
   }
   return [...acc.values()].sort((a, b) => a.name.localeCompare(b.name)).map((c) => {
-    const num = c.sum ? (Math.round(c.sum * 100) / 100).toString().replace('.', ',') + (c.unit ? ' ' + c.unit : '') : '';
+    const num = c.sum ? (Math.round(c.sum * 100) / 100).toString().replace('.', SimpleI18n.dec) + (c.unit ? ' ' + c.unit : '') : '';
     const times = c.plain ? (c.plain > 1 ? c.plain + '×' : '') : '';
     const qty = [times, num].filter(Boolean).join(' + ');
     return { name: c.name, qty, text: (qty ? qty + ' ' : '') + c.name };
@@ -173,7 +174,7 @@ function shoppingList() {
 function render() {
   const days = weekDays();
   const fmt = (d) => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' });
-  $('wlabel').textContent = fmt(days[0]) + ' – ' + fmt(days[6]) + days[6].getFullYear();
+  $('wlabel').textContent = fmt(days[0]) + ' – ' + fmt(days[6]) + (/[0-9]$/.test(fmt(days[6])) ? '/' : '') + days[6].getFullYear();
   const todayS = ymd(new Date());
   $('week').replaceChildren(...days.map((d) => {
     const key = ymd(d), plan = store.data.plan[key] || {};

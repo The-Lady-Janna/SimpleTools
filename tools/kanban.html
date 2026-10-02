@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Kanban</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main.wide { max-width:none; }
@@ -206,7 +207,7 @@ document.addEventListener('keydown', (e) => {
 /* ---------- Filter (nur Ansicht, wird nicht gespeichert) ---------- */
 const F = { q: '', color: '', tag: '', archive: false };
 const today = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
-const fmtDate = (s) => s.split('-').reverse().join('.');
+const fmtDate = (s) => { const d = new Date(s + 'T00:00:00'); return isNaN(d) ? s.split('-').reverse().join('.') : d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }); };
 const colorName = (b, c) => (c && b.colorNames[c]) || c || 'Keine Farbe';
 function matches(k) {
   if (k.archived && !F.archive) return false;

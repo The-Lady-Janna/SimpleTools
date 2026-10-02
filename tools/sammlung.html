@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Sammlung &amp; Projekte</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -163,7 +164,7 @@ function parseAmount(s) {
   if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
   const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : NaN;
 }
-const numDe = (n) => (n ? String(n).replace('.', ',') : '');
+const numDe = (n) => (n ? String(n).replace('.', SimpleI18n.dec) : '');
 function normalize() {
   const d = store.data;
   for (const k of ['collections', 'items', 'projects']) if (!Array.isArray(d[k])) d[k] = [];
@@ -254,11 +255,11 @@ function colView() {
   const photos = store.data.items.filter((i) => i.photo);
   function draw() {
     const list = visibleItems();
-    box.replaceChildren(h('div', { class: 'muted', style: 'font-size:.85rem;margin:2px 0 8px' }, list.length + (list.length === sc.length ? '' : ' von ' + sc.length) + (list.length === 1 ? ' Eintrag' : ' Einträge')),
+    box.replaceChildren(...[h('div', { class: 'muted', style: 'font-size:.85rem;margin:2px 0 8px' }, list.length + (list.length === sc.length ? '' : ' von ' + sc.length) + (list.length === 1 ? ' Eintrag' : ' Einträge')),
       list.length ? h('div', { class: 'grid' }, list.map(itemCard))
         : sc.length ? h('div', { class: 'card muted' }, 'Nichts gefunden. ', h('button', { class: 'small', onclick: () => { own = 'all'; q = ''; tagF = ''; render(); } }, 'Filter zurücksetzen'))
           : h('div', { class: 'card muted' }, 'Noch nichts in dieser Auswahl. Lege mit „+ Neuer Gegenstand“ den ersten Eintrag an – oder setze etwas auf die Wunschliste.'),
-      photos.length ? h('p', { class: 'hint' }, photos.length + (photos.length === 1 ? ' Foto' : ' Fotos') + ' in der Datei (≈ ' + Math.round(photos.reduce((a, i) => a + i.photo.length, 0) / 1024) + ' KB)') : null);
+      photos.length ? h('p', { class: 'hint' }, photos.length + (photos.length === 1 ? ' Foto' : ' Fotos') + ' in der Datei (≈ ' + Math.round(photos.reduce((a, i) => a + i.photo.length, 0) / 1024) + ' KB)') : null].filter(Boolean));
   }
   draw(); out.push(box);
   return h('div', {}, ...out);

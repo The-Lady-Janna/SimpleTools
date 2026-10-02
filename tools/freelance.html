@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Freelancer: Zeit &amp; Rechnungen</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -169,10 +170,10 @@ const invoiceTotal = (inv) => round2(inv.items.reduce((a, it) => a + lineTotal(i
 const hrs = (min) => (min / 60).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' h';
 const hm = (min) => Math.floor(min / 60) + ':' + pad(Math.round(min % 60));
 const clock = (ms) => { const s = Math.max(0, Math.floor(ms / 1000)); return pad(Math.floor(s / 3600)) + ':' + pad(Math.floor(s % 3600 / 60)) + ':' + pad(s % 60); };
-const fmtN = (n) => String(round2(+n || 0)).replace('.', ',');
+const fmtN = (n) => String(round2(+n || 0)).replace('.', SimpleI18n.dec);
 const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const shiftMonth = (m, delta) => { const [y, mo] = m.split('-').map(Number); const d = new Date(y, mo - 1 + delta, 1); return d.getFullYear() + '-' + pad(d.getMonth() + 1); };
-const rng = (a, b) => a === b ? fmtDate(a) : fmtDate(a).slice(0, 6) + '–' + fmtDate(b);
+const rng = (a, b) => a === b ? fmtDate(a) : fmtDate(a).replace(/\d{4}$/, '').replace(/[/-]$/, '') + '–' + fmtDate(b);
 const L = (t, el, cls) => h('label', { class: 'f' + (cls ? ' ' + cls : '') }, t, el);
 function num(s) { s = String(s ?? '').trim().replace(/\s|€/g, ''); if (!s) return NaN; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? n : NaN; }
 function parseDur(s) {
@@ -368,7 +369,7 @@ function createPanel() {
   const boxes = times.map((t) => { const cb = h('input', { type: 'checkbox', checked: c.sel.has(t.id), 'aria-label': 'Zeiteintrag übernehmen' }); cb.onchange = () => { if (cb.checked) c.sel.add(t.id); else c.sel.delete(t.id); upd(); }; return cb; });
   const setAll = (on) => { boxes.forEach((b, i) => { b.checked = on; if (on) c.sel.add(times[i].id); else c.sel.delete(times[i].id); }); upd(); };
   const list = times.length ? times.map((t, i) => { const p = project(t.projectId);
-    return h('label', { class: 'pick' }, boxes[i], h('span', { class: 'muted' }, fmtDate(t.date).slice(0, 6)), h('span', { class: 'nm' }, h('strong', {}, p ? p.name : ''), t.note ? h('span', { class: 'muted' }, ' · ' + t.note) : null, rateOf(t.projectId) > 0 ? null : h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'Satz fehlt')),
+    return h('label', { class: 'pick' }, boxes[i], h('span', { class: 'muted' }, fmtDate(t.date).replace(/\d{4}$/, '').replace(/[/-]$/, '')), h('span', { class: 'nm' }, h('strong', {}, p ? p.name : ''), t.note ? h('span', { class: 'muted' }, ' · ' + t.note) : null, rateOf(t.projectId) > 0 ? null : h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'Satz fehlt')),
       h('b', {}, hm(t.minutes)), h('span', { class: 'num muted' }, eur(valueOf(t)))); }) : [h('p', { class: 'muted' }, 'Für diesen Kunden gibt es keine offenen Zeiten. Du kannst trotzdem eine leere Rechnung anlegen und Positionen von Hand eintragen.')];
   upd();
   return h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 8px;font-size:1.05rem' }, 'Rechnung aus offenen Zeiten'), h('div', { class: 'form' }, L('Kunde', csel), L('Rechnungsdatum', date), L('Zahlungsziel (Tage)', days)),
@@ -485,6 +486,7 @@ function printInvoice(inv) {
       inv.status === 'Bezahlt' ? h('div', {}, 'Der Betrag wurde am ' + fmtDate(inv.paidDate) + ' bezahlt – vielen Dank!')
         : h('div', {}, 'Bitte überweisen Sie ' + eur(total) + (inv.due ? ' bis zum ' + fmtDate(inv.due) : '') + ' unter Angabe der Rechnungsnummer ' + inv.number + (me.iban ? ' auf folgendes Konto:' : '.')),
       me.iban ? h('div', {}, 'IBAN: ', h('b', {}, me.iban)) : null, me.iban && me.name ? h('div', {}, 'Kontoinhaber: ' + me.name) : null));
+  if (window.SimpleI18n) SimpleI18n.apply();   // Druckbereich vor dem Drucken übersetzen
   window.print();
 }
 /* ---------- Tab Einstellungen ---------- */

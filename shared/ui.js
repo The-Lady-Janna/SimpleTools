@@ -159,10 +159,18 @@
     });
     function markF() { fBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(hasFun(b.dataset.f))); }); }
     markF();
+    var langBtns = (window.SimpleI18n ? SimpleI18n.languages : []).map(function (l) {
+      var b = el('button', { type: 'button', textContent: l.name }); b.dataset.l = l.code; b.setAttribute('translate', 'no'); b.setAttribute('lang', l.code);
+      b.onclick = function () { SimpleI18n.setLang(l.code); };
+      return b;
+    });
+    function markL() { if (window.SimpleI18n) langBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.l === SimpleI18n.lang)); }); }
+    markL(); if (window.SimpleI18n) SimpleI18n.onChange(markL);
     var party = el('button', { type: 'button', className: 'ui-party', textContent: '🎉 Spaß-Modus an' });
     party.onclick = function () { cfg.theme = 'candy'; cfg.fun = FUN.map(function (f) { return f[0]; }); save(); applyTheme(); applyFun(); markThemes(); markF(); confetti(party); };
 
-    panel.append(el('h2', { textContent: 'Design' }), grid,
+    panel.append(el('h2', { textContent: 'Sprache' }), el('div', { className: 'ui-row ui-lang' }, langBtns),
+      el('h2', { textContent: 'Design' }), grid,
       el('h2', { textContent: 'Spaß' }), el('div', { className: 'ui-row ui-fun' }, fBtns), party,
       el('h2', { textContent: 'Seitenbreite' }), el('div', { className: 'ui-row ui-width' }, wBtns),
       el('h2', { textContent: 'Hintergrundbild' }), el('div', { className: 'ui-row' }, [pick, clear, file]), hint);

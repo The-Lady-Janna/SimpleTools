@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Zyklus &amp; Wohlbefinden</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -354,7 +355,7 @@ function renderEditor() {
     manage = false;
     edit(k, (r) => { if (!r.symptoms.includes(name)) r.symptoms.push(name); });
   };
-  const temp = h('input', { type: 'text', inputMode: 'decimal', class: 'w', placeholder: '36,5', 'aria-label': 'Körpertemperatur in °C (optional)', value: rec.temp != null ? String(rec.temp).replace('.', ',') : '' });
+  const temp = h('input', { type: 'text', inputMode: 'decimal', class: 'w', placeholder: '36,5', 'aria-label': 'Körpertemperatur in °C (optional)', value: rec.temp != null ? String(rec.temp).replace('.', SimpleI18n.dec) : '' });
   temp.oninput = () => {
     const s = temp.value.trim().replace(/[^\d,.\-]/g, '');
     if (!temp.value.trim()) { touch(k, (r) => { delete r.temp; }); temp.removeAttribute('aria-invalid'); store.changed(); light(); return; }
@@ -411,7 +412,7 @@ function drawChart() {
     const r = el('rect', { x: cx - bw / 2, y, width: bw, height: Y(0) - y, rx: 3, fill: p.counted ? 'var(--accent)' : 'var(--muted)', opacity: p.counted ? 0.85 : 0.45 });
     el('title', {}, 'Start ' + fmtDate(p.start) + ': ' + tage(p.cycleLen), r);
     el('text', { x: cx, y: y - 4, 'text-anchor': 'middle', class: 'val' }, p.cycleLen);
-    el('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, fmtDate(p.start).slice(0, 6));
+    el('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, fmtDate(p.start).replace(/\d{4}$/, '').replace(/[/-]$/, ''));
   });
   if (M.gapsN) el('line', { x1: L, x2: W - R, y1: Y(M.avgCycle), y2: Y(M.avgCycle), stroke: 'var(--err)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' });
   box.replaceChildren(svg);

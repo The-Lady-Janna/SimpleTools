@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Workout-Log</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -99,7 +100,7 @@ function normalize() {
   if (!d.workouts.find((w) => w.id === curId)) curId = d.workouts.length ? d.workouts.slice().sort((a, b) => b.date.localeCompare(a.date))[0].id : null;
 }
 const e1rm = (s) => s.weight > 0 && s.reps > 0 ? s.weight * (1 + s.reps / 30) : 0;
-const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+const fmt = (n) => (Math.round(n * 10) / 10).toString().replace('.', SimpleI18n.dec);
 const volume = (w) => w.exercises.reduce((a, e) => a + e.sets.reduce((b, s) => b + (s.weight || 0) * (s.reps || 0), 0), 0);
 const exNames = () => [...new Set(store.data.workouts.flatMap((w) => w.exercises.map((e) => e.name)).concat(store.data.routines.flatMap((r) => r.exercises)))].sort();
 const cur = () => store.data.workouts.find((w) => w.id === curId);
@@ -131,7 +132,7 @@ function trainView() {
   };
   const w = cur(), out = [nf];
   const recent = store.data.workouts.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
-  if (recent.length) out.push(h('div', { class: 'card toolbar' }, 'Einheit:', recent.map((x) => { const b = h('button', { class: x.id === curId ? 'primary' : '' }, fmtDate(x.date).slice(0, 6) + (x.name ? ' ' + x.name : '')); b.onclick = () => { curId = x.id; render(); }; return b; })));
+  if (recent.length) out.push(h('div', { class: 'card toolbar' }, 'Einheit:', recent.map((x) => { const b = h('button', { class: x.id === curId ? 'primary' : '' }, fmtDate(x.date).replace(/\d{4}$/, '').replace(/[/-]$/, '') + (x.name ? ' ' + x.name : '')); b.onclick = () => { curId = x.id; render(); }; return b; })));
   if (!w) return h('div', {}, ...out, h('div', { class: 'card muted' }, 'Starte oben eine Einheit – leer oder aus einer Routine.'));
   const wn = h('input', { type: 'text', value: w.name, placeholder: 'Name', style: 'font-weight:600;flex:1;min-width:140px', 'aria-label': 'Name der Einheit' }); wn.oninput = () => { w.name = wn.value; store.changed(); };
   const wd = h('input', { type: 'date', value: w.date, 'aria-label': 'Datum' }); wd.onchange = () => { if (wd.value) { w.date = wd.value; store.changed(); render(); } };
@@ -143,7 +144,7 @@ function trainView() {
     const pr = topSet && e1rm(topSet) > 0 && e1rm(topSet) > bestBefore(ex.name, w) && bestBefore(ex.name, w) > 0;
     card.append(h('div', { class: 'ex' }, h('h3', {}, ex.name, pr ? h('span', { class: 'badge ok', title: 'Neuer Rekord (geschätztes 1RM)' }, '🏅 PR') : null, h('span', { class: 'sp' }),
       h('button', { class: 'small', title: 'Übung entfernen', onclick: () => { w.exercises = w.exercises.filter((x) => x !== ex); store.changed(); render(); } }, '✕')),
-      last ? h('div', { class: 'hint' }, 'Letztes Mal (' + fmtDate(last.w.date).slice(0, 6) + '): ' + last.e.sets.map((s) => fmt(s.weight || 0) + ' kg × ' + (s.reps || 0)).join(', ')) : null,
+      last ? h('div', { class: 'hint' }, 'Letztes Mal (' + fmtDate(last.w.date).replace(/\d{4}$/, '').replace(/[/-]$/, '') + '): ' + last.e.sets.map((s) => fmt(s.weight || 0) + ' kg × ' + (s.reps || 0)).join(', ')) : null,
       ex.sets.map((s, i) => {
         const kg = h('input', { type: 'number', step: 'any', min: 0, value: s.weight ?? '', placeholder: 'kg', 'aria-label': 'Gewicht Satz ' + (i + 1) });
         const re = h('input', { type: 'number', min: 0, value: s.reps ?? '', placeholder: 'Wdh', 'aria-label': 'Wiederholungen Satz ' + (i + 1) });

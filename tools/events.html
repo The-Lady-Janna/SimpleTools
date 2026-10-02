@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Event-Planer</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -142,7 +143,7 @@ const shiftDays = (s, n) => { const d = parseYmd(s); return ymd(new Date(d.getFu
 const sum = (arr, k) => arr.reduce((a, x) => a + (x[k] || 0), 0);
 const cur = () => store.data.events.find((e) => e.id === curId) || null;
 const byName = (a, b) => a.name.localeCompare(b.name, 'de');
-const fmtIn = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
+const fmtIn = (n) => String(Math.round(n * 100) / 100).replace('.', SimpleI18n.dec);
 function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
 function sortedEvents() {
   const t = ymd(new Date()), ev = store.data.events;

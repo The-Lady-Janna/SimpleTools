@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Familien-Punkteplan</title>
 <link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
 <script src="../shared/ui.js"></script>
 <style>
   main { max-width: 960px; }
@@ -220,7 +221,7 @@ function toggle(day, t, kid) {
   store.changed(); render();
 }
 function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, '').replace(/^[+-]/, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? round2(Math.abs(n)) : NaN; }
-const fmtNum = (n) => n.toFixed(2).replace('.', ',');
+const fmtNum = (n) => n.toFixed(2).replace('.', SimpleI18n.dec);
 const L = (t, el) => h('label', { class: 'f' }, t, el);
 const empty = (emoji, text, ...more) => h('div', { class: 'card empty' }, h('div', { class: 'em' }, emoji), h('p', {}, text), ...more);
 function loadSample() {
@@ -283,7 +284,7 @@ function weekView() {
   const kid = selKid(), todayK = ymd(new Date()), days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), keys = days.map(ymd), tmap = new Map(d.tasks.map((t) => [t.id, t]));
   const dayPts = (k, key) => (d.done[key] || []).reduce((a, x) => { const i = x.indexOf(':'), t = tmap.get(x.slice(0, i)); return a + (t && x.slice(i + 1) === k.id ? t.points : 0); }, 0);
   const nav = h('div', { class: 'card nav' }, h('button', { 'aria-label': 'Vorherige Woche', onclick: () => { weekStart = addDays(weekStart, -7); render(); } }, '‹'),
-    h('strong', {}, 'KW ' + isoWeek(weekStart) + ' · ' + fmtDate(keys[0]).slice(0, 6) + ' – ' + fmtDate(keys[6])), h('button', { 'aria-label': 'Nächste Woche', onclick: () => { weekStart = addDays(weekStart, 7); render(); } }, '›'),
+    h('strong', {}, 'KW ' + isoWeek(weekStart) + ' · ' + fmtDate(keys[0]).replace(/\d{4}$/, '').replace(/[/-]$/, '') + ' – ' + fmtDate(keys[6])), h('button', { 'aria-label': 'Nächste Woche', onclick: () => { weekStart = addDays(weekStart, 7); render(); } }, '›'),
     h('button', { onclick: () => { weekStart = monday(new Date()); render(); } }, 'Diese Woche'));
   const head = (extra) => h('tr', {}, h('th', { class: 'nm' }, extra), days.map((dt, i) => h('th', { class: keys[i] === todayK ? 'today' : '' }, WD[i], h('div', { class: 'dn' }, dt.getDate() + '.' + (dt.getMonth() + 1) + '.'))), h('th', {}, 'Σ'));
   const kidRows = d.kids.map((k) => {
