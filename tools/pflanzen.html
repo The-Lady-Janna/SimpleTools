@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pflanzen &amp; Garten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:12px 0; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.3rem; }
+  .grp { margin:16px 0 4px; font-size:.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .grp.err { color:var(--err); }
+  .item { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; }
+  .item .nm { flex:1; min-width:200px; overflow-wrap:anywhere; }
+  .item .meta { color:var(--muted); font-size:.85rem; margin-top:1px; }
+  .item .meta.err { color:var(--err); } .item .meta.warn { color:var(--warn); }
+  .badges { display:flex; flex-wrap:wrap; gap:4px 6px; margin-top:4px; }
+  .acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  button.bigbtn { min-height:46px; padding:8px 18px; font-size:1rem; font-weight:600; }
+  button.bigbtn.water { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  button.bigbtn.fert { background:var(--ok); color:var(--on-ok); border-color:var(--ok); }
+  .undo { position:sticky; top:8px; z-index:5; box-shadow:0 4px 14px rgba(0,0,0,.18); border-color:var(--accent); }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  .form .full { flex-basis:100%; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:6.5em; }
+  .tip { font-size:.8rem; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82rem; color:var(--muted); margin:8px 0 0; align-items:center; }
+  .sw { display:inline-block; width:18px; height:18px; border-radius:4px; vertical-align:middle; margin-right:5px; text-align:center; line-height:18px; font-size:.65rem; font-weight:700; color:#10151d; }
+  .sw.sow, .mc.sow { background:var(--c-b, #d9962b); } .sw.har, .mc.har { background:var(--c-c, #3a9d8c); }
+  .sw.both, .mc.both { background:linear-gradient(135deg, var(--c-b, #d9962b) 50%, var(--c-c, #3a9d8c) 50%); }
+  .sw.now { border:2px solid var(--accent); background:transparent; }
+  .gridwrap { overflow-x:auto; }
+  table.grid { width:100%; min-width:330px; table-layout:fixed; border-collapse:separate; border-spacing:0; }
+  table.grid th, table.grid td { padding:0; }
+  table.grid th.cc { position:sticky; left:0; z-index:1; background:var(--card); text-align:left; padding:4px 8px 4px 0; font-size:.85rem; font-weight:600; width:9em; overflow-wrap:anywhere; border-bottom:1px solid var(--line); }
+  table.grid th.cc small { display:block; font-weight:400; color:var(--muted); font-size:.75rem; }
+  table.grid thead th.cc { border-bottom:1px solid var(--line); }
+  th.mh { font-size:.78rem; font-weight:500; color:var(--muted); padding:4px 0; text-align:center; border-bottom:1px solid var(--line); }
+  th.mh .short { display:none; }
+  .mc { height:32px; text-align:center; font-size:.68rem; font-weight:700; color:#10151d; border-bottom:1px solid var(--line); }
+  .mc.sow, .mc.har, .mc.both { box-shadow:inset 0 0 0 1px var(--card); }
+  th.mh.now, .mc.now { border-left:2px solid var(--accent); border-right:2px solid var(--accent); }
+  th.mh.now { border-top:2px solid var(--accent); border-radius:6px 6px 0 0; color:var(--fg); font-weight:700; background:color-mix(in srgb, var(--accent) 14%, var(--card)); }
+  .mc.now:not(.sow):not(.har):not(.both) { background:color-mix(in srgb, var(--accent) 9%, transparent); }
+  tbody tr:last-child .mc.now { border-bottom:2px solid var(--accent); }
+  @media (max-width: 640px) {
+    th.mh .full { display:none; } th.mh .short { display:inline; }
+    table.grid th.cc { width:6.5em; font-size:.8rem; }
+    .gridcard { padding-left:8px; padding-right:8px; }
+    .item .acts { width:100%; } .acts button.bigbtn { flex:1 1 auto; padding:8px 10px; white-space:nowrap; }
+  }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Pflanzen &amp; Garten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit den <a href="gewohnheiten.html">Gewohnheiten</a> und dem <a href="putzplan.html">Putzplan</a>.</p>
+  <div class="tabs"><button data-tab="today">Heute</button><button data-tab="plants">Pflanzen</button><button data-tab="garden">Garten</button></div>
+  <div id="undo" class="card toolbar undo" role="status" hidden></div>
+
+  <section id="v-today"></section>
+
+  <section id="v-plants" hidden>
+    <form id="pform" class="card form">
+      <div class="full"><strong id="ptitle">Pflanze hinzufügen</strong></div>
+      <label class="f" style="flex:1;min-width:150px">Name<input type="text" id="pname" required placeholder="z. B. Monstera"></label>
+      <label class="f" style="flex:1;min-width:150px">Art / Sorte<input type="text" id="pspecies" placeholder="z. B. Monstera deliciosa"></label>
+      <label class="f">Standort<input type="text" id="ploc" list="locs" placeholder="z. B. Wohnzimmer" style="width:11em"></label>
+      <label class="f">Licht<select id="plight"><option value="hell">☀️ hell</option><option value="halbschattig">⛅ halbschattig</option><option value="schattig">☁️ schattig</option></select></label>
+      <label class="f">Gießen alle … Tage<input type="number" id="pwater" class="w" min="1" step="1" value="7" required></label>
+      <label class="f">Düngen alle … Tage<input type="number" id="pfert" class="w" min="0" step="1" value="0" title="0 = nie düngen"></label>
+      <label class="f">Zuletzt gegossen<input type="date" id="plw"></label>
+      <label class="f">Zuletzt gedüngt<input type="date" id="plf"></label>
+      <label class="f">Zuletzt umgetopft<input type="date" id="plr"></label>
+      <label class="f" style="flex:1;min-width:200px">Notiz<input type="text" id="pnote" placeholder="z. B. nicht in die Mittagssonne"></label>
+      <div class="row"><button class="primary" id="psubmit">Hinzufügen</button><button type="button" id="pcancel" hidden>Abbrechen</button></div>
+      <div class="full muted tip">Düngen: 0 = nie düngen. Ohne „Zuletzt gegossen“ ist eine Pflanze sofort zum Gießen fällig.</div>
+      <datalist id="locs"></datalist>
+    </form>
+    <div id="pfilter"></div>
+    <div id="plist"></div>
+  </section>
+
+  <section id="v-garden" hidden>
+    <form id="gform" class="card form">
+      <div class="full"><strong id="gtitle">Kultur hinzufügen</strong></div>
+      <label class="f" style="flex:1;min-width:150px">Kultur<input type="text" id="gcrop" required placeholder="z. B. Tomaten"></label>
+      <label class="f">Beet<input type="text" id="gbed" list="beds" placeholder="z. B. Beet 1" style="width:9em"></label>
+      <label class="f">Aussaat von<select id="gsf"></select></label>
+      <label class="f">Aussaat bis<select id="gst"></select></label>
+      <label class="f">Ernte von<select id="ghf"></select></label>
+      <label class="f">Ernte bis<select id="ght"></select></label>
+      <label class="f" style="flex:1;min-width:180px">Notiz<input type="text" id="gnote" placeholder="z. B. vorziehen, Frostschutz"></label>
+      <div class="row"><button class="primary" id="gsubmit">Hinzufügen</button><button type="button" id="gcancel" hidden>Abbrechen</button></div>
+      <div class="full muted tip">Zeiträume dürfen über den Jahreswechsel gehen (z. B. Aussaat Nov – Feb).</div>
+      <datalist id="beds"></datalist>
+    </form>
+    <div id="ggrid"></div>
+    <div id="glist"></div>
+  </section>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'routinen',
+  defaults: () => ({ habits: [], habitLog: {}, chores: [], plants: [], garden: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+const MS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+const LIGHT = { hell: '☀️ hell', halbschattig: '⛅ halbschattig', schattig: '☁️ schattig' };
+const ACT = { lastWatered: ['💧', 'gegossen'], lastFertilized: ['🌿', 'gedüngt'], lastRepotted: ['🪴', 'umgetopft'] };
+let tab = 'today', editPlant = null, editCrop = null, locFilter = '';
+const undoStack = [];   // nur für diese Sitzung: { id, field, prev }
+const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const mo = (v) => { v = Math.round(+v); return v >= 1 && v <= 12 ? v : 0; };
+function normalize() {
+  const d = store.data;
+  for (const k of ['plants', 'garden']) {
+    if (!Array.isArray(d[k])) d[k] = [];
+    if (d[k].some((x) => !x || typeof x !== 'object' || Array.isArray(x))) d[k] = d[k].filter((x) => x && typeof x === 'object' && !Array.isArray(x));
+  }
+  d.plants.forEach((p) => {
+    if (!p.id) p.id = uid();
+    for (const k of ['name', 'species', 'location', 'note']) if (typeof p[k] !== 'string') p[k] = p[k] == null ? '' : String(p[k]);
+    if (!Object.keys(LIGHT).includes(p.light)) p.light = 'hell';
+    p.waterEvery = Math.max(1, Math.round(+p.waterEvery) || 7);
+    p.fertEvery = Math.max(0, Math.round(+p.fertEvery) || 0);
+    for (const k of ['lastWatered', 'lastFertilized', 'lastRepotted']) if (!isYmd(p[k])) p[k] = '';
+    if (!isYmd(p.created)) p.created = ymd(new Date());
+  });
+  d.garden.forEach((c) => {
+    if (!c.id) c.id = uid();
+    for (const k of ['crop', 'bed', 'note']) if (typeof c[k] !== 'string') c[k] = c[k] == null ? '' : String(c[k]);
+    for (const k of ['sowFrom', 'sowTo', 'harvestFrom', 'harvestTo']) c[k] = mo(c[k]);
+  });
+}
+
+/* ---------- Datum & Intervalle ---------- */
+const today0 = () => parseYmd(ymd(new Date()));
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const daysTo = (d) => Math.round((d - today0()) / 86400000);
+const shortDate = (d) => d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
+const locName = (p) => p.location || 'Ohne Standort';
+// Fälligkeit: zuletzt + Intervall; nie gegossen/gedüngt = jetzt fällig; kein Düngen (0) = null
+function due(p, kind) {
+  const w = kind === 'w', every = w ? p.waterEvery : p.fertEvery, last = w ? p.lastWatered : p.lastFertilized;
+  if (!(every > 0)) return null;
+  if (!last) return { n: 0, never: true, date: today0() };
+  const date = addDays(parseYmd(last), every);
+  return { n: daysTo(date), never: false, date };
+}
+function whenText(d, kind) {
+  if (d.never) return 'noch nie ' + (kind === 'w' ? 'gegossen' : 'gedüngt') + ' – jetzt fällig';
+  if (d.n < 0) return (-d.n) + (d.n === -1 ? ' Tag' : ' Tage') + ' überfällig';
+  if (d.n === 0) return 'heute fällig';
+  return (d.n === 1 ? 'morgen' : 'in ' + d.n + ' Tagen') + ' (' + shortDate(d.date) + ')';
+}
+function monthsSince(s) {
+  const a = parseYmd(s), t = today0();
+  let m = (t.getFullYear() - a.getFullYear()) * 12 + t.getMonth() - a.getMonth();
+  if (t.getDate() < a.getDate()) m--;
+  return m;
+}
+const byLoc = (a, b) => (a.location ? 0 : 1) - (b.location ? 0 : 1) || a.location.localeCompare(b.location, 'de') || a.name.localeCompare(b.name, 'de');
+function groupBy(list, keyFn) {
+  const m = new Map();
+  for (const x of list) { const k = keyFn(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); }
+  return [...m.entries()];
+}
+
+/* ---------- Aktionen mit Rückgängig ---------- */
+function mark(p, field) {
+  undoStack.push({ id: p.id, field, prev: p[field] || '' });
+  if (undoStack.length > 30) undoStack.shift();
+  p[field] = ymd(new Date());
+  store.changed(); render();
+}
+function undo() {
+  const a = undoStack.pop(), p = a && store.data.plants.find((x) => x.id === a.id);
+  if (p) { p[a.field] = a.prev; store.changed(); }
+  render();
+}
+function renderUndo() {
+  for (let i = undoStack.length - 1; i >= 0; i--) if (!store.data.plants.some((p) => p.id === undoStack[i].id)) undoStack.splice(i, 1);
+  const el = $('undo'), a = undoStack[undoStack.length - 1];
+  el.hidden = !a || tab === 'garden';
+  if (!a) return;
+  const p = store.data.plants.find((x) => x.id === a.id);
+  el.replaceChildren(h('span', {}, ACT[a.field][0] + ' ' + p.name + ' ' + ACT[a.field][1] + (undoStack.length > 1 ? ' (+' + (undoStack.length - 1) + ' davor)' : '')), h('span', { class: 'sp' }),
+    h('button', { class: 'small', onclick: undo }, '↶ Rückgängig'));
+}
+
+/* ---------- Tab „Heute“ ---------- */
+function plantTasks(p) {
+  const out = [], w = due(p, 'w'), f = due(p, 'f');
+  if (w) out.push({ kind: 'w', d: w }); if (f) out.push({ kind: 'f', d: f });
+  return out;
+}
+function actBtn(p, kind, big) {
+  const w = kind === 'w';
+  return h('button', { class: big ? 'bigbtn ' + (w ? 'water' : 'fert') : 'small', title: p.name + (w ? ' gegossen' : ' gedüngt') + ' (heute)', onclick: () => mark(p, w ? 'lastWatered' : 'lastFertilized') }, w ? '💧 Gegossen' : '🌿 Gedüngt');
+}
+function todayView() {
+  const plants = store.data.plants;
+  if (!plants.length) return [h('div', { class: 'card muted' }, 'Noch keine Pflanzen. Lege im Tab „Pflanzen“ deine erste an – hier siehst du dann, was heute gegossen oder gedüngt werden muss. ', h('button', { class: 'small', onclick: () => { tab = 'plants'; render(); } }, 'Pflanze anlegen'))];
+  const rows = plants.map((p) => ({ p, tasks: plantTasks(p) }));
+  const now = rows.map((x) => ({ p: x.p, tasks: x.tasks.filter((t) => t.d.n <= 0) })).filter((x) => x.tasks.length);
+  const soon = rows.map((x) => ({ p: x.p, tasks: x.tasks.filter((t) => t.d.n >= 1 && t.d.n <= 7) })).filter((x) => x.tasks.length);
+  const nW = now.filter((x) => x.tasks.some((t) => t.kind === 'w')).length, nF = now.filter((x) => x.tasks.some((t) => t.kind === 'f')).length;
+  const out = [h('div', { class: 'sum' },
+    h('div', { class: 'card' }, h('span', { class: 'muted' }, '💧 Gießen fällig'), h('b', {}, nW)),
+    h('div', { class: 'card' }, h('span', { class: 'muted' }, '🌿 Düngen fällig'), h('b', {}, nF)),
+    h('div', { class: 'card' }, h('span', { class: 'muted' }, 'In den nächsten 7 Tagen'), h('b', {}, soon.reduce((a, x) => a + x.tasks.length, 0) + ' Aufgaben')))];
+  if (!now.length) out.push(h('div', { class: 'card' }, h('strong', {}, 'Heute ist alles erledigt 🌿'), h('div', { class: 'muted' }, 'Nichts zu gießen oder zu düngen.')));
+  else {
+    const urg = (x) => Math.min(...x.tasks.map((t) => t.d.n));
+    now.sort((a, b) => byLoc(a.p, b.p) || urg(a) - urg(b));
+    out.push(h('div', { class: 'card' }, h('h2', { style: 'margin:0;font-size:1.05rem' }, 'Heute fällig & überfällig'),
+      groupBy(now, (x) => locName(x.p)).map(([loc, list]) => [
+        h('div', { class: 'grp' }, '📍 ' + loc + ' (' + list.length + ')'),
+        list.map((x) => h('div', { class: 'item' },
+          h('div', { class: 'nm' }, h('strong', {}, x.p.name), x.p.species ? h('span', { class: 'muted' }, ' · ' + x.p.species) : null,
+            h('div', { class: 'meta' }, LIGHT[x.p.light] + (x.p.note ? ' · ' + x.p.note : '')),
+            h('div', { class: 'badges' }, x.tasks.map((t) => h('span', { class: 'badge ' + (t.d.n < 0 ? 'err' : 'warn') }, (t.kind === 'w' ? '💧 ' : '🌿 ') + whenText(t.d, t.kind))))),
+          h('div', { class: 'acts' }, x.tasks.map((t) => actBtn(x.p, t.kind, true)))))])));
+  }
+  if (soon.length) {
+    soon.sort((a, b) => Math.min(...a.tasks.map((t) => t.d.n)) - Math.min(...b.tasks.map((t) => t.d.n)) || a.p.name.localeCompare(b.p.name, 'de'));
+    out.push(h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 4px;font-size:1.05rem' }, 'In den nächsten 7 Tagen'),
+      soon.map((x) => h('div', { class: 'item' },
+        h('div', { class: 'nm' }, h('strong', {}, x.p.name), x.p.location ? h('span', { class: 'badge', style: 'margin-left:6px' }, x.p.location) : null,
+          h('div', { class: 'meta' }, x.tasks.map((t) => (t.kind === 'w' ? '💧 gießen ' : '🌿 düngen ') + whenText(t.d, t.kind)).join(' · '))),
+        h('div', { class: 'acts' }, x.tasks.map((t) => actBtn(x.p, t.kind, false)))))));
+  }
+  const m = new Date().getMonth() + 1, g = store.data.garden;
+  const sow = g.filter((c) => inRange(m, c.sowFrom, c.sowTo)), har = g.filter((c) => inRange(m, c.harvestFrom, c.harvestTo));
+  if (sow.length || har.length) out.push(h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 4px;font-size:1.05rem' }, '🌱 Im Garten – ' + MONTHS[m - 1]),
+    sow.length ? h('div', {}, h('b', {}, 'Aussaat: '), sow.map((c) => c.crop).join(', ')) : null, har.length ? h('div', {}, h('b', {}, 'Ernte: '), har.map((c) => c.crop).join(', ')) : null));
+  return out;
+}
+
+/* ---------- Tab „Pflanzen“ ---------- */
+const P = { name: 'pname', species: 'pspecies', location: 'ploc', light: 'plight', waterEvery: 'pwater', fertEvery: 'pfert', lastWatered: 'plw', lastFertilized: 'plf', lastRepotted: 'plr', note: 'pnote' };
+const P_DEFAULT = { name: '', species: '', location: '', light: 'hell', waterEvery: 7, fertEvery: 0, lastWatered: '', lastFertilized: '', lastRepotted: '', note: '' };
+function setPForm(p) {
+  editPlant = p ? p.id : null;
+  const v = p || P_DEFAULT;
+  for (const k in P) $(P[k]).value = v[k];
+  $('ptitle').textContent = p ? 'Pflanze bearbeiten: ' + p.name : 'Pflanze hinzufügen';
+  $('psubmit').textContent = p ? 'Übernehmen' : 'Hinzufügen';
+  $('pcancel').hidden = !p;
+}
+$('pform').onsubmit = (e) => {
+  e.preventDefault();
+  const rec = { name: $('pname').value.trim(), species: $('pspecies').value.trim(), location: $('ploc').value.trim(), light: $('plight').value,
+    waterEvery: Math.max(1, Math.round(+$('pwater').value) || 7), fertEvery: Math.max(0, Math.round(+$('pfert').value) || 0),
+    lastWatered: $('plw').value, lastFertilized: $('plf').value, lastRepotted: $('plr').value, note: $('pnote').value.trim() };
+  if (!rec.name) return;
+  const cur = editPlant && store.data.plants.find((x) => x.id === editPlant);
+  if (cur) Object.assign(cur, rec); else store.data.plants.push({ id: uid(), created: ymd(new Date()), ...rec });
+  setPForm(null); store.changed(); render();
+  $('pname').focus();
+};
+$('pcancel').onclick = () => { setPForm(null); render(); };
+$('pform').addEventListener('keydown', (e) => { if (e.key === 'Escape' && editPlant) { setPForm(null); render(); } });
+function plantRow(p) {
+  const w = due(p, 'w'), f = due(p, 'f'), cls = (d) => d && d.n < 0 ? ' err' : d && d.n === 0 ? ' warn' : '';
+  const meta = [];
+  meta.push(h('div', { class: 'meta' + cls(w) }, '💧 alle ' + p.waterEvery + ' Tage' + (p.lastWatered ? ' · zuletzt ' + fmtDate(p.lastWatered) : '') + ' · nächstes Gießen: ', h('b', {}, whenText(w, 'w'))));
+  meta.push(f ? h('div', { class: 'meta' + cls(f) }, '🌿 alle ' + p.fertEvery + ' Tage' + (p.lastFertilized ? ' · zuletzt ' + fmtDate(p.lastFertilized) : '') + ' · nächstes Düngen: ', h('b', {}, whenText(f, 'f')))
+    : h('div', { class: 'meta' }, '🌿 wird nicht gedüngt' + (p.lastFertilized ? ' (zuletzt ' + fmtDate(p.lastFertilized) + ')' : '')));
+  if (p.lastRepotted) {
+    const mths = monthsSince(p.lastRepotted), days = -daysTo(parseYmd(p.lastRepotted));
+    meta.push(h('div', { class: 'meta' }, '🪴 umgetopft am ' + fmtDate(p.lastRepotted) + ' ', mths >= 18 ? h('span', { class: 'badge warn' }, 'seit ' + days + ' Tagen (' + mths + ' Monaten) – Umtopfen prüfen') : null));
+  }
+  if (p.note) meta.push(h('div', { class: 'meta' }, '📝 ' + p.note));
+  return h('div', { class: 'item' },
+    h('div', { class: 'nm' }, h('strong', {}, p.name), p.species ? h('span', { class: 'muted' }, ' · ' + p.species) : null, ' ', h('span', { class: 'badge' }, LIGHT[p.light]), meta),
+    h('div', { class: 'acts' }, actBtn(p, 'w', false), p.fertEvery > 0 ? actBtn(p, 'f', false) : null,
+      h('button', { class: 'small', title: p.name + ' umgetopft (heute)', onclick: () => mark(p, 'lastRepotted') }, '🪴 Umgetopft'),
+      h('button', { class: 'small', 'aria-label': 'Bearbeiten: ' + p.name, title: 'Bearbeiten', onclick: () => { setPForm(p); $('pform').scrollIntoView({ block: 'nearest' }); $('pname').focus(); } }, '✎'),
+      h('button', { class: 'small', 'aria-label': 'Löschen: ' + p.name, title: 'Löschen', onclick: () => { if (confirm('„' + p.name + '“ löschen?')) { store.data.plants = store.data.plants.filter((x) => x !== p); if (editPlant === p.id) setPForm(null); store.changed(); render(); } } }, '✕')));
+}
+function plantsView() {
+  const all = store.data.plants, locs = [...new Set(all.map((p) => p.location).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  if (locFilter && !locs.includes(locFilter)) locFilter = '';
+  $('locs').replaceChildren(...locs.map((l) => h('option', { value: l })));
+  const flt = [];
+  if (all.length) {
+    const sel = h('select', { 'aria-label': 'Standort filtern' }, h('option', { value: '' }, 'Alle Standorte'), locs.map((l) => h('option', { value: l, selected: l === locFilter }, l)));
+    sel.onchange = () => { locFilter = sel.value; render(); };
+    flt.push(h('div', { class: 'card toolbar' }, locs.length > 1 ? ['Filter: ', sel] : null, h('span', { class: 'muted' }, all.length + (all.length === 1 ? ' Pflanze' : ' Pflanzen'))));
+  }
+  $('pfilter').replaceChildren(...flt);
+  const list = all.filter((p) => !locFilter || p.location === locFilter).sort(byLoc);
+  if (!all.length) return [h('div', { class: 'card muted' }, 'Noch keine Pflanzen. Trage oben deine erste ein – mit Gieß- und Düngeintervall.')];
+  return [h('div', { class: 'card' }, groupBy(list, locName).map(([loc, items]) => [h('div', { class: 'grp' }, '📍 ' + loc + ' (' + items.length + ')'), items.map(plantRow)]))];
+}
+
+/* ---------- Tab „Garten“ ---------- */
+function inRange(m, a, b) {
+  if (!(a >= 1 && a <= 12 && b >= 1 && b <= 12)) return false;
+  return a <= b ? m >= a && m <= b : m >= a || m <= b;   // a > b: über den Jahreswechsel
+}
+const rangeText = (a, b) => !(a && b) ? '–' : a === b ? MS[a - 1] : MS[a - 1] + '–' + MS[b - 1] + (a > b ? ' (über den Jahreswechsel)' : '');
+const G = { crop: 'gcrop', bed: 'gbed', sowFrom: 'gsf', sowTo: 'gst', harvestFrom: 'ghf', harvestTo: 'ght', note: 'gnote' };
+const G_DEFAULT = { crop: '', bed: '', sowFrom: 3, sowTo: 5, harvestFrom: 7, harvestTo: 9, note: '' };
+for (const id of ['gsf', 'gst', 'ghf', 'ght']) $(id).replaceChildren(h('option', { value: '' }, '–'), ...MONTHS.map((n, i) => h('option', { value: i + 1 }, n)));
+function setGForm(c) {
+  editCrop = c ? c.id : null;
+  const v = c || G_DEFAULT;
+  for (const k in G) $(G[k]).value = v[k] || '';
+  $('gtitle').textContent = c ? 'Kultur bearbeiten: ' + c.crop : 'Kultur hinzufügen';
+  $('gsubmit').textContent = c ? 'Übernehmen' : 'Hinzufügen';
+  $('gcancel').hidden = !c;
+}
+$('gform').onsubmit = (e) => {
+  e.preventDefault();
+  let sf = mo($('gsf').value), st = mo($('gst').value), hf = mo($('ghf').value), ht = mo($('ght').value);
+  if (sf && !st) st = sf; if (st && !sf) sf = st; if (hf && !ht) ht = hf; if (ht && !hf) hf = ht;
+  const rec = { crop: $('gcrop').value.trim(), bed: $('gbed').value.trim(), sowFrom: sf, sowTo: st, harvestFrom: hf, harvestTo: ht, note: $('gnote').value.trim() };
+  if (!rec.crop) return;
+  const cur = editCrop && store.data.garden.find((x) => x.id === editCrop);
+  if (cur) Object.assign(cur, rec); else store.data.garden.push({ id: uid(), ...rec });
+  setGForm(null); store.changed(); render();
+  $('gcrop').focus();
+};
+$('gcancel').onclick = () => { setGForm(null); render(); };
+$('gform').addEventListener('keydown', (e) => { if (e.key === 'Escape' && editCrop) { setGForm(null); render(); } });
+const cropSort = (a, b) => (a.bed ? 0 : 1) - (b.bed ? 0 : 1) || a.bed.localeCompare(b.bed, 'de') || a.crop.localeCompare(b.crop, 'de');
+function gridCard(crops, nowM) {
+  const head = h('tr', {}, h('th', { class: 'cc', scope: 'col' }, 'Kultur'), MS.map((m, i) => h('th', { class: 'mh' + (i + 1 === nowM ? ' now' : ''), scope: 'col', title: MONTHS[i] + (i + 1 === nowM ? ' (aktueller Monat)' : '') }, h('span', { class: 'full' }, m), h('span', { class: 'short' }, m[0]))));
+  const rows = crops.map((c) => h('tr', {}, h('th', { class: 'cc', scope: 'row' }, c.crop, c.bed ? h('small', {}, c.bed) : null),
+    MS.map((_, i) => {
+      const m = i + 1, s = inRange(m, c.sowFrom, c.sowTo), r = inRange(m, c.harvestFrom, c.harvestTo);
+      const what = s && r ? 'Aussaat und Ernte' : s ? 'Aussaat' : r ? 'Ernte' : '';
+      return h('td', { class: 'mc' + (s && r ? ' both' : s ? ' sow' : r ? ' har' : '') + (m === nowM ? ' now' : ''), title: what ? c.crop + ' – ' + MONTHS[i] + ': ' + what : '' }, s && r ? 'SE' : s ? 'S' : r ? 'E' : '');
+    })));
+  return h('div', { class: 'card gridcard' }, h('div', { class: 'gridwrap' }, h('table', { class: 'grid', 'aria-label': 'Aussaat- und Erntekalender' }, h('thead', {}, head), h('tbody', {}, rows))),
+    h('div', { class: 'legend' }, h('span', {}, h('i', { class: 'sw sow' }, 'S'), 'Aussaat'), h('span', {}, h('i', { class: 'sw har' }, 'E'), 'Ernte'), h('span', {}, h('i', { class: 'sw both' }, 'SE'), 'beides'), h('span', {}, h('i', { class: 'sw now' }), 'aktueller Monat (' + MONTHS[nowM - 1] + ')')));
+}
+function cropRow(c, nowM) {
+  const s = inRange(nowM, c.sowFrom, c.sowTo), r = inRange(nowM, c.harvestFrom, c.harvestTo);
+  return h('div', { class: 'item' },
+    h('div', { class: 'nm' }, h('strong', {}, c.crop), c.bed ? h('span', { class: 'badge', style: 'margin-left:6px' }, c.bed) : null, s ? h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'jetzt säen') : null, r ? h('span', { class: 'badge ok', style: 'margin-left:6px' }, 'jetzt ernten') : null,
+      h('div', { class: 'meta' }, 'Aussaat: ' + rangeText(c.sowFrom, c.sowTo) + ' · Ernte: ' + rangeText(c.harvestFrom, c.harvestTo)), c.note ? h('div', { class: 'meta' }, '📝 ' + c.note) : null),
+    h('div', { class: 'acts' },
+      h('button', { class: 'small', 'aria-label': 'Bearbeiten: ' + c.crop, title: 'Bearbeiten', onclick: () => { setGForm(c); $('gform').scrollIntoView({ block: 'nearest' }); $('gcrop').focus(); } }, '✎'),
+      h('button', { class: 'small', 'aria-label': 'Löschen: ' + c.crop, title: 'Löschen', onclick: () => { if (confirm('„' + c.crop + '“ löschen?')) { store.data.garden = store.data.garden.filter((x) => x !== c); if (editCrop === c.id) setGForm(null); store.changed(); render(); } } }, '✕')));
+}
+function gardenView() {
+  const crops = store.data.garden.slice().sort(cropSort), nowM = new Date().getMonth() + 1;
+  $('beds').replaceChildren(...[...new Set(crops.map((c) => c.bed).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')).map((b) => h('option', { value: b })));
+  if (!crops.length) { $('glist').replaceChildren(); return [h('div', { class: 'card muted' }, 'Noch keine Kulturen. Trage oben ein, was du wann aussäen und ernten willst – daraus entsteht ein Jahreskalender.')]; }
+  $('glist').replaceChildren(h('div', { class: 'card' }, crops.map((c) => cropRow(c, nowM))));
+  return [gridCard(crops, nowM)];
+}
+
+/* ---------- Gesamt ---------- */
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  for (const t of ['today', 'plants', 'garden']) $('v-' + t).hidden = t !== tab;
+  if (editPlant && !store.data.plants.some((p) => p.id === editPlant)) setPForm(null);
+  if (editCrop && !store.data.garden.some((c) => c.id === editCrop)) setGForm(null);
+  renderUndo();
+  const nDue = store.data.plants.filter((p) => plantTasks(p).some((t) => t.d.n <= 0)).length;
+  document.querySelector('.tabs [data-tab=today]').textContent = 'Heute' + (nDue ? ' (' + nDue + ')' : '');
+  if (tab === 'today') $('v-today').replaceChildren(...todayView().filter(Boolean));
+  else if (tab === 'plants') $('plist').replaceChildren(...plantsView().filter(Boolean));
+  else $('ggrid').replaceChildren(...gardenView().filter(Boolean));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+setPForm(null); setGForm(null);
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

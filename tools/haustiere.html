@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haustier-Pflege</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 960px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:6.5em; } input.n { width:3.4em; text-align:center; }
+  h2.sec { margin:0 0 8px; font-size:1.05rem; }
+  .sum { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.25rem; }
+  @media (max-width: 520px) { .sum { gap:6px; } .sum .card { padding:8px 6px; } .sum b { font-size:1.02rem; } .sum .muted { font-size:.78rem; } }
+  .form input, .form select { min-height:36px; }
+  .pets { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; margin:12px 0; }
+  .pets .card { margin:0; display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .em { font-size:2.2rem; line-height:1; }
+  .phead { display:flex; gap:12px; align-items:center; }
+  .phead h3, .phead h2 { margin:0; font-size:1.15rem; overflow-wrap:anywhere; } .phead > div { min-width:0; }
+  .pethead { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; }
+  .pethead .info { flex:1; min-width:200px; } .pethead h2 { margin:0; font-size:1.3rem; overflow-wrap:anywhere; }
+  .facts { display:flex; flex-wrap:wrap; gap:4px 16px; font-size:.9rem; } .facts b { font-weight:600; }
+  .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; }
+  .item .nm { flex:1; min-width:180px; overflow-wrap:anywhere; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .item .done-form { flex-basis:100%; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .quick { display:flex; gap:4px; align-items:flex-end; }
+  .tw { overflow-x:auto; }
+  @media (max-width: 600px) {
+    #evtable thead { display:none; } #evtable, #evtable tbody { display:block; }
+    #evtable tr { display:flex; flex-wrap:wrap; gap:2px 10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+    #evtable td { border:0; padding:0; } #evtable td.z, #evtable td.n:empty { display:none; }
+    #evtable td.d { font-weight:600; } #evtable td.t { flex:1; } #evtable td.r { order:2; } #evtable td.x { order:3; }
+    #evtable td.n { order:4; flex-basis:100%; color:var(--muted); } #evtable td.nx { order:5; flex-basis:100%; font-size:.88rem; }
+    #evtable td.nx::before { content:'Nächster Termin: '; color:var(--muted); }
+  }
+  table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+  th { font-size:.8rem; color:var(--muted); font-weight:600; } td.n, td.nw { overflow-wrap:anywhere; } td.r, th.r { text-align:right; white-space:nowrap; } td.nw { white-space:nowrap; }
+  .br { display:grid; grid-template-columns:8.5em 1fr 6.5em; gap:8px; align-items:center; margin:5px 0; font-size:.92rem; }
+  .br .bl { overflow-wrap:anywhere; } .br b { text-align:right; font-weight:600; }
+  .bar { height:14px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  @media (max-width: 520px) { .br { grid-template-columns:6em 1fr 5.4em; gap:6px; font-size:.85rem; } }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; }
+  .pos { color:var(--ok); } .neg { color:var(--err); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Haustier-Pflege</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs" id="petbar" aria-label="Tiere"></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'haustiere',
+  defaults: () => ({ pets: [], events: [], weights: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const TYPES = ['Impfung', 'Tierarzt', 'Entwurmung', 'Floh & Zecken', 'Medikament', 'Futter', 'Pflege', 'Sonstiges'];
+const TICON = { 'Impfung': '💉', 'Tierarzt': '🩺', 'Entwurmung': '🐛', 'Floh & Zecken': '🐞', 'Medikament': '💊', 'Futter': '🍖', 'Pflege': '✂️', 'Sonstiges': '📌' };
+const SPECIES = ['Hund', 'Katze', 'Kaninchen', 'Meerschweinchen', 'Hamster', 'Vogel', 'Pferd', 'Fisch', 'Reptil', 'Sonstiges'];
+const SEMOJI = [['hund', '🐶'], ['katze', '🐱'], ['kaninchen', '🐰'], ['hase', '🐰'], ['meerschwein', '🐹'], ['hamster', '🐹'], ['papagei', '🦜'], ['vogel', '🐦'], ['wellensittich', '🐦'], ['pferd', '🐴'], ['fisch', '🐟'], ['schildkr', '🐢'], ['schlange', '🐍'], ['reptil', '🦎'], ['ratte', '🐀'], ['maus', '🐭']];
+const emojiFor = (sp) => { const s = String(sp || '').toLowerCase(); const m = SEMOJI.find(([k]) => s.includes(k)); return m ? m[1] : '🐾'; };
+let sel = 'all', tab = 'log', petForm = null, doneId = null, costYear = 'all';
+
+function normalize() {
+  const d = store.data;
+  for (const k of ['pets', 'events', 'weights']) d[k] = Array.isArray(d[k]) ? d[k].filter((x) => x && typeof x === 'object') : [];
+  const str = (o, ks) => ks.forEach((k) => { if (typeof o[k] !== 'string') o[k] = o[k] == null ? '' : String(o[k]); });
+  d.pets.forEach((p) => { if (!p.id) p.id = uid(); str(p, ['name', 'species', 'breed', 'birth', 'chip', 'emoji', 'note']); });
+  d.events.forEach((e) => { if (!e.id) e.id = uid(); str(e, ['petId', 'date', 'type', 'note', 'nextDue']); e.cost = Number(e.cost) || 0; });
+  d.weights.forEach((w) => { if (!w.id) w.id = uid(); str(w, ['petId', 'date']); w.kg = Number(w.kg) || 0; });
+  if (sel !== 'all' && !d.pets.some((p) => p.id === sel)) sel = 'all';
+  if (petForm && petForm !== 'new' && !d.pets.some((p) => p.id === petForm)) petForm = null;
+}
+const today0 = () => parseYmd(ymd(new Date()));
+const daysTo = (s) => Math.round((parseYmd(s) - today0()) / 86400000);
+const petOf = (id) => store.data.pets.find((p) => p.id === id);
+const num = (n, dec) => (Math.round(n * Math.pow(10, dec)) / Math.pow(10, dec)).toLocaleString('de-DE', { maximumFractionDigits: dec });
+const fmtKg = (n) => n < 1 ? Math.round(n * 1000) + ' g' : num(n, 2) + ' kg';
+const dKg = (n, ref) => Math.abs(n) < 0.0005 ? '±0' : (n > 0 ? '+' : '−') + (ref < 1 ? Math.round(Math.abs(n) * 1000) + ' g' : num(Math.abs(n), 2) + ' kg');
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s === '') return 0; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : NaN; }
+function addM(d, m) { const x = new Date(d.getFullYear(), d.getMonth() + m, 1); x.setDate(Math.min(d.getDate(), new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate())); return x; }
+function age(birth) {
+  if (!birth) return '';
+  const b = parseYmd(birth), t = today0();
+  if (isNaN(b) || b > t) return '';
+  let m = (t.getFullYear() - b.getFullYear()) * 12 + t.getMonth() - b.getMonth();
+  if (t.getDate() < b.getDate()) m--;
+  if (m < 1) { const d = Math.round((t - b) / 86400000); return d === 0 ? 'heute geboren' : d < 14 ? d + (d === 1 ? ' Tag' : ' Tage') : Math.floor(d / 7) + ' Wochen'; }
+  const y = Math.floor(m / 12), mm = m % 12;
+  return [y ? y + (y === 1 ? ' Jahr' : ' Jahre') : '', mm ? mm + (mm === 1 ? ' Monat' : ' Monate') : ''].filter(Boolean).join(' ');
+}
+// Offene Fälligkeiten: Ereignisse mit „Nächster Termin“, die nicht durch einen späteren Eintrag derselben Art für dasselbe Tier erledigt sind
+function openDue(petId) {
+  const ev = store.data.events;
+  return ev.map((e, i) => ({ e, i })).filter(({ e, i }) => e.nextDue && (!petId || e.petId === petId) && petOf(e.petId)
+    && !ev.some((o, j) => o.petId === e.petId && o.type === e.type && (o.date > e.date || (o.date === e.date && j > i)))).map(({ e }) => e)
+    .sort((a, b) => a.nextDue.localeCompare(b.nextDue));
+}
+function dueInfo(s) {
+  const n = daysTo(s);
+  if (n < 0) return { cls: 'err', text: 'überfällig', meta: 'seit ' + (-n) + (n === -1 ? ' Tag' : ' Tagen') };
+  if (n === 0) return { cls: 'warn', text: 'heute', meta: '' };
+  if (n === 1) return { cls: 'warn', text: 'morgen', meta: '' };
+  return { cls: n <= 14 ? 'warn' : 'ok', text: 'in ' + n + ' Tagen', meta: '' };
+}
+const lastWeight = (id) => store.data.weights.filter((w) => w.petId === id && w.kg > 0).sort((a, b) => b.date.localeCompare(a.date))[0];
+const yearCost = (id, y) => store.data.events.filter((e) => (!id || e.petId === id) && e.date.slice(0, 4) === String(y)).reduce((a, e) => a + e.cost, 0);
+
+function render() {
+  const d = store.data;
+  $('petbar').replaceChildren(
+    h('button', { class: sel === 'all' ? 'on' : '', dataset: { pet: 'all' }, 'aria-pressed': String(sel === 'all'), onclick: () => { sel = 'all'; doneId = null; render(); } }, '🏠 Alle'),
+    ...d.pets.map((p) => h('button', { class: sel === p.id ? 'on' : '', dataset: { pet: p.id }, 'aria-pressed': String(sel === p.id), onclick: () => { sel = p.id; doneId = null; render(); } }, (p.emoji || emojiFor(p.species)) + ' ' + (p.name || 'Ohne Namen'))),
+    h('button', { id: 'addpet', onclick: () => openPetForm('new') }, '+ Tier'));
+  $('view').replaceChildren(...[petForm ? petFormCard() : null, sel === 'all' ? overview() : petView()].filter(Boolean));
+  redrawChart();
+}
+
+// ---------- Tier anlegen / bearbeiten ----------
+function openPetForm(v) { petForm = v; render(); const n = $('pname'); if (n) { n.focus(); n.scrollIntoView({ block: 'nearest' }); } }
+function petFormCard() {
+  const p = petForm === 'new' ? null : petOf(petForm);
+  const emoji = h('input', { type: 'text', id: 'pemoji', class: 'n', maxLength: 4, value: p ? p.emoji : '', placeholder: '🐾', 'aria-label': 'Symbol (Emoji)' });
+  const name = h('input', { type: 'text', id: 'pname', required: true, value: p ? p.name : '', placeholder: 'z. B. Bello', 'aria-label': 'Name' });
+  const species = h('input', { type: 'text', id: 'pspecies', list: 'splist', value: p ? p.species : '', placeholder: 'z. B. Hund', 'aria-label': 'Tierart' });
+  const breed = h('input', { type: 'text', id: 'pbreed', value: p ? p.breed : '', placeholder: 'optional', 'aria-label': 'Rasse' });
+  const birth = h('input', { type: 'date', id: 'pbirth', value: p ? p.birth : '', 'aria-label': 'Geburtsdatum' });
+  const chip = h('input', { type: 'text', id: 'pchip', value: p ? p.chip : '', placeholder: 'optional', 'aria-label': 'Chip-Nummer' });
+  const note = h('input', { type: 'text', id: 'pnote', value: p ? p.note : '', placeholder: 'z. B. Allergien, Tierarzt, Versicherung', 'aria-label': 'Notiz' });
+  let manual = !!(p && p.emoji && p.emoji !== emojiFor(p.species));
+  emoji.oninput = () => { manual = true; };
+  species.oninput = () => { if (!manual) emoji.value = emojiFor(species.value); };
+  const L = (t, el, st) => h('label', { class: 'f', style: st || '' }, t, el);
+  const f = h('form', { class: 'card form', id: 'pform' }, h('h2', { class: 'sec', style: 'flex-basis:100%;margin:0' }, p ? 'Tier bearbeiten' : 'Neues Tier'),
+    L('Symbol', emoji), L('Name', name, 'flex:1;min-width:140px'), L('Tierart', species, 'min-width:130px'), L('Rasse', breed, 'min-width:130px'), L('Geboren', birth), L('Chip-Nr.', chip, 'min-width:150px'), L('Notiz', note, 'flex:1 1 100%'),
+    h('datalist', { id: 'splist' }, SPECIES.map((s) => h('option', { value: s }))),
+    h('button', { class: 'primary' }, p ? 'Speichern' : 'Anlegen'), h('button', { type: 'button', onclick: () => { petForm = null; render(); } }, 'Abbrechen'));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const nm = name.value.trim(); if (!nm) { alert('Bitte einen Namen eingeben.'); return; }
+    if (birth.value && parseYmd(birth.value) > today0()) { alert('Das Geburtsdatum liegt in der Zukunft.'); return; }
+    const vals = { name: nm, species: species.value.trim(), breed: breed.value.trim(), birth: birth.value, chip: chip.value.trim(), emoji: emoji.value.trim() || emojiFor(species.value), note: note.value.trim() };
+    if (p) Object.assign(p, vals); else { const np = Object.assign({ id: uid() }, vals); store.data.pets.push(np); sel = np.id; tab = 'log'; }
+    petForm = null; store.changed(); render();
+  };
+  return f;
+}
+function deletePet(p) {
+  if (!confirm('„' + p.name + '“ mit allen Einträgen und Gewichten löschen?')) return;
+  const d = store.data;
+  d.pets = d.pets.filter((x) => x !== p); d.events = d.events.filter((e) => e.petId !== p.id); d.weights = d.weights.filter((w) => w.petId !== p.id);
+  sel = 'all'; store.changed(); render();
+}
+
+// ---------- Übersicht „Alle“ ----------
+function overview() {
+  const d = store.data, y = new Date().getFullYear();
+  if (!d.pets.length) return h('div', { class: 'card' }, h('p', { class: 'muted', style: 'margin:0 0 8px' }, 'Noch kein Tier angelegt. Lege dein erstes Haustier an, um Impfungen, Tierarztbesuche, Gewicht und Kosten zu verfolgen.'), h('button', { class: 'primary', onclick: () => openPetForm('new') }, '🐾 Tier anlegen'));
+  const due = openDue(), over = due.filter((e) => daysTo(e.nextDue) < 0).length, soon = due.filter((e) => { const n = daysTo(e.nextDue); return n >= 0 && n <= 14; }).length;
+  const sum = h('div', { class: 'sum' },
+    h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Tiere'), h('b', { id: 'ntiere' }, d.pets.length)),
+    h('div', { class: 'card' }, h('span', { class: 'muted', title: 'bald = in den nächsten 14 Tagen' }, 'Überfällig / bald'), h('b', {}, h('span', { class: over ? 'neg' : '' }, over), ' / ', soon)),
+    h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Kosten ' + y), h('b', {}, eur(yearCost(null, y)))));
+  const cards = d.pets.map((p) => {
+    const nd = openDue(p.id)[0], lw = lastWeight(p.id), di = nd ? dueInfo(nd.nextDue) : null, a = age(p.birth);
+    return h('div', { class: 'card pet', dataset: { id: p.id } },
+      h('div', { class: 'phead' }, h('span', { class: 'em' }, p.emoji || emojiFor(p.species)), h('div', {}, h('h3', {}, p.name), h('div', { class: 'muted' }, [p.species, p.breed].filter(Boolean).join(' · ') || 'Tier'))),
+      h('div', { class: 'facts' }, h('span', {}, 'Alter: ', h('b', {}, a || '–')), lw ? h('span', {}, 'Gewicht: ', h('b', {}, fmtKg(lw.kg))) : null, h('span', {}, 'Kosten ' + y + ': ', h('b', {}, eur(yearCost(p.id, y))))),
+      h('div', { class: 'facts' }, nd ? [h('span', {}, 'Nächster Termin: ', h('b', {}, (TICON[nd.type] || '📌') + ' ' + nd.type), ' ', fmtDate(nd.nextDue)), h('span', { class: 'badge ' + di.cls }, di.text)] : h('span', { class: 'muted' }, 'Keine Termine offen')),
+      h('div', { style: 'margin-top:auto' }, h('button', { class: 'small', onclick: () => { sel = p.id; tab = 'log'; render(); } }, 'Öffnen →')));
+  });
+  return h('div', {}, sum, dueCard(due), h('div', { class: 'pets' }, cards),
+    h('div', { class: 'toolbar' }, h('button', { id: 'csvall', onclick: () => exportCsv(null) }, '⬇ Alle Einträge als CSV')));
+}
+
+// ---------- Fälligkeiten ----------
+function quick(base, input) {
+  return h('span', { class: 'quick' }, [['+3 Mon.', 3], ['+6 Mon.', 6], ['+1 Jahr', 12]].map(([t, m]) => h('button', { type: 'button', class: 'small', onclick: () => { input.value = ymd(addM(parseYmd(base() || ymd(new Date())), m)); } }, t)));
+}
+function dueCard(list) {
+  const rows = list.map(dueItem);
+  return h('div', { class: 'card', id: 'duecard' }, h('h2', { class: 'sec' }, 'Fälligkeiten'),
+    rows.length ? rows : h('p', { class: 'muted', style: 'margin:0' }, 'Keine anstehenden Termine. Trage bei einem Eintrag einen „Nächsten Termin“ ein, dann erscheint er hier.'),
+    rows.length ? h('p', { class: 'muted', style: 'margin:8px 0 0;font-size:.82rem' }, 'Ein späterer Eintrag derselben Art für dasselbe Tier gilt als erledigt.') : null);
+}
+function dueItem(e) {
+  const p = petOf(e.petId), di = dueInfo(e.nextDue);
+  const btn = h('button', { class: 'small' + (doneId === e.id ? '' : ' primary'), dataset: { act: 'done' }, onclick: () => { doneId = doneId === e.id ? null : e.id; render(); } }, doneId === e.id ? 'Abbrechen' : 'Erledigt – neuen Termin anlegen');
+  return h('div', { class: 'item', dataset: { id: e.id } },
+    h('span', { class: 'nm' }, h('strong', {}, (p.emoji || emojiFor(p.species)) + ' ' + p.name), ' · ' + (TICON[e.type] || '📌') + ' ' + e.type, e.note ? h('span', { class: 'meta' }, ' – ' + e.note) : null),
+    h('span', { class: 'badge ' + di.cls }, di.text), h('span', { class: 'meta' }, fmtDate(e.nextDue) + (di.meta ? ' · ' + di.meta : '')), btn,
+    doneId === e.id ? doneForm(e) : null);
+}
+function doneForm(e) {
+  const iv = e.date ? Math.round((parseYmd(e.nextDue) - parseYmd(e.date)) / 86400000) : 0;
+  let sug = ''; if (iv > 0) { const t = today0(); t.setDate(t.getDate() + iv); sug = ymd(t); }
+  const next = h('input', { type: 'date', class: 'dn', value: sug, 'aria-label': 'Nächster Termin' });
+  const cost = h('input', { type: 'text', class: 'w dc', inputMode: 'decimal', placeholder: '0,00', 'aria-label': 'Kosten in Euro' });
+  const f = h('form', { class: 'form done-form' }, h('span', { style: 'flex-basis:100%;font-size:.88rem' }, 'Wird heute (' + fmtDate(ymd(new Date())) + ') als „' + e.type + '“ eingetragen.'),
+    h('label', { class: 'f' }, 'Nächster Termin (optional)', next), quick(() => ymd(new Date()), next), h('label', { class: 'f' }, 'Kosten (€)', cost),
+    h('button', { class: 'primary' }, 'Eintrag speichern'));
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const c = parseAmount(cost.value); if (isNaN(c)) { alert('Bitte gültige Kosten eingeben.'); return; }
+    store.data.events.push({ id: uid(), petId: e.petId, date: ymd(new Date()), type: e.type, note: e.note, cost: Math.round(c * 100) / 100, nextDue: next.value });
+    doneId = null; store.changed(); render();
+  };
+  return f;
+}
+
+// ---------- Tier-Ansicht ----------
+function petView() {
+  const p = petOf(sel), a = age(p.birth);
+  const head = petForm === p.id ? null : h('div', { class: 'card pethead' }, h('span', { class: 'em' }, p.emoji || emojiFor(p.species)),
+    h('div', { class: 'info' }, h('h2', {}, p.name), h('div', { class: 'muted' }, [p.species, p.breed].filter(Boolean).join(' · ') || 'Tier'),
+      h('div', { class: 'facts', style: 'margin-top:4px' }, h('span', { id: 'agetxt' }, 'Alter: ', h('b', {}, a || '–')), p.birth ? h('span', {}, 'Geboren: ', h('b', {}, fmtDate(p.birth))) : null, p.chip ? h('span', {}, 'Chip: ', h('b', {}, p.chip)) : null),
+      p.note ? h('div', { class: 'muted', style: 'margin-top:4px;font-size:.9rem;overflow-wrap:anywhere' }, p.note) : null),
+    h('div', { class: 'row' }, h('button', { class: 'small', id: 'editpet', onclick: () => openPetForm(p.id) }, 'Bearbeiten'), h('button', { class: 'small', id: 'delpet', onclick: () => deletePet(p) }, 'Löschen')));
+  const tabs = h('div', { class: 'tabs' }, [['log', 'Einträge'], ['weight', 'Gewicht'], ['costs', 'Kosten']].map(([k, t]) => h('button', { class: tab === k ? 'on' : '', dataset: { tab: k }, onclick: () => { tab = k; render(); } }, t)));
+  return h('div', {}, head, tabs, tab === 'weight' ? weightView(p) : tab === 'costs' ? costView(p) : logView(p));
+}
+function logView(p) {
+  const date = h('input', { type: 'date', id: 'evdate', required: true, value: ymd(new Date()), 'aria-label': 'Datum' });
+  const type = h('select', { id: 'evtype', 'aria-label': 'Art' }, TYPES.map((t) => h('option', { value: t }, t)));
+  const note = h('input', { type: 'text', id: 'evnote', placeholder: 'z. B. Tollwut, Praxis Dr. Meier', 'aria-label': 'Notiz' });
+  const cost = h('input', { type: 'text', id: 'evcost', class: 'w', inputMode: 'decimal', placeholder: '0,00', 'aria-label': 'Kosten in Euro' });
+  const next = h('input', { type: 'date', id: 'evnext', 'aria-label': 'Nächster Termin' });
+  const L = (t, el, st) => h('label', { class: 'f', style: st || '' }, t, el);
+  const f = h('form', { class: 'card form', id: 'evform' }, h('h2', { class: 'sec', style: 'flex-basis:100%;margin:0' }, 'Eintrag hinzufügen'),
+    L('Datum', date), L('Art', type), L('Notiz', note, 'flex:1;min-width:170px'), L('Kosten (€)', cost), L('Nächster Termin (optional)', next), quick(() => date.value, next),
+    h('button', { class: 'primary' }, 'Eintragen'));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const c = parseAmount(cost.value); if (isNaN(c)) { alert('Bitte gültige Kosten eingeben.'); return; }
+    if (!date.value) { alert('Bitte ein Datum angeben.'); return; }
+    if (next.value && next.value < date.value) { alert('Der nächste Termin liegt vor dem Datum des Eintrags.'); return; }
+    store.data.events.push({ id: uid(), petId: p.id, date: date.value, type: type.value, note: note.value.trim(), cost: Math.round(c * 100) / 100, nextDue: next.value });
+    store.changed(); render();
+  };
+  const due = openDue(p.id);
+  const evs = store.data.events.filter((e) => e.petId === p.id).sort((a, b) => b.date.localeCompare(a.date));
+  const open = new Set(due.map((e) => e.id));
+  const rows = evs.map((e) => h('tr', { dataset: { id: e.id } }, h('td', { class: 'nw d' }, fmtDate(e.date)), h('td', { class: 't' }, (TICON[e.type] || '📌') + ' ' + e.type), h('td', { class: 'n' }, e.note),
+    h('td', { class: 'r' + (e.cost ? '' : ' z') }, e.cost ? eur(e.cost) : '–'),
+    h('td', { class: 'nw nx' + (e.nextDue ? '' : ' z') }, e.nextDue ? [fmtDate(e.nextDue), open.has(e.id) ? [' ', h('span', { class: 'badge ' + dueInfo(e.nextDue).cls }, dueInfo(e.nextDue).text)] : null] : '–'),
+    h('td', { class: 'x' }, h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Eintrag löschen', onclick: () => { if (confirm('Eintrag „' + e.type + '“ vom ' + fmtDate(e.date) + ' löschen?')) { store.data.events = store.data.events.filter((x) => x !== e); store.changed(); render(); } } }, '✕'))));
+  const log = h('div', { class: 'card' }, h('div', { class: 'row', style: 'margin-bottom:6px' }, h('h2', { class: 'sec', style: 'margin:0;flex:1' }, 'Verlauf (' + evs.length + ')'), evs.length ? h('button', { class: 'small', id: 'csvpet', onclick: () => exportCsv(p) }, '⬇ CSV') : null),
+    evs.length ? h('div', { class: 'tw' }, h('table', { id: 'evtable' }, h('thead', {}, h('tr', {}, h('th', {}, 'Datum'), h('th', {}, 'Art'), h('th', {}, 'Notiz'), h('th', { class: 'r' }, 'Kosten'), h('th', {}, 'Nächster Termin'), h('th', {}))), h('tbody', {}, rows)))
+      : h('p', { class: 'muted', style: 'margin:0' }, 'Noch keine Einträge für ' + p.name + '. Trage oben Impfungen, Tierarztbesuche, Entwurmungen usw. ein.'));
+  return h('div', {}, due.length ? dueCard(due) : null, f, log);
+}
+
+// ---------- CSV ----------
+function exportCsv(p) {
+  const evs = store.data.events.filter((e) => !p || e.petId === p.id).slice().sort((a, b) => a.date.localeCompare(b.date));
+  const q = (s) => { s = String(s); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"'; };
+  const rows = [['Tier', 'Tierart', 'Datum', 'Art', 'Notiz', 'Kosten (EUR)', 'Nächster Termin']].concat(evs.map((e) => { const o = petOf(e.petId) || {}; return [o.name || '', o.species || '', e.date, e.type, e.note, e.cost.toFixed(2).replace('.', ','), e.nextDue]; }));
+  download('haustiere-' + (p ? p.name.replace(/[^\wäöüßÄÖÜ-]+/g, '_') + '-' : '') + 'eintraege.csv', '﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+// ---------- Gewicht ----------
+const wpts = (id) => store.data.weights.filter((w) => w.petId === id && w.kg > 0 && w.date).sort((a, b) => a.date.localeCompare(b.date));
+function weightView(p) {
+  const date = h('input', { type: 'date', id: 'wdate', required: true, value: ymd(new Date()), 'aria-label': 'Datum' });
+  const kg = h('input', { type: 'text', id: 'wkg', class: 'w', inputMode: 'decimal', required: true, placeholder: 'z. B. 4,2', 'aria-label': 'Gewicht' });
+  const unit = h('select', { id: 'wunit', 'aria-label': 'Einheit' }, h('option', { value: 'kg' }, 'kg'), h('option', { value: 'g' }, 'g'));
+  const f = h('form', { class: 'card form', id: 'wform' }, h('label', { class: 'f' }, 'Datum', date), h('label', { class: 'f' }, 'Gewicht', h('span', { class: 'row', style: 'gap:4px;flex-wrap:nowrap' }, kg, unit)), h('button', { class: 'primary' }, 'Eintragen'));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    let v = parseAmount(kg.value); if (unit.value === 'g') v /= 1000;
+    if (!(v > 0) || v > 1000) { alert('Bitte ein gültiges Gewicht eingeben.'); return; }
+    if (!date.value) { alert('Bitte ein Datum angeben.'); return; }
+    store.data.weights.push({ id: uid(), petId: p.id, date: date.value, kg: Math.round(v * 10000) / 10000 });
+    store.changed(); render();
+  };
+  const ws = wpts(p.id);
+  if (!ws.length) return h('div', {}, f, h('div', { class: 'card muted' }, 'Noch keine Gewichte für ' + p.name + '. Trage oben das erste Gewicht ein, dann erscheint hier der Verlauf.'));
+  const last = ws[ws.length - 1], prev = ws[ws.length - 2], first = ws[0];
+  const st = (label, val, sub) => h('div', { class: 'card' }, h('span', { class: 'muted' }, label), h('b', {}, val), sub ? h('span', { class: 'muted', style: 'font-size:.8rem' }, sub) : null);
+  const stats = h('div', { class: 'sum', id: 'wstats' }, st('Aktuell', fmtKg(last.kg), fmtDate(last.date)),
+    prev ? st('Seit letzter Messung', dKg(last.kg - prev.kg, last.kg), 'vs. ' + fmtDate(prev.date)) : st('Seit letzter Messung', '–'),
+    ws.length > 1 ? st('Seit Beginn', dKg(last.kg - first.kg, last.kg), 'seit ' + fmtDate(first.date)) : st('Seit Beginn', '–'));
+  const list = ws.slice().reverse().map((w, i, arr) => { const o = arr[i + 1]; return h('tr', { dataset: { id: w.id } }, h('td', { class: 'nw' }, fmtDate(w.date)), h('td', { class: 'r' }, fmtKg(w.kg)), h('td', { class: 'r muted' }, o ? dKg(w.kg - o.kg, w.kg) : ''),
+    h('td', { class: 'r' }, h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Gewicht löschen', onclick: () => { if (confirm('Gewicht vom ' + fmtDate(w.date) + ' löschen?')) { store.data.weights = store.data.weights.filter((x) => x !== w); store.changed(); render(); } } }, '✕'))); });
+  return h('div', {}, f, stats, h('div', { class: 'card' }, h('h2', { class: 'sec' }, 'Verlauf'), h('div', { id: 'chartbox' })),
+    h('div', { class: 'card' }, h('div', { class: 'tw' }, h('table', { id: 'wtable' }, h('thead', {}, h('tr', {}, h('th', {}, 'Datum'), h('th', { class: 'r' }, 'Gewicht'), h('th', { class: 'r' }, 'Änderung'), h('th', {}))), h('tbody', {}, list)))));
+}
+function redrawChart() {
+  const box = $('chartbox'); if (!box || sel === 'all') return;
+  const pts = wpts(sel).map((w) => ({ t: parseYmd(w.date).getTime(), d: w.date, y: w.kg }));
+  if (pts.length) box.replaceChildren(chart(pts, box.clientWidth || 600));
+}
+function niceTicks(lo, hi, n) {
+  const raw = (hi - lo) / n, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p, step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p, out = [];
+  for (let i = Math.ceil(lo / step - 1e-9); i * step <= hi + 1e-9; i++) out.push(Math.round(i * step * 1e6) / 1e6);
+  return out;
+}
+function chart(pts, width) {
+  const NS = 'http://www.w3.org/2000/svg', W = Math.max(280, Math.min(1000, width)), H = W < 480 ? 200 : 260, L = 48, R = 14, T = 12, B = 26;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Gewichtsverlauf');
+  const el = (tag, a, t) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; svg.append(n); return n; };
+  const grams = Math.max(...pts.map((p) => p.y)) < 1, k = grams ? 1000 : 1;
+  let lo = Math.min(...pts.map((p) => p.y)) * k, hi = Math.max(...pts.map((p) => p.y)) * k; const pd = (hi - lo || hi * 0.1 || 1) * 0.2; lo = Math.max(0, lo - pd); hi += pd;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = t1 - t0;
+  const X = (t) => span === 0 ? (L + W - R) / 2 : L + (t - t0) / span * (W - L - R), Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  niceTicks(lo, hi, 4).forEach((v) => { el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, num(v, 3) + (grams ? ' g' : '')); });
+  if (span === 0) el('text', { x: X(t0), y: H - 6, 'text-anchor': 'middle' }, fmtDate(pts[0].d));
+  else { el('text', { x: L, y: H - 6 }, fmtDate(ymd(new Date(t0)))); el('text', { x: (L + W - R) / 2, y: H - 6, 'text-anchor': 'middle' }, fmtDate(ymd(new Date((t0 + t1) / 2)))); el('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, fmtDate(ymd(new Date(t1)))); }
+  if (pts.length > 1) el('polyline', { points: pts.map((p) => X(p.t) + ',' + Y(p.y * k)).join(' '), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2, 'stroke-linejoin': 'round' });
+  pts.forEach((p) => { const c = el('circle', { cx: X(p.t), cy: Y(p.y * k), r: 3.5, fill: 'var(--accent)' }); c.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: fmtDate(p.d) + ': ' + fmtKg(p.y) })); });
+  return svg;
+}
+let rsz = 0; window.addEventListener('resize', () => { clearTimeout(rsz); rsz = setTimeout(redrawChart, 150); });
+
+// ---------- Kosten ----------
+function costView(p) {
+  const evs = store.data.events.filter((e) => e.petId === p.id && e.cost > 0);
+  if (!evs.length) return h('div', { class: 'card muted' }, 'Noch keine Kosten für ' + p.name + '. Gib bei Einträgen (Tierarzt, Futter …) einen Betrag an, dann siehst du hier die Auswertung.');
+  const y = new Date().getFullYear(), cut = ymd(addM(today0(), -12)), tot = evs.reduce((a, e) => a + e.cost, 0);
+  const byYear = {}; evs.forEach((e) => { const k = e.date.slice(0, 4) || '?'; byYear[k] = (byYear[k] || 0) + e.cost; });
+  const years = Object.keys(byYear).sort().reverse();
+  if (costYear !== 'all' && !years.includes(costYear)) costYear = 'all';
+  const sel2 = h('select', { id: 'costyear', 'aria-label': 'Jahr für Auswertung nach Art' }, h('option', { value: 'all' }, 'Alle Jahre'), years.map((k) => h('option', { value: k, selected: k === costYear }, k)));
+  sel2.onchange = () => { costYear = sel2.value; render(); };
+  const byType = {}; evs.filter((e) => costYear === 'all' || e.date.slice(0, 4) === costYear).forEach((e) => { byType[e.type] = (byType[e.type] || 0) + e.cost; });
+  const bars = (obj, keys) => { const max = Math.max(...keys.map((k) => obj[k])); return keys.map((k) => h('div', { class: 'br', dataset: { key: k } }, h('span', { class: 'bl' }, k), h('div', { class: 'bar' }, h('i', { style: 'width:' + Math.max(2, obj[k] / max * 100) + '%' })), h('b', {}, eur(obj[k])))); };
+  const tk = Object.keys(byType).sort((a, b) => byType[b] - byType[a]);
+  return h('div', {}, h('div', { class: 'sum' }, h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Gesamt'), h('b', { id: 'ctot' }, eur(tot))),
+      h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Dieses Jahr (' + y + ')'), h('b', {}, eur(byYear[y] || 0))),
+      h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Letzte 12 Monate'), h('b', {}, eur(evs.filter((e) => e.date >= cut).reduce((a, e) => a + e.cost, 0))))),
+    h('div', { class: 'card', id: 'costyears' }, h('h2', { class: 'sec' }, 'Pro Jahr'), bars(byYear, years)),
+    h('div', { class: 'card', id: 'costtypes' }, h('div', { class: 'row', style: 'margin-bottom:6px' }, h('h2', { class: 'sec', style: 'margin:0;flex:1' }, 'Pro Art'), sel2), tk.length ? bars(byType, tk) : h('p', { class: 'muted', style: 'margin:0' }, 'Keine Kosten in diesem Jahr.')));
+}
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

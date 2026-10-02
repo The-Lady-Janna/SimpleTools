@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event-Planer</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .evl { display:grid; grid-template-columns:minmax(230px,300px) minmax(0,1fr); gap:14px; align-items:start; }
+  @media (max-width: 800px) { .evl { grid-template-columns:minmax(0,1fr); } #side { max-height:300px; overflow:auto; } }
+  #side { margin:0; } #side h2 { font-size:1rem; margin:0; flex:1; }
+  #side .grp { margin:10px 0 4px; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  button.evi { display:flex; align-items:center; gap:8px; width:100%; text-align:left; margin:0 0 6px; padding:7px 10px; }
+  button.evi.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  button.evi.past { opacity:.7; }
+  button.evi .ic { font-size:1.35rem; line-height:1; } button.evi .tx { flex:1; min-width:0; overflow-wrap:anywhere; line-height:1.25; }
+  button.evi .tx b { display:block; } button.evi .tx small { color:var(--muted); }
+  #head .card, #stats .card { margin:0; } #head { margin-bottom:12px; }
+  .evt { margin:0; font-size:1.25rem; flex:1 1 200px; min-width:0; overflow-wrap:anywhere; }
+  .notes { white-space:pre-wrap; margin:8px 0; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:10px; margin-bottom:4px; }
+  .st-tile { text-align:center; padding:10px 8px !important; } .st-tile b { display:block; font-size:1.45rem; line-height:1.2; } .st-tile small { display:block; font-size:.78rem; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  input.w { width:5.5em; } .fx { flex:1 1 160px; } .fx input, .fx textarea { width:100%; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .chips button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  button.st { min-width:6.4em; font-size:.85rem; padding:3px 10px; border-radius:99px; font-weight:600; }
+  button.st.offen { border-color:var(--warn); color:var(--warn); }
+  button.st.zugesagt { border-color:var(--ok); color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, var(--card)); }
+  button.st.abgesagt { border-color:var(--err); color:var(--err); }
+  .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; } .item .nm { flex:1 1 100px; min-width:0; overflow-wrap:anywhere; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .acts { display:flex; gap:6px; align-items:center; flex:none; margin-left:auto; }
+  @media (max-width: 600px) { .stats .st-tile:last-child { grid-column:1 / -1; } }
+  .item.done .nm { text-decoration:line-through; opacity:.6; } .item input[type=checkbox] { width:1.15rem; height:1.15rem; flex:none; }
+  .erow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; } .erow input[type=text] { flex:1 1 120px; min-width:0; }
+  .bar { height:12px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; flex:1; min-width:60px; }
+  .bar > i { display:block; height:100%; background:var(--accent); } .bar.over > i { background:var(--err); } .bar.ok > i { background:var(--ok); }
+  .sum3 { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin-bottom:8px; text-align:center; } .sum3 b { display:block; font-size:1.2rem; } .sum3 span { font-size:.8rem; color:var(--muted); }
+  .brow, .bhead { display:grid; grid-template-columns:minmax(0,1fr) 8em 8em 2.4em; gap:6px 8px; align-items:center; }
+  .brow { padding:8px 8px 8px 10px; border-bottom:1px solid var(--line); border-left:4px solid transparent; } .brow.over { border-left-color:var(--err); background:color-mix(in srgb, var(--err) 8%, var(--card)); }
+  .brow input { width:100%; min-width:0; } .brow .bl { grid-column:1 / -1; display:flex; gap:10px; align-items:center; } .brow .diff { font-size:.82rem; color:var(--muted); min-width:9em; text-align:right; } .brow.over .diff { color:var(--err); font-weight:600; }
+  .bhead { font-size:.78rem; color:var(--muted); padding:0 8px 4px 14px; }
+  @media (max-width: 600px) { .brow .diff { min-width:0; } .brow .diff:empty { display:none; } .bhead { display:none; } .brow, .bhead { grid-template-columns:minmax(0,1fr) minmax(0,1fr) 2.4em; } .brow .bi { grid-column:1 / -1; } }
+  .two { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:12px; align-items:start; } .two .card { margin:0; }
+  .course { margin:12px 0 2px; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+  .tpl-msg { margin:4px 0 0; font-size:.88rem; }
+  summary { cursor:pointer; font-weight:600; }
+  input[type=time] { background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+  .evform label.f { flex:1 1 150px; } .evform label.f.fx { flex:1 1 100%; } .evform label.f input, .evform label.f select, .evform label.f textarea { width:100%; min-width:0; } .evform label.f input, .evform label.f select { min-height:2.4rem; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Event-Planer</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="evl">
+    <aside class="card" id="side" aria-label="Events"></aside>
+    <section id="detail">
+      <div id="head"></div>
+      <div id="stats" class="stats"></div>
+      <div class="tabs" id="tabs"><button data-tab="guests">Gäste</button><button data-tab="tasks">Aufgaben</button><button data-tab="budget">Budget</button><button data-tab="menu">Menü &amp; Einkauf</button></div>
+      <div id="view"></div>
+    </section>
+  </div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'events',
+  defaults: () => ({ events: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const TYPES = { Geburtstag: '🎂', Hochzeit: '💍', Party: '🎉', Familienfeier: '👪', Sonstiges: '📅' };
+const STATUS = ['offen', 'zugesagt', 'abgesagt'];
+const COURSES = ['Vorspeise', 'Hauptgang', 'Dessert', 'Getränke', 'Snacks'];
+let curId = null, tab = 'guests', editing = null, editRow = null, msg = '', refocus = null;
+let menuCourse = 'Hauptgang', gFilter = 'all', gQuery = '', gGroup = '', hideDone = false;
+const validYmd = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s);
+const today0 = () => parseYmd(ymd(new Date()));
+const daysTo = (s) => Math.round((parseYmd(s) - today0()) / 86400000);
+const shiftDays = (s, n) => { const d = parseYmd(s); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+const sum = (arr, k) => arr.reduce((a, x) => a + (x[k] || 0), 0);
+const cur = () => store.data.events.find((e) => e.id === curId) || null;
+const byName = (a, b) => a.name.localeCompare(b.name, 'de');
+const fmtIn = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
+function sortedEvents() {
+  const t = ymd(new Date()), ev = store.data.events;
+  const up = ev.filter((e) => !e.date || e.date >= t).sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || byName(a, b));
+  const past = ev.filter((e) => e.date && e.date < t).sort((a, b) => b.date.localeCompare(a.date));
+  return { up, past };
+}
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.events)) d.events = [];
+  const str = (o, k) => { if (typeof o[k] !== 'string') o[k] = o[k] == null ? '' : String(o[k]); };
+  const num = (o, k, int) => { let n = Number(o[k]); if (!Number.isFinite(n) || n < 0) n = 0; o[k] = int ? Math.floor(n) : n; };
+  d.events = d.events.filter((e) => e && typeof e === 'object');
+  d.events.forEach((e) => {
+    if (!e.id) e.id = uid();
+    ['name', 'date', 'time', 'place', 'notes'].forEach((k) => str(e, k));
+    if (!validYmd(e.date)) e.date = '';
+    if (!Object.keys(TYPES).includes(e.type)) e.type = 'Sonstiges';
+    for (const k of ['guests', 'tasks', 'budget', 'menu', 'shopping']) {
+      if (!Array.isArray(e[k])) e[k] = [];
+      e[k] = e[k].filter((x) => x && typeof x === 'object'); e[k].forEach((x) => { if (!x.id) x.id = uid(); });
+    }
+    e.guests.forEach((g) => { str(g, 'name'); str(g, 'note'); str(g, 'group'); num(g, 'plus', true); if (!STATUS.includes(g.status)) g.status = 'offen'; });
+    e.tasks.forEach((t) => { str(t, 'text'); str(t, 'due'); if (!validYmd(t.due)) t.due = ''; t.done = !!t.done; });
+    e.budget.forEach((b) => { str(b, 'item'); num(b, 'planned'); num(b, 'actual'); });
+    e.menu.forEach((m) => { str(m, 'dish'); if (!COURSES.includes(m.course)) m.course = 'Snacks'; });
+    e.shopping.forEach((s) => { str(s, 'text'); s.done = !!s.done; });
+  });
+  if (!d.events.some((e) => e.id === curId)) { const s = sortedEvents(); curId = s.up.length ? s.up[0].id : s.past.length ? s.past[0].id : null; editing = null; editRow = null; }
+}
+function cd(s) {
+  if (!s) return { t: 'ohne Datum', c: '' };
+  const n = daysTo(s);
+  return n < 0 ? { t: 'vorbei', c: '' } : n === 0 ? { t: 'heute', c: 'warn' } : n === 1 ? { t: 'morgen', c: 'warn' } : { t: 'in ' + n + ' Tagen', c: n <= 7 ? 'warn' : '' };
+}
+function taskCd(t) {
+  if (!t.due) return null;
+  const n = daysTo(t.due);
+  return n < 0 ? { t: 'überfällig', c: 'err', title: 'seit ' + (-n) + (n === -1 ? ' Tag' : ' Tagen') } : n === 0 ? { t: 'heute', c: 'warn' } : n === 1 ? { t: 'morgen', c: 'warn' } : { t: 'in ' + n + ' Tagen', c: n <= 3 ? 'warn' : '' };
+}
+const L = (t, el, cls) => h('label', { class: 'f' + (cls ? ' ' + cls : '') }, t, el);
+const delBtn = (what, fn) => h('button', { class: 'small', title: what + ' löschen', 'aria-label': what + ' löschen', onclick: fn }, '✕');
+const editBtn = (id, sel) => h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => { editRow = id; refocus = sel || '.erow input'; render(); } }, '✎');
+const acts = (...k) => h('span', { class: 'acts' }, ...k);
+const rm = (arr, x) => { const i = arr.indexOf(x); if (i >= 0) arr.splice(i, 1); store.changed(); render(); };
+function rowForm(fields, onSave) {
+  const stop = () => { editRow = null; render(); };
+  const f = h('form', { class: 'erow' }, fields, h('button', { class: 'small primary' }, 'OK'), h('button', { type: 'button', class: 'small', onclick: stop }, 'Abbrechen'));
+  f.onsubmit = (e) => { e.preventDefault(); onSave(); editRow = null; store.changed(); render(); };
+  f.onkeydown = (e) => { if (e.key === 'Escape') stop(); };
+  return f;
+}
+function selectEvent(id) { curId = id; editing = null; editRow = null; msg = ''; gFilter = 'all'; gQuery = ''; gGroup = ''; render(); }
+
+/* ---------- Seitenleiste ---------- */
+function renderSide() {
+  const { up, past } = sortedEvents();
+  const item = (e, isPast) => { const c = cd(e.date);
+    return h('button', { class: 'evi' + (e.id === curId ? ' on' : '') + (isPast ? ' past' : ''), 'aria-pressed': String(e.id === curId), onclick: () => selectEvent(e.id) },
+      h('span', { class: 'ic' }, TYPES[e.type]), h('span', { class: 'tx' }, h('b', {}, e.name || '(ohne Namen)'), h('small', {}, (e.date ? fmtDate(e.date) : 'ohne Datum') + (e.time ? ' · ' + e.time : ''))), h('span', { class: 'badge ' + c.c }, c.t)); };
+  $('side').replaceChildren(h('div', { class: 'row', style: 'margin-bottom:6px' }, h('h2', {}, 'Events'), h('button', { class: 'primary small', id: 'newev', onclick: () => { editing = 'new'; editRow = null; refocus = '#e-name'; render(); } }, '+ Neues Event')),
+    ...(store.data.events.length ? [up.length ? h('div', { class: 'grp' }, 'Anstehend') : null, ...up.map((e) => item(e, false)), past.length ? h('div', { class: 'grp' }, 'Vergangen') : null, ...past.map((e) => item(e, true))] : [h('p', { class: 'muted' }, 'Noch keine Events.')]).filter(Boolean));
+}
+
+/* ---------- Kopf, Formular, Kennzahlen ---------- */
+function evForm(ev) {
+  const name = h('input', { type: 'text', id: 'e-name', required: true, value: ev ? ev.name : '', placeholder: 'z. B. Annas 30. Geburtstag' });
+  const type = h('select', { id: 'e-type' }, Object.keys(TYPES).map((t) => h('option', { value: t, selected: ev ? ev.type === t : t === 'Party' }, TYPES[t] + ' ' + t)));
+  const date = h('input', { type: 'date', id: 'e-date', required: true, value: ev ? ev.date : '' });
+  const time = h('input', { type: 'time', id: 'e-time', value: ev ? ev.time : '' });
+  const place = h('input', { type: 'text', id: 'e-place', value: ev ? ev.place : '', placeholder: 'Ort / Adresse' });
+  const notes = h('textarea', { id: 'e-notes', rows: 2, placeholder: 'Notizen, Motto, Dresscode …' }); notes.value = ev ? ev.notes : '';
+  const cancel = h('button', { type: 'button', id: 'e-cancel', onclick: () => { editing = null; render(); } }, 'Abbrechen');
+  const f = h('form', { class: 'card form evform' }, L('Name', name, 'fx'), L('Art', type), L('Datum', date), L('Uhrzeit', time), L('Ort', place, 'fx'), L('Notizen', notes, 'fx'), h('button', { class: 'primary', id: 'e-save' }, ev ? 'Übernehmen' : 'Event anlegen'), (ev || store.data.events.length) ? cancel : null);
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const rec = { name: name.value.trim(), type: type.value, date: date.value, time: time.value, place: place.value.trim(), notes: notes.value.trim() };
+    if (!rec.name || !rec.date) return;
+    if (ev) {
+      if (ev.date && ev.date !== rec.date && ev.tasks.some((t) => t.due)) {
+        const n = Math.round((parseYmd(rec.date) - parseYmd(ev.date)) / 86400000);
+        if (confirm('Das Datum wurde um ' + Math.abs(n) + (Math.abs(n) === 1 ? ' Tag ' : ' Tage ') + (n > 0 ? 'nach hinten' : 'nach vorn') + ' verschoben. Aufgabentermine entsprechend mitverschieben?')) ev.tasks.forEach((t) => { if (t.due) t.due = shiftDays(t.due, n); });
+      }
+      Object.assign(ev, rec);
+    } else { const n = { id: uid(), ...rec, guests: [], tasks: [], budget: [], menu: [], shopping: [] }; store.data.events.push(n); curId = n.id; tab = 'guests'; }
+    editing = null; store.changed(); render();
+  };
+  return f;
+}
+function duplicate(ev) {
+  const c = JSON.parse(JSON.stringify(ev));
+  Object.assign(c, { id: uid(), name: ev.name + ' (Kopie)' });
+  c.guests.forEach((g) => { g.id = uid(); g.status = 'offen'; });
+  c.tasks.forEach((t) => { t.id = uid(); t.done = false; });
+  c.budget.forEach((b) => { b.id = uid(); b.actual = 0; });
+  c.menu.forEach((m) => { m.id = uid(); });
+  c.shopping.forEach((s) => { s.id = uid(); s.done = false; });
+  store.data.events.push(c); store.changed(); curId = c.id; editing = c.id; editRow = null; msg = ''; refocus = '#e-date'; render();
+}
+function headCard(ev) {
+  const c = cd(ev.date);
+  const when = (ev.date ? parseYmd(ev.date).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : 'Kein Datum') + (ev.time ? ', ' + ev.time + ' Uhr' : '') + (ev.place ? ' · 📍 ' + ev.place : '');
+  return h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { class: 'evt' }, TYPES[ev.type] + ' ' + ev.name), h('span', { class: 'badge' }, ev.type), h('span', { class: 'badge ' + c.c }, c.t)),
+    h('div', { class: 'muted', style: 'margin-top:4px' }, when), ev.notes ? h('p', { class: 'notes' }, ev.notes) : null,
+    h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'small', id: 'ev-edit', onclick: () => { editing = ev.id; refocus = '#e-name'; render(); } }, '✎ Bearbeiten'),
+      h('button', { class: 'small', id: 'ev-copy', title: 'Neues Event mit Gästen, Aufgaben, Budget und Menü – alle Zu-/Absagen zurückgesetzt', onclick: () => duplicate(ev) }, '⧉ Kopie anlegen'),
+      h('button', { class: 'small', id: 'ev-del', onclick: () => { if (confirm('Event „' + ev.name + '“ mit allen Gästen, Aufgaben, Budget, Menü und Einkaufsliste löschen?')) { store.data.events.splice(store.data.events.indexOf(ev), 1); normalize(); store.changed(); render(); } } }, '✕ Löschen')));
+}
+function renderStats() {
+  const ev = cur(), box = $('stats');
+  if (!ev || editing === 'new') { box.replaceChildren(); return; }
+  const yes = ev.guests.filter((g) => g.status === 'zugesagt'), open = ev.guests.filter((g) => g.status === 'offen');
+  const head = yes.reduce((a, g) => a + 1 + g.plus, 0), done = ev.tasks.filter((t) => t.done).length;
+  const late = ev.tasks.filter((t) => !t.done && t.due && daysTo(t.due) < 0).length, P = sum(ev.budget, 'planned'), A = sum(ev.budget, 'actual');
+  const n = ev.date ? daysTo(ev.date) : null;
+  const tile = (label, val, sub, cls, id) => h('div', { class: 'card st-tile', id }, h('span', { class: 'muted' }, label), h('b', { class: cls || '' }, val), h('small', { class: 'muted' }, sub));
+  box.replaceChildren(
+    tile('Tage übrig', n == null ? '–' : n < 0 ? 'vorbei' : n === 0 ? 'Heute!' : n, n == null ? 'kein Datum' : n < 0 ? 'vor ' + (-n) + (n === -1 ? ' Tag' : ' Tagen') : fmtDate(ev.date), n === 0 ? 'pos' : '', 's-days'),
+    tile('Zusagen (Personen)', head, yes.length + ' Zusagen' + (head - yes.length ? ', ' + (head - yes.length) + ' Begleitung' : ''), '', 's-head'),
+    tile('Offene Einladungen', open.length, 'von ' + ev.guests.length + ' Gästen', open.length ? 'warnc' : '', 's-open'),
+    tile('Aufgaben', done + ' / ' + ev.tasks.length, late ? late + ' überfällig' : ev.tasks.length ? 'erledigt' : 'keine Aufgaben', late ? 'errc' : '', 's-tasks'),
+    tile('Budget (tatsächlich)', eur(A), 'von ' + eur(P) + ' geplant', A > P && A > 0 ? 'errc' : '', 's-budget'));
+}
+
+/* ---------- Gäste ---------- */
+function parseGuestLines(text) {
+  return text.split(/\r?\n/).map((l) => l.trim().replace(/^([-•*]|\d+[.)])\s+/, '')).filter(Boolean).map((l) => {
+    let plus = 0; const m = l.match(/\s*\(?\+\s*(\d+)\)?\s*$/);
+    if (m) { plus = Math.min(50, +m[1]); l = l.slice(0, m.index).trim(); }
+    return l ? { name: l, plus } : null;
+  }).filter(Boolean);
+}
+function guestsView(ev) {
+  const gs = ev.guests, groups = [...new Set(gs.map((g) => g.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  const nm = h('input', { type: 'text', id: 'g-name', required: true, placeholder: 'Name' });
+  const pl = h('input', { type: 'number', id: 'g-plus', min: 0, max: 50, value: 0, class: 'w', title: 'Zusätzliche Personen (z. B. Partner, Kinder)' });
+  const gr = h('input', { type: 'text', id: 'g-group', list: 'glist', placeholder: 'z. B. Familie', style: 'width:9em' });
+  const quick = h('form', { class: 'card form' }, L('Gast hinzufügen', nm, 'fx'), L('Begleitung (+)', pl), L('Gruppe', gr), h('button', { class: 'primary' }, 'Hinzufügen'), h('datalist', { id: 'glist' }, groups.map((x) => h('option', { value: x }))));
+  quick.onsubmit = (e) => { e.preventDefault(); const name = nm.value.trim(); if (!name) return; gs.push({ id: uid(), name, status: 'offen', plus: Math.max(0, parseInt(pl.value, 10) || 0), note: '', group: gr.value.trim() }); msg = ''; refocus = '#g-name'; store.changed(); render(); };
+  const ta = h('textarea', { id: 'g-bulk', rows: 5, style: 'width:100%', placeholder: 'Anna Müller\nBen Schulz +1\nOma Hilde', 'aria-label': 'Gästenamen, einer pro Zeile' });
+  const bulk = h('details', { class: 'card' }, h('summary', {}, 'Mehrere Gäste auf einmal einfügen'), h('p', { class: 'muted', style: 'margin:6px 0' }, 'Ein Name pro Zeile. Begleitpersonen mit „+2“ am Zeilenende, z. B. „Ben Schulz +1“.'), ta,
+    h('button', { class: 'primary', id: 'g-bulkgo', style: 'margin-top:6px', onclick: () => {
+      const list = parseGuestLines(ta.value); let added = 0, skipped = 0;
+      for (const x of list) { if (gs.some((g) => g.name.toLowerCase() === x.name.toLowerCase())) { skipped++; continue; } gs.push({ id: uid(), name: x.name, status: 'offen', plus: x.plus, note: '', group: '' }); added++; }
+      msg = added + (added === 1 ? ' Gast' : ' Gäste') + ' hinzugefügt' + (skipped ? ' (' + skipped + ' schon vorhanden, übersprungen)' : '') + '.';
+      if (added) store.changed(); render();
+    } }, 'Alle hinzufügen'));
+  const cnt = (s) => gs.filter((g) => g.status === s), yes = cnt('zugesagt'), people = yes.reduce((a, g) => a + 1 + g.plus, 0);
+  const chip = (key, label, extra) => h('button', { class: gFilter === key ? 'on' : '', dataset: { f: key }, 'aria-pressed': String(gFilter === key), onclick: () => { gFilter = key; render(); } }, label + ' ' + (key === 'all' ? gs.length : cnt(key).length) + (extra || ''));
+  const open = cnt('offen');
+  const copy = h('button', { class: 'small', id: 'g-copy', disabled: !open.length, title: open.length ? '' : 'Keine offenen Einladungen' }, 'Offene Gäste kopieren');
+  copy.onclick = () => copyText('Noch keine Antwort (' + open.length + '):\n' + open.slice().sort(byName).map((g) => g.name + (g.plus ? ' (+' + g.plus + ')' : '')).join('\n'), copy);
+  if (gGroup && !groups.includes(gGroup)) gGroup = '';
+  const q = h('input', { type: 'text', value: gQuery, placeholder: 'Suchen …', 'aria-label': 'Gäste suchen', style: 'width:10em' });
+  const gsel = groups.length ? h('select', { 'aria-label': 'Gruppe filtern' }, h('option', { value: '' }, 'Alle Gruppen'), groups.map((x) => h('option', { value: x, selected: x === gGroup }, x))) : null;
+  const box = h('div', { class: 'card' });
+  const draw = () => {
+    const s = gQuery.trim().toLowerCase();
+    const list = gs.filter((g) => (gFilter === 'all' || g.status === gFilter) && (!gGroup || g.group === gGroup) && (!s || (g.name + ' ' + g.note + ' ' + g.group).toLowerCase().includes(s))).sort(byName);
+    box.replaceChildren(...(list.length ? list.map((g) => guestRow(ev, g)) : [h('p', { class: 'muted', style: 'margin:0' }, gs.length ? 'Keine Gäste für diesen Filter.' : 'Noch keine Gäste. Füge oben den ersten Gast hinzu oder füge mehrere auf einmal ein.')]));
+  };
+  q.oninput = () => { gQuery = q.value; draw(); };
+  if (gsel) gsel.onchange = () => { gGroup = gsel.value; draw(); };
+  const bar = h('div', { class: 'card toolbar' }, h('div', { class: 'chips', role: 'group', 'aria-label': 'Status filtern' }, chip('all', 'Alle'), chip('offen', 'Offen'), chip('zugesagt', 'Zugesagt', ' (' + people + ' Pers.)'), chip('abgesagt', 'Abgesagt')), h('span', { class: 'sp' }), gsel, q, copy);
+  draw();
+  return h('div', {}, quick, bulk, msg ? h('p', { class: 'muted tpl-msg' }, msg) : null, bar, box);
+}
+function guestRow(ev, g) {
+  if (editRow === g.id) {
+    const n = h('input', { type: 'text', value: g.name, required: true, 'aria-label': 'Name' }), p = h('input', { type: 'number', min: 0, max: 50, value: g.plus, class: 'w', 'aria-label': 'Begleitung', title: 'Begleitung (+)' });
+    const gr = h('input', { type: 'text', value: g.group, list: 'glist', placeholder: 'Gruppe', 'aria-label': 'Gruppe' }), no = h('input', { type: 'text', value: g.note, placeholder: 'Notiz (z. B. vegetarisch)', 'aria-label': 'Notiz' });
+    return h('div', { class: 'item' }, rowForm([n, p, gr, no], () => { if (n.value.trim()) g.name = n.value.trim(); g.plus = Math.max(0, parseInt(p.value, 10) || 0); g.group = gr.value.trim(); g.note = no.value.trim(); }));
+  }
+  const next = STATUS[(STATUS.indexOf(g.status) + 1) % 3];
+  return h('div', { class: 'item', dataset: { gid: g.id } },
+    h('div', { class: 'nm' }, h('strong', {}, g.name), g.plus ? h('span', { class: 'badge', style: 'margin-left:6px', title: g.plus + ' Begleitperson(en)' }, '+' + g.plus) : null, g.group ? h('span', { class: 'badge', style: 'margin-left:6px' }, g.group) : null, g.note ? h('div', { class: 'meta' }, g.note) : null),
+    acts(h('button', { class: 'st ' + g.status, title: 'Status ändern → ' + next, onclick: () => { g.status = next; store.changed(); render(); } }, g.status), editBtn(g.id), delBtn('Gast', () => rm(ev.guests, g))));
+}
+
+/* ---------- Aufgaben ---------- */
+const TPL = [[-56, 'Termin & Ort festlegen'], [-56, 'Budget festlegen'], [-49, 'Gästeliste erstellen'], [-42, 'Einladungen verschicken'], [-35, 'Musik, Dekoration & Technik klären'], [-28, 'Menü & Getränke planen'],
+  [-14, 'Zu- und Absagen nachfassen'], [-10, 'Dekoration & Material besorgen'], [-7, 'Endgültige Gästezahl festhalten'], [-7, 'Einkaufsliste fertigstellen'], [-3, 'Lebensmittel & Getränke einkaufen'],
+  [-2, 'Raum vorbereiten & dekorieren'], [-1, 'Speisen vorbereiten & Getränke kaltstellen'], [0, 'Aufbau, Gäste empfangen & feiern'], [1, 'Aufräumen & Leergut wegbringen'], [3, 'Danksagungen schicken & Fotos teilen']];
+const TPL_TYPE = {
+  Hochzeit: [[-180, 'Trauung & Location buchen'], [-150, 'Fotograf & Musik buchen'], [-120, 'Trauringe & Outfits aussuchen'], [-84, 'Save-the-Date verschicken'], [-28, 'Sitzordnung planen'], [-14, 'Ablaufplan & Reden abstimmen']],
+  Geburtstag: [[-14, 'Wunschliste oder Geschenkidee klären'], [-7, 'Torte oder Kuchen bestellen']],
+  Party: [[-7, 'Playlist zusammenstellen'], [-5, 'Nachbarn informieren']],
+  Familienfeier: [[-21, 'Anreise & Übernachtung der Gäste klären'], [-14, 'Sitzordnung planen']],
+};
+function loadTemplate(ev) {
+  if (!ev.date) { alert('Bitte lege zuerst ein Datum für das Event fest.'); return; }
+  const t0 = ymd(new Date()), future = ev.date >= t0, have = new Set(ev.tasks.map((t) => t.text.trim().toLowerCase()));
+  let add = 0, clamp = 0;
+  for (const [off, text] of [...TPL, ...(TPL_TYPE[ev.type] || [])]) {
+    if (have.has(text.toLowerCase())) continue;
+    let due = shiftDays(ev.date, off);
+    if (future && due < t0) { due = t0; clamp++; }
+    ev.tasks.push({ id: uid(), text, due, done: false }); add++;
+  }
+  msg = add ? add + ' Aufgaben aus der Vorlage hinzugefügt' + (clamp ? ' (' + clamp + ' mit schon verstrichenem Termin auf heute gesetzt)' : '') + '.' : 'Alle Aufgaben der Vorlage sind schon vorhanden.';
+  if (add) store.changed(); render();
+}
+function tasksView(ev) {
+  const tx = h('input', { type: 'text', id: 't-text', required: true, placeholder: 'z. B. Torte bestellen' }), due = h('input', { type: 'date', id: 't-due' });
+  const f = h('form', { class: 'card form' }, L('Neue Aufgabe', tx, 'fx'), L('Fällig am', due), h('button', { class: 'primary' }, 'Hinzufügen'),
+    h('button', { type: 'button', id: 't-tpl', title: 'Fügt eine Standard-Checkliste relativ zum Eventdatum hinzu', onclick: () => loadTemplate(ev) }, 'Vorlage laden'));
+  f.onsubmit = (e) => { e.preventDefault(); if (!tx.value.trim()) return; ev.tasks.push({ id: uid(), text: tx.value.trim(), due: due.value, done: false }); msg = ''; refocus = '#t-text'; store.changed(); render(); };
+  const done = ev.tasks.filter((t) => t.done).length, pct = ev.tasks.length ? done / ev.tasks.length * 100 : 0;
+  const hd = h('input', { type: 'checkbox', checked: hideDone, id: 't-hide' }); hd.onchange = () => { hideDone = hd.checked; render(); };
+  const idx = new Map(ev.tasks.map((t, i) => [t, i]));
+  const list = ev.tasks.filter((t) => !(hideDone && t.done)).sort((a, b) => (a.done - b.done) || (a.due || '9999').localeCompare(b.due || '9999') || idx.get(a) - idx.get(b));
+  const rows = list.map((t) => {
+    if (editRow === t.id) {
+      const x = h('input', { type: 'text', value: t.text, required: true, 'aria-label': 'Aufgabe' }), d = h('input', { type: 'date', value: t.due, 'aria-label': 'Fällig am' });
+      return h('div', { class: 'item' }, rowForm([x, d], () => { if (x.value.trim()) t.text = x.value.trim(); t.due = d.value; }));
+    }
+    const c = t.done ? null : taskCd(t), cb = h('input', { type: 'checkbox', checked: t.done, 'aria-label': 'Erledigt: ' + t.text }); cb.onchange = () => { t.done = cb.checked; store.changed(); render(); };
+    return h('div', { class: 'item' + (t.done ? ' done' : ''), dataset: { tid: t.id } }, cb, h('div', { class: 'nm' }, t.text, t.due ? h('div', { class: 'meta' }, fmtDate(t.due)) : null), acts(c ? h('span', { class: 'badge ' + c.c, title: c.title || '' }, c.t) : null, editBtn(t.id), delBtn('Aufgabe', () => rm(ev.tasks, t))));
+  });
+  return h('div', {}, f, msg ? h('p', { class: 'muted tpl-msg' }, msg) : null,
+    h('div', { class: 'card' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, h('strong', {}, done + ' von ' + ev.tasks.length + ' erledigt'), h('div', { class: 'bar ' + (done && done === ev.tasks.length ? 'ok' : '') }, h('i', { style: 'width:' + pct + '%' })), h('label', { class: 'muted', style: 'font-size:.88rem' }, hd, ' Erledigte ausblenden')),
+      ...(rows.length ? rows : [h('p', { class: 'muted', style: 'margin:0' }, ev.tasks.length ? 'Alles erledigt – keine offenen Aufgaben.' : 'Noch keine Aufgaben. Lege eine an oder lade die Vorlage mit einer Checkliste ab 8 Wochen vor dem Event.')])));
+}
+
+/* ---------- Budget ---------- */
+const BUD = {
+  Hochzeit: [['Location / Raummiete', 1500, 0], ['Catering', 0, 70], ['Getränke', 0, 30], ['Fotograf', 1200, 0], ['Musik / DJ', 800, 0], ['Blumen & Dekoration', 500, 0], ['Outfits', 1000, 0], ['Ringe', 700, 0], ['Einladungen & Papeterie', 150, 0]],
+  Geburtstag: [['Essen & Snacks', 0, 12], ['Getränke', 0, 8], ['Torte / Kuchen', 40, 0], ['Dekoration', 40, 0], ['Einladungen', 15, 0]],
+  Party: [['Essen & Snacks', 0, 10], ['Getränke', 0, 12], ['Dekoration', 40, 0], ['Musik & Technik', 50, 0]],
+  Familienfeier: [['Essen', 0, 20], ['Getränke', 0, 9], ['Kuchen & Torte', 40, 0], ['Blumen & Dekoration', 50, 0], ['Geschenke', 50, 0]],
+  Sonstiges: [['Essen', 0, 10], ['Getränke', 0, 8], ['Dekoration', 30, 0], ['Sonstiges', 50, 0]],
+};
+const headcount = (ev) => ev.guests.filter((g) => g.status !== 'abgesagt').reduce((a, g) => a + 1 + g.plus, 0);
+function suggestBudget(ev) {
+  const n = headcount(ev) || 20, have = new Set(ev.budget.map((b) => b.item.trim().toLowerCase())), items = [];
+  for (const [item, fix, per] of BUD[ev.type] || BUD.Sonstiges) items.push([item, Math.round((fix + per * n) / 5) * 5]);
+  items.push(['Puffer (10 %)', Math.round(items.reduce((a, x) => a + x[1], 0) * 0.1 / 5) * 5]);
+  let add = 0;
+  for (const [item, planned] of items) if (!have.has(item.toLowerCase())) { ev.budget.push({ id: uid(), item, planned, actual: 0 }); add++; }
+  msg = add ? add + ' Posten vorgeschlagen (Basis: ' + n + ' Personen' + (headcount(ev) ? '' : ', Annahme – noch keine Gäste') + '). Bitte die Beträge anpassen.' : 'Alle Vorschlags-Posten sind schon vorhanden.';
+  if (add) store.changed(); render();
+}
+function budgetView(ev) {
+  const pl = h('b'), ac = h('b'), df = h('b'), dl = h('span'), tbar = h('i'), tb = h('div', { class: 'bar', style: 'margin:0' }, tbar), pp = h('div', { class: 'muted', style: 'font-size:.85rem;margin-top:6px' });
+  const totals = h('div', { class: 'card', id: 'b-totals' }, h('div', { class: 'sum3' }, h('div', {}, h('span', {}, 'Geplant'), pl), h('div', {}, h('span', {}, 'Tatsächlich'), ac), h('div', {}, dl, df)), tb, pp);
+  const upd = () => {
+    const P = sum(ev.budget, 'planned'), A = sum(ev.budget, 'actual'), over = A > P && A > 0, n = headcount(ev);
+    pl.textContent = eur(P); ac.textContent = eur(A); ac.style.color = over ? 'var(--err)' : '';
+    dl.textContent = over ? 'Überschreitung' : 'Noch frei'; df.textContent = eur(Math.abs(P - A)); df.style.color = over ? 'var(--err)' : 'var(--ok)';
+    tbar.style.width = (P > 0 ? Math.min(100, A / P * 100) : A > 0 ? 100 : 0) + '%'; tb.classList.toggle('over', over);
+    pp.textContent = n && (P || A) ? 'Pro Person (' + n + ' Personen ohne Absagen): geplant ' + eur(P / n) + (A ? ', tatsächlich ' + eur(A / n) : '') : '';
+    renderStats();
+  };
+  const it = h('input', { type: 'text', id: 'b-item', required: true, placeholder: 'z. B. Location, Catering …' }), pi = h('input', { type: 'text', id: 'b-plan', inputMode: 'decimal', class: 'w', placeholder: '0' }), ai = h('input', { type: 'text', id: 'b-act', inputMode: 'decimal', class: 'w', placeholder: '0' });
+  const f = h('form', { class: 'card form' }, L('Posten', it, 'fx'), L('Geplant (€)', pi), L('Tatsächlich (€)', ai), h('button', { class: 'primary' }, 'Hinzufügen'), h('button', { type: 'button', id: 'b-sug', title: 'Typische Posten mit Richtwerten für diese Eventart und Gästezahl', onclick: () => suggestBudget(ev) }, 'Vorschlag laden'));
+  f.onsubmit = (e) => {
+    e.preventDefault(); const p = pi.value.trim() ? parseAmount(pi.value) : 0, a = ai.value.trim() ? parseAmount(ai.value) : 0;
+    if (!it.value.trim()) return; if (isNaN(p) || isNaN(a)) { alert('Bitte gültige Beträge eingeben.'); return; }
+    ev.budget.push({ id: uid(), item: it.value.trim(), planned: p, actual: a }); msg = ''; refocus = '#b-item'; store.changed(); render();
+  };
+  const rows = ev.budget.map((b) => {
+    const bar = h('i'), diff = h('span', { class: 'diff' }), row = h('div', { class: 'brow', dataset: { bid: b.id } }), bb = h('div', { class: 'bar' }, bar);
+    const rowUpd = () => {
+      const over = b.actual > b.planned && b.actual > 0; row.classList.toggle('over', over); bb.classList.toggle('over', over);
+      bar.style.width = (b.planned > 0 ? Math.min(100, b.actual / b.planned * 100) : b.actual > 0 ? 100 : 0) + '%';
+      diff.textContent = over ? '+' + eur(b.actual - b.planned) + ' über Plan' : b.actual > 0 ? 'Rest ' + eur(b.planned - b.actual) : '';
+    };
+    const name = h('input', { type: 'text', class: 'bi', value: b.item, placeholder: 'Posten', 'aria-label': 'Posten' }); name.oninput = () => { b.item = name.value; store.changed(); };
+    const mk = (key, ph) => { const i = h('input', { type: 'text', inputMode: 'decimal', value: b[key] ? fmtIn(b[key]) : '', placeholder: ph, 'aria-label': ph.replace(' €', '') + ': ' + (b.item || 'Posten'), dataset: { k: key } });
+      i.onchange = () => { const v = i.value.trim() === '' ? 0 : parseAmount(i.value); if (isNaN(v)) { i.value = b[key] ? fmtIn(b[key]) : ''; return; } b[key] = v; i.value = v ? fmtIn(v) : ''; store.changed(); rowUpd(); upd(); }; return i; };
+    row.append(name, mk('planned', 'Geplant €'), mk('actual', 'Tatsächlich €'), delBtn('Posten', () => rm(ev.budget, b)), h('div', { class: 'bl' }, bb, diff));
+    rowUpd(); return row;
+  });
+  upd();
+  return h('div', {}, f, msg ? h('p', { class: 'muted tpl-msg' }, msg) : null, totals,
+    h('div', { class: 'card', style: 'padding:12px 8px' }, ...(rows.length ? [h('div', { class: 'bhead' }, h('span', {}, 'Posten'), h('span', {}, 'Geplant'), h('span', {}, 'Tatsächlich'), h('span')), ...rows] : [h('p', { class: 'muted', style: 'margin:0 8px' }, 'Noch keine Posten. Füge Posten hinzu oder lade einen Vorschlag mit Richtwerten.')])));
+}
+
+/* ---------- Menü & Einkauf ---------- */
+function menuEdit(m) {
+  const co = h('select', { 'aria-label': 'Gang' }, COURSES.map((c) => h('option', { value: c, selected: c === m.course }, c))), x = h('input', { type: 'text', value: m.dish, required: true, 'aria-label': 'Gericht' });
+  return h('div', { class: 'item' }, rowForm([co, x], () => { m.course = co.value; if (x.value.trim()) m.dish = x.value.trim(); }));
+}
+function menuCard(ev) {
+  const co = h('select', { id: 'm-course', 'aria-label': 'Gang' }, COURSES.map((c) => h('option', { value: c }, c))), di = h('input', { type: 'text', id: 'm-dish', required: true, placeholder: 'Gericht, z. B. Kürbissuppe', 'aria-label': 'Gericht', style: 'flex:1 1 140px;min-width:0' });
+  co.value = menuCourse;
+  co.onchange = () => { menuCourse = co.value; };
+  const f = h('form', { class: 'row' }, co, di, h('button', { class: 'primary' }, 'Hinzufügen'));
+  f.onsubmit = (e) => { e.preventDefault(); if (!di.value.trim()) return; ev.menu.push({ id: uid(), course: co.value, dish: di.value.trim() }); menuCourse = co.value; refocus = '#m-dish'; store.changed(); render(); };
+  const groups = COURSES.map((c) => ({ c, items: ev.menu.filter((m) => m.course === c) })).filter((g) => g.items.length);
+  return h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 8px;font-size:1.05rem' }, '🍽️ Menü'), f,
+    ...(groups.length ? groups.map((g) => [h('div', { class: 'course' }, g.c), ...g.items.map((m) => editRow === m.id ? menuEdit(m) : h('div', { class: 'item', dataset: { mid: m.id } }, h('div', { class: 'nm' }, m.dish), acts(editBtn(m.id), delBtn('Gericht', () => rm(ev.menu, m)))))]).flat() : [h('p', { class: 'muted', style: 'margin:10px 0 0' }, 'Noch kein Menü. Plane Vorspeise, Hauptgang, Dessert, Getränke und Snacks.')]));
+}
+function shopCard(ev) {
+  const tx = h('input', { type: 'text', id: 's-text', required: true, placeholder: 'Artikel, z. B. 2 kg Kartoffeln', 'aria-label': 'Artikel', style: 'flex:1 1 140px;min-width:0' });
+  const f = h('form', { class: 'row' }, tx, h('button', { class: 'primary' }, 'Hinzufügen'));
+  f.onsubmit = (e) => { e.preventDefault(); if (!tx.value.trim()) return; ev.shopping.push({ id: uid(), text: tx.value.trim(), done: false }); refocus = '#s-text'; store.changed(); render(); };
+  const done = ev.shopping.filter((s) => s.done).length;
+  const copy = h('button', { class: 'small', id: 's-copy', disabled: !ev.shopping.length }, 'Als Text kopieren');
+  copy.onclick = () => copyText(['Einkaufsliste – ' + ev.name + (ev.date ? ' (' + fmtDate(ev.date) + ')' : ''), ...ev.shopping.map((s) => (s.done ? '☑ ' : '☐ ') + s.text)].join('\n'), copy);
+  const clr = h('button', { class: 'small', id: 's-clear', disabled: !done, onclick: () => { if (confirm(done + ' erledigte Artikel von der Liste entfernen?')) { ev.shopping = ev.shopping.filter((s) => !s.done); store.changed(); render(); } } }, 'Erledigte entfernen');
+  const rows = ev.shopping.map((s) => {
+    if (editRow === s.id) { const x = h('input', { type: 'text', value: s.text, required: true, 'aria-label': 'Artikel' }); return h('div', { class: 'item' }, rowForm([x], () => { if (x.value.trim()) s.text = x.value.trim(); })); }
+    const cb = h('input', { type: 'checkbox', checked: s.done, 'aria-label': 'Gekauft: ' + s.text }); cb.onchange = () => { s.done = cb.checked; store.changed(); render(); };
+    return h('div', { class: 'item' + (s.done ? ' done' : ''), dataset: { sid: s.id } }, cb, h('div', { class: 'nm' }, s.text), acts(editBtn(s.id), delBtn('Artikel', () => rm(ev.shopping, s))));
+  });
+  return h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 8px;font-size:1.05rem' }, '🛒 Einkaufsliste'), f,
+    h('div', { class: 'row', style: 'margin:8px 0 2px' }, h('span', { class: 'muted' }, done + ' / ' + ev.shopping.length + ' erledigt'), h('span', { class: 'sp' }), copy, clr),
+    ...(rows.length ? rows : [h('p', { class: 'muted', style: 'margin:10px 0 0' }, 'Die Einkaufsliste ist leer.')]));
+}
+
+/* ---------- Render ---------- */
+function render() {
+  document.querySelectorAll('#tabs button').forEach((b) => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-pressed', String(b.dataset.tab === tab)); });
+  renderSide();
+  const ev = cur(), show = !!ev && editing !== 'new';
+  $('head').replaceChildren(editing === 'new' ? evForm(null) : editing && ev ? evForm(ev) : ev ? headCard(ev) : h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 6px;font-size:1.1rem' }, 'Willkommen beim Event-Planer'), h('p', { class: 'muted' }, 'Plane Geburtstage, Hochzeiten und Partys: Gästeliste mit Zu- und Absagen, Aufgaben mit Fristen, Budget, Menü und Einkaufsliste.'), h('button', { class: 'primary', id: 'first', onclick: () => { editing = 'new'; refocus = '#e-name'; render(); } }, 'Erstes Event anlegen')));
+  renderStats();
+  $('tabs').hidden = !show;
+  $('view').replaceChildren(...(show ? [tab === 'guests' ? guestsView(ev) : tab === 'tasks' ? tasksView(ev) : tab === 'budget' ? budgetView(ev) : h('div', { class: 'two' }, menuCard(ev), shopCard(ev))] : []));
+  if (refocus) { const el = document.querySelector(refocus); if (el) el.focus(); refocus = null; }
+}
+document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; editRow = null; msg = ''; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
