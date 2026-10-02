@@ -29,12 +29,11 @@
   .seg button { border:0; border-radius:0; } .seg button + button { border-left:1px solid var(--line); }
   .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
   label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
-  label.f input[type=text], label.f input[type=number], label.f input[type=date], label.f select, label.f textarea { width:100%; }
-  input.w { width:6em; }
+  input.w { width:6.5em; }
   .em { padding:2px 6px; font-size:1.15rem; line-height:1.3; } .em.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
   .iform { display:grid; grid-template-columns:200px 1fr; gap:16px; } @media (max-width: 640px) { .iform { grid-template-columns:1fr; } }
   .fgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
-  .pv { width:100%; aspect-ratio:4/3; background:var(--bg); border:1px dashed var(--line); border-radius:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:8px; }
+  .pv { width:100%; max-width:260px; aspect-ratio:4/3; background:var(--bg); border:1px dashed var(--line); border-radius:10px; display:flex; align-items:center; justify-content:center; overflow:hidden; margin-bottom:8px; }
   .pv img { width:100%; height:100%; object-fit:cover; display:block; }
   .hint { color:var(--muted); font-size:.8rem; margin:6px 0 0; }
   .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(168px,1fr)); gap:12px; }
@@ -49,6 +48,7 @@
   .it .sub { font-size:.84rem; color:var(--muted); overflow-wrap:anywhere; }
   .it .note { font-size:.8rem; color:var(--muted); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; font-style:italic; }
   .it .meta { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .it .act button.small { padding:2px 7px; }
   .it .act { display:flex; flex-wrap:wrap; gap:4px; margin-top:auto; padding-top:6px; }
   .tag { font-size:.74rem; padding:0 8px; border-radius:99px; background:var(--bg); border:1px solid var(--line); color:var(--muted); cursor:pointer; }
   .tag.on { border-color:var(--accent); color:var(--accent); }
@@ -56,6 +56,7 @@
   .badge.run { color:var(--accent); border-color:var(--accent); }
   select.badge { padding:2px 6px; font-size:.85rem; cursor:pointer; }
   .proj { padding:12px 16px 14px; }
+  @media (max-width: 640px) { .proj input.pname { flex-basis:100%; } }
   .proj .head { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
   .proj input.pname { flex:1; min-width:150px; font-weight:600; font-size:1.12rem; background:transparent; border:1px solid transparent; }
   .proj input.pname:hover, .proj input.pname:focus { border-color:var(--line); background:var(--bg); }
@@ -354,7 +355,7 @@ function itemCard(it) {
   const c = colOf(it.collectionId);
   const ph = h('button', { type: 'button', class: 'ph', tabIndex: -1, 'aria-hidden': 'true', onclick: () => editItem(it) }, it.photo ? h('img', { src: it.photo, alt: '', loading: 'lazy' }) : (c ? c.icon : '📦'), it.have ? null : h('span', { class: 'badge warn' }, '♡ Wunschliste'));
   const act = h('div', { class: 'act' },
-    it.have ? h('button', { class: 'small', title: 'Auf die Wunschliste verschieben', onclick: () => { it.have = false; store.changed(); render(); } }, '♡ Wunschliste')
+    it.have ? h('button', { class: 'small', title: 'Auf die Wunschliste verschieben', 'aria-label': it.name + ' auf die Wunschliste verschieben', onclick: () => { it.have = false; store.changed(); render(); } }, '♡ Wunsch')
       : h('button', { class: 'small primary', title: 'Gekauft: in den Besitz übernehmen und Erwerbsdatum auf heute setzen', onclick: () => { it.have = true; it.acquired = today(); store.changed(); render(); } }, 'Gekauft!'),
     h('span', { class: 'sp' }),
     h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': it.name + ' bearbeiten', onclick: () => editItem(it) }, '✎'),
@@ -416,7 +417,7 @@ function counterBox(p) {
   const set = (n) => { c.value = Math.max(0, Math.round(n) || 0); store.changed(); paint(); };
   minus.onclick = () => set(c.value - 1); plus.onclick = () => set(c.value + 1); val.onchange = () => set(parseInt(val.value, 10));
   const tgt = h('input', { type: 'number', min: 0, step: 1, class: 'w', value: c.target, 'aria-label': 'Ziel (0 = kein Ziel)', title: '0 = kein Ziel' }); tgt.onchange = () => { c.target = Math.max(0, parseInt(tgt.value, 10) || 0); tgt.value = c.target; store.changed(); paint(); };
-  const lb = h('input', { type: 'text', list: 'ctrlabels', class: 'w', value: c.label, placeholder: DEF_LABEL[p.type], maxLength: 20, 'aria-label': 'Bezeichnung des Zählers' }); lb.oninput = () => { c.label = lb.value; store.changed(); paint(); };
+  const lb = h('input', { type: 'text', list: 'ctrlabels', class: 'w', style: 'width:8em', value: c.label, placeholder: DEF_LABEL[p.type], maxLength: 20, 'aria-label': 'Bezeichnung des Zählers' }); lb.oninput = () => { c.label = lb.value; store.changed(); paint(); };
   const reset = h('button', { type: 'button', class: 'small', onclick: () => { if (c.value === 0 || confirm('Zähler auf 0 zurücksetzen?')) set(0); } }, 'Auf 0');
   paint();
   return h('div', {}, h('h4', {}, h('span', {}, 'Zähler: ', title), reset), h('div', { class: 'ctr' }, minus, val, plus), barw, info,
@@ -436,7 +437,7 @@ function checklist(p, key, title, ph) {
     if (!p[key].length) list.append(h('div', { class: 'muted', style: 'font-size:.85rem' }, 'Noch nichts eingetragen.'));
     paintCount();
   }
-  const form = h('form', { class: 'row', style: 'margin-top:8px;flex-wrap:nowrap' }, inp, h('button', { class: 'small primary', 'aria-label': title + ' hinzufügen' }, '+ Hinzu'));
+  const form = h('form', { class: 'row', style: 'margin-top:8px;flex-wrap:nowrap' }, inp, h('button', { class: 'small primary', title: 'Hinzufügen', 'aria-label': title + ' hinzufügen' }, '+'));
   form.onsubmit = (e) => { e.preventDefault(); const t = inp.value.trim(); if (!t) return; p[key].push({ id: uid(), text: t, done: false }); inp.value = ''; store.changed(); draw(); inp.focus(); };
   draw();
   return h('div', {}, h('h4', {}, h('span', {}, title), count), list, form);
@@ -453,7 +454,7 @@ function projCard(p) {
   const notes = h('textarea', { placeholder: 'Anleitung, Maße, Wolle/Material, Ideen …', 'aria-label': 'Notizen', value: p.notes }); notes.oninput = () => { p.notes = notes.value; store.changed(); };
   return h('div', { class: 'card proj' }, h('div', { class: 'head' }, name, st, type,
     del),
-    h('div', { class: 'pgrid' }, counterBox(p), checklist(p, 'materials', 'Material', 'z. B. 200 g Wolle, Nadel 4 mm'), checklist(p, 'steps', 'Schritte', 'z. B. Bündchen stricken'),
+    h('div', { class: 'pgrid' }, counterBox(p), checklist(p, 'materials', 'Material', 'z. B. Wolle 200 g'), checklist(p, 'steps', 'Schritte', 'z. B. Bündchen'),
       h('div', {}, h('h4', {}, h('span', {}, 'Notizen & Daten')), notes,
         h('div', { class: 'fgrid', style: 'margin-top:8px' }, h('label', { class: 'f' }, 'Begonnen', d1), h('label', { class: 'f' }, 'Fertig', d2)), dur)));
 }
