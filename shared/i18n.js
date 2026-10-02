@@ -35,7 +35,7 @@
   /* ---------- Wörterbuch ---------- */
   var D = {}, PD = {}, FR = [], FRRE = null;
   function rebuild() {
-    D = {}; PD = {}; FR = [];
+    D = {}; PD = {}; FR = []; buildNames(); ABSRE = null;
     var st = stores[cur]; if (!st) return;
     D = st.dict || {};
     PD = (st.pages && st.pages[page] && st.pages[page].dict) || {};
@@ -50,28 +50,49 @@
     if (code === cur) { rebuild(); if (ready) applyAll(); }
   }
 
-  var ABS = /(„[^“”"]*[“”"])|(\d+(?:[.,:]\d+)*)/g;
-  function abstractText(s) {
-    var nums = [], qs = [];
-    var key = s.replace(ABS, function (m, q, n) {
-      if (q) { qs.push(q.slice(1, -1)); return q.charAt(0) + '{q}' + q.charAt(q.length - 1); }
-      nums.push(n); return '{#}';
-    });
-    return { key: key, nums: nums, qs: qs };
+  // Abstraktion: Zahlen/Daten/Uhrzeiten → {#}, Beträge → {€}, Wochentage → {w}, Monate → {m}, „Zitate“ → „{q}“
+  // (Namen und Beträge werden in der Sprache der Anzeige gerendert – die Schlüssel bleiben dadurch sprachunabhängig)
+  var NUM = '\\d+(?:[.,:\\u00a0\\u202f]\\d+)*', SP = '[\\s\\u00a0\\u202f]?';
+  var nameRE = null, nameKind = {};
+  function buildNames() {
+    nameKind = {}; var loc = locale(), w = [], m = [];
+    try {
+      for (var i = 0; i < 7; i++) { var d = new Date(2021, 0, 4 + i); ['long', 'short'].forEach(function (f) { var n = new Intl.DateTimeFormat(loc, { weekday: f }).format(d); if (n) { nameKind[n] = 'w'; w.push(n); } }); }
+      for (var j = 0; j < 12; j++) { var e = new Date(2021, j, 15); ['long', 'short'].forEach(function (f) { var n = new Intl.DateTimeFormat(loc, { month: f }).format(e); if (n) { nameKind[n] = 'm'; m.push(n); } }); }
+    } catch (err) {}
+    var all = w.concat(m).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort(function (a, b) { return b.length - a.length; });
+    nameRE = all.length ? all.map(function (x) { return x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }).join('|') : null;
   }
-  function fill(tpl, nums, qs) {
-    var ni = 0, qi = 0;
-    return tpl.replace(/\{(#|q)(\d*)\}/g, function (m, k, i) {
-      var arr = k === '#' ? nums : qs;
-      if (i) return arr[+i - 1] != null ? arr[+i - 1] : m;
-      var v = arr[k === '#' ? ni++ : qi++]; return v != null ? v : m;
+  function absRE() {
+    var parts = ['(„[^“”"]*[“”"])', '(€' + SP + NUM + '|' + NUM + SP + '€)'];
+    if (nameRE) parts.push('(?<![A-Za-zÀ-ÿ])(' + nameRE + ')(?![A-Za-zÀ-ÿ])'); else parts.push('()');
+    parts.push('(' + NUM + ')');
+    return new RegExp(parts.join('|'), 'g');
+  }
+  var ABSRE = null;
+  function abstractText(s) {
+    if (!ABSRE) ABSRE = absRE();
+    var v = { '#': [], q: [], '€': [], w: [], m: [] };
+    var key = s.replace(ABSRE, function (all, q, money, name, num) {
+      if (q) { v.q.push(q.slice(1, -1)); return q.charAt(0) + '{q}' + q.charAt(q.length - 1); }
+      if (money) { v['€'].push(money); return '{€}'; }
+      if (name) { var k = nameKind[name] || 'w'; v[k].push(name); return '{' + k + '}'; }
+      v['#'].push(num); return '{#}';
+    });
+    return { key: key, v: v };
+  }
+  function fill(tpl, v) {
+    var ix = { '#': 0, q: 0, '€': 0, w: 0, m: 0 };
+    return tpl.replace(/\{(#|q|€|w|m)(\d*)\}/g, function (all, k, i) {
+      var arr = v[k], val = i ? arr[+i - 1] : arr[ix[k]++];
+      return val != null ? val : all;
     });
   }
   function lookup(core) {
     var r = PD[core]; if (r == null) r = D[core];
     if (r != null) return r;
     var a = abstractText(core);
-    if (a.key !== core) { r = PD[a.key]; if (r == null) r = D[a.key]; if (r != null) return fill(r, a.nums, a.qs); }
+    if (a.key !== core) { r = PD[a.key]; if (r == null) r = D[a.key]; if (r != null) return fill(r, a.v); }
     return null;
   }
   function piece(core) {
