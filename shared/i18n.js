@@ -97,7 +97,7 @@
           var mm = /^([\s\S]*?)(:|·|–|\|)?(\s*)$/.exec(p), body = mm[1], sep = mm[2] || '', sp = mm[3];
           if (!body.trim() || !/[A-Za-zÀ-ÿ]/.test(body)) return p;
           var t = piece(body.trim()); if (t == null) return p;
-          any = true; return body.match(/^\s*/)[0] + t + sep + sp;
+          any = true; return body.match(/^\s*/)[0] + t + body.match(/\s*$/)[0] + sep + sp;
         });
         if (any) r = outp.join('');
       }
@@ -168,7 +168,11 @@
     });
   }
 
+  var origSCV = HTMLInputElement.prototype.setCustomValidity;
+  HTMLInputElement.prototype.setCustomValidity = function (m) { return origSCV.call(this, typeof m === 'string' ? translate(m) : m); };
+
   window.SimpleI18n = {
+    get dec() { return cur === 'en' ? '.' : ','; },   // Dezimaltrennzeichen für selbst formatierte Zahlen
     languages: LANGS.map(function (l) { return { code: l[0], name: l[1], locale: l[2] }; }),
     get lang() { return cur; }, get locale() { return locale(); }, get misses() { return misses; }, get page() { return page; },
     add: add, setLang: setLang, translate: translate, apply: applyAll, onChange: function (f) { listeners.push(f); }
