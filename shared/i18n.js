@@ -125,8 +125,10 @@
   }
   function walk(node) {
     if (node.nodeType === 3) { if (!(node.parentNode && skipEl(node.parentNode))) doText(node); return; }
-    if (node.nodeType !== 1 || skipEl(node)) return;
-    for (var i = 0; i < ATTRS.length; i++) if (node.hasAttribute(ATTRS[i])) doAttr(node, ATTRS[i]);
+    if (node.nodeType !== 1) return;
+    var skipped = skipEl(node);
+    if (!skipped || node.nodeName === 'TEXTAREA') for (var i = 0; i < ATTRS.length; i++) if (node.hasAttribute(ATTRS[i])) doAttr(node, ATTRS[i]);   // Platzhalter/aria-label auch bei Textfeldern
+    if (skipped) return;
     if (node.nodeName === 'INPUT' && /^(button|submit|reset)$/.test(node.type)) doAttr(node, 'value');
     for (var c = node.firstChild; c; c = c.nextSibling) walk(c);
   }
