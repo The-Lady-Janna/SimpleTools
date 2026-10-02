@@ -24,7 +24,7 @@
   .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.2rem; } .sum small { color:var(--muted); }
   .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
   label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
-  label.f.grow { flex:1; min-width:150px; } input.w { width:6em; } textarea { font:inherit; }
+  label.f.grow { flex:1; min-width:150px; } label.f input, label.f select, label.f textarea { font-size:1rem; } input.w { width:6em; } input.wn { width:8.5em; } input.wd { width:9.5em; } textarea { font:inherit; }
   .hint { color:var(--muted); font-size:.82rem; }
   .num { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
   .timer .clock { font-size:2rem; line-height:1.1; font-variant-numeric:tabular-nums; }
@@ -34,7 +34,7 @@
   .mnav { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .mnav strong { flex:1; text-align:center; min-width:8em; }
   .dayh { display:flex; flex-wrap:wrap; justify-content:space-between; gap:4px 10px; border-bottom:2px solid var(--line); padding-bottom:4px; margin-bottom:2px; }
   .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); } .item:last-child { border-bottom:0; }
-  .item .nm { flex:1; min-width:140px; overflow-wrap:anywhere; } .item .tm { min-width:3.2em; font-variant-numeric:tabular-nums; }
+  .item .nm { flex:1 1 120px; min-width:0; overflow-wrap:anywhere; } .item .tm { min-width:3.2em; font-variant-numeric:tabular-nums; } .item .rt { display:flex; gap:6px; align-items:center; flex:none; }
   .trow { display:grid; grid-template-columns:1fr auto auto; gap:2px 14px; padding:4px 0; border-bottom:1px solid var(--line); } .trow.sub { padding-left:16px; color:var(--muted); font-size:.92rem; } .trow.tot { border-bottom:0; border-top:2px solid var(--line); font-weight:700; }
   .trow > :first-child { overflow-wrap:anywhere; }
   .ccard h3 { margin:0; font-size:1.05rem; } .ccard .head { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
@@ -43,8 +43,9 @@
   .ihead { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; width:100%; text-align:left; background:transparent; border:0; padding:2px 0; }
   .ihead .nm { flex:1; min-width:100px; overflow-wrap:anywhere; } .chev { color:var(--muted); width:1em; }
   .inv.pend { border-left:4px solid var(--warn); } .inv.paid { border-left:4px solid var(--ok); }
+  .mini .cap { display:none; font-size:.72rem; color:var(--muted); } .mini { display:block; min-width:0; }
   .irow { display:grid; grid-template-columns:1fr 6em 7em 7em 2.4em; gap:6px; align-items:center; margin:4px 0; } .irow input { width:100%; min-width:0; } .irow.ihd { color:var(--muted); font-size:.8rem; margin-bottom:0; }
-  @media (max-width: 620px) { .irow { grid-template-columns:1fr 1fr 1fr 2.4em; } .irow > :first-child { grid-column:1 / -1; } .irow.ihd { display:none; } .irow { padding-bottom:6px; border-bottom:1px dashed var(--line); } }
+  @media (max-width: 620px) { .mini .cap { display:block; } .irow { grid-template-columns:1fr 1fr 1fr 2.4em; } .irow > :first-child { grid-column:1 / -1; } .irow.ihd { display:none; } .irow { padding-bottom:6px; border-bottom:1px dashed var(--line); } }
   .pick { display:flex; flex-wrap:wrap; gap:4px 10px; align-items:center; padding:5px 0; border-bottom:1px solid var(--line); cursor:pointer; } .pick .nm { flex:1; min-width:140px; overflow-wrap:anywhere; }
   .tabs button { min-height:38px; }
   /* Druckansicht: nur die Rechnung */
@@ -65,7 +66,7 @@
     #printarea .p-meta { margin-bottom:16px; }
     #printarea table { width:100%; border-collapse:collapse; margin:8px 0; }
     #printarea th, #printarea td { padding:6px 8px; border-bottom:1px solid #999; text-align:left; vertical-align:top; }
-    #printarea th { border-bottom:2px solid #000; font-size:10pt; }
+    #printarea th { border-bottom:2px solid #000; font-size:10pt; } #printarea th:first-child, #printarea td:first-child { width:2.6em; }
     #printarea .r { text-align:right; white-space:nowrap; }
     #printarea .p-total { display:flex; justify-content:flex-end; gap:24px; font-size:13pt; font-weight:700; padding:8px; border-top:2px solid #000; }
     #printarea .p-tax, #printarea .p-pay { margin-top:18px; }
@@ -149,8 +150,9 @@ function normalize() {
   if (!Number.isInteger(f.nextNo) || f.nextNo < 1) f.nextNo = 1;
   if (!f.me || typeof f.me !== 'object' || Array.isArray(f.me)) f.me = {};
   for (const k of ['name', 'address', 'iban', 'taxNote']) if (typeof f.me[k] !== 'string') f.me[k] = '';
-  if (!f.timer || typeof f.timer !== 'object' || !f.timer.start || !f.projects.some((p) => p.id === f.timer.projectId)) f.timer = null;
+  if (!f.timer || typeof f.timer !== 'object' || !f.timer.start || isNaN(Date.parse(f.timer.start)) || !f.projects.some((p) => p.id === f.timer.projectId)) f.timer = null;
   else if (typeof f.timer.note !== 'string') f.timer.note = '';
+  f.times.forEach((t) => { t.minutes = Math.max(0, Number(t.minutes) || 0); if (typeof t.date !== 'string') t.date = ymd(new Date()); if (typeof t.note !== 'string') t.note = ''; });
   f.invoices.forEach((i) => { if (!Array.isArray(i.items)) i.items = []; if (!STATUS.includes(i.status)) i.status = 'Entwurf'; for (const k of ['paidDate', 'entryId', 'due']) if (typeof i[k] !== 'string') i[k] = ''; });
 }
 /* ---------- Hilfsfunktionen ---------- */
@@ -251,19 +253,19 @@ function projLabel(pid) { const p = project(pid), c = p && client(p.clientId); r
 function timeRow(t) {
   const p = project(t.projectId), c = p && client(p.clientId), inv = invOf(t);
   return h('div', { class: 'item' }, h('b', { class: 'tm' }, hm(t.minutes)),
-    h('div', { class: 'nm' }, h('strong', {}, p ? p.name : '(gelöschtes Projekt)'), c ? h('span', { class: 'muted' }, ' · ' + c.name) : null, t.note ? h('div', { class: 'muted', style: 'font-size:.88rem' }, t.note) : null),
-    inv ? h('span', { class: 'badge ok', title: 'Abgerechnet in Rechnung ' + inv.number }, '✓ ' + inv.number) : null, h('span', { class: 'num muted' }, eur(valueOf(t))),
-    inv ? null : h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Zeiteintrag bearbeiten', onclick: () => { editTime = t.id; render(); const d = $('fdur'); if (d) { d.focus(); d.scrollIntoView({ block: 'center' }); } } }, '✎'),
+    h('div', { class: 'nm' }, h('strong', {}, p ? p.name : '(gelöschtes Projekt)'), c ? h('span', { class: 'muted' }, ' · ' + c.name) : null, t.note ? h('div', { class: 'muted', style: 'font-size:.88rem' }, t.note) : null, inv ? h('span', { class: 'badge ok', title: 'Abgerechnet in Rechnung ' + inv.number }, '✓ ' + inv.number) : null),
+    h('div', { class: 'rt' }, h('span', { class: 'num muted' }, eur(valueOf(t))),
+    inv ? h('span', { class: 'small' }) : h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Zeiteintrag bearbeiten', onclick: () => { editTime = t.id; render(); const d = $('fdur'); if (d) { d.focus(); d.scrollIntoView({ block: 'center' }); } } }, '✎'),
     h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Zeiteintrag löschen', onclick: () => {
       if (!confirm(inv ? 'Dieser Eintrag ist bereits in Rechnung ' + inv.number + ' abgerechnet. Trotzdem löschen? (Die Rechnung bleibt unverändert.)' : 'Zeiteintrag (' + hm(t.minutes) + ' h) löschen?')) return;
       F().times = F().times.filter((x) => x !== t); if (editTime === t.id) editTime = null; store.changed(); render();
-    } }, '✕'));
+    } }, '✕')));
 }
 function manualForm() {
   const f = F(), cur = editTime && f.times.find((t) => t.id === editTime && isOpenTime(t));
   const proj = projectSelect(cur ? cur.projectId : draft.project, 'Projekt');
   const date = h('input', { type: 'date', required: true, value: cur ? cur.date : draft.date, 'aria-label': 'Datum' });
-  const dur = h('input', { type: 'text', id: 'fdur', required: true, class: 'w', placeholder: '1:30 · 1,5 · 45 min', value: cur ? hm(cur.minutes) : '', 'aria-label': 'Dauer' });
+  const dur = h('input', { type: 'text', id: 'fdur', required: true, class: 'wd', placeholder: '1:30 · 1,5 · 45m', value: cur ? hm(cur.minutes) : '', 'aria-label': 'Dauer' });
   const note = h('input', { type: 'text', value: cur ? cur.note || '' : '', placeholder: 'Notiz (optional)', 'aria-label': 'Notiz' });
   const form = h('form', { class: 'card form' }, L('Projekt', proj), L('Datum', date), L('Dauer (h:mm oder Dezimal)', dur), L('Notiz', note, 'grow'), h('button', { class: 'primary' }, cur ? 'Übernehmen' : '+ Eintragen'), cur ? h('button', { type: 'button', onclick: () => { editTime = null; render(); } }, 'Abbrechen') : null);
   proj.onchange = () => { draft.project = proj.value; };
@@ -301,7 +303,7 @@ function kundenView() {
   if (f.clients.length) {
     const pcl = h('select', { 'aria-label': 'Kunde' }, f.clients.slice().sort(byName).map((c) => h('option', { value: c.id, selected: pc ? pc.clientId === c.id : false }, c.name)));
     const pname = h('input', { type: 'text', required: true, value: pc ? pc.name : '', placeholder: 'z. B. Website-Relaunch', 'aria-label': 'Projektname' });
-    const prate = h('input', { type: 'text', inputMode: 'decimal', class: 'w', value: pc && pc.rate ? fmtN(pc.rate) : '', placeholder: 'Kundensatz', 'aria-label': 'Stundensatz des Projekts' });
+    const prate = h('input', { type: 'text', inputMode: 'decimal', class: 'wd', value: pc && pc.rate ? fmtN(pc.rate) : '', placeholder: 'Kundensatz', 'aria-label': 'Stundensatz des Projekts' });
     const pf = h('form', { class: 'card form' }, L('Kunde', pcl), L('Projekt', pname, 'grow'), L('Satz (€/h, leer = Kundensatz)', prate), h('button', { class: 'primary' }, pc ? 'Übernehmen' : 'Projekt anlegen'), pc ? h('button', { type: 'button', onclick: () => { editProj = null; render(); } }, 'Abbrechen') : null);
     pf.onsubmit = (e) => {
       e.preventDefault(); const r = prate.value.trim() ? num(prate.value) : 0;
@@ -403,7 +405,7 @@ function delInvoice(inv) {
 }
 function csvCell(v) { v = String(v ?? ''); return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
 function exportCsv() {
-  const f = F(), rows = [['Nummer', 'Kunde', 'Datum', 'Fällig', 'Status', 'Bezahlt am', 'Betrag']].concat(f.invoices.slice().sort((a, b) => a.date.localeCompare(b.date) || a.number.localeCompare(b.number)).map((i) => [i.number, (client(i.clientId) || {}).name || '', i.date, i.due, i.status, i.paidDate, String(invoiceTotal(i)).replace('.', ',')]));
+  const f = F(), rows = [['Nummer', 'Kunde', 'Datum', 'Fällig', 'Status', 'Bezahlt am', 'Betrag']].concat(f.invoices.slice().sort((a, b) => a.date.localeCompare(b.date) || a.number.localeCompare(b.number)).map((i) => [i.number, (client(i.clientId) || {}).name || '', i.date, i.due, i.status, i.paidDate, invoiceTotal(i).toFixed(2).replace('.', ',')]));
   download('rechnungen.csv', '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
 }
 function rechnungenView() {
@@ -429,7 +431,7 @@ function invoiceCard(inv) {
   const card = h('div', { class: 'card inv ' + (inv.status === 'Gesendet' ? 'pend' : inv.status === 'Bezahlt' ? 'paid' : '') }, head);
   if (!open) return card;
   // Kopfdaten
-  const meta = (label, key, type, after) => { const i = h('input', { type, value: inv[key] || '', disabled: !editable, 'aria-label': label, class: type === 'text' ? 'w' : '' });
+  const meta = (label, key, type, after) => { const i = h('input', { type, value: inv[key] || '', disabled: !editable, 'aria-label': label, class: type === 'text' ? 'wn' : '' });
     i.onchange = () => { if (!i.value.trim()) { i.value = inv[key]; return; } inv[key] = i.value.trim(); if (after) after(); store.changed(); }; return L(label, i); };
   const csel = h('select', { 'aria-label': 'Kunde', disabled: !editable }, f.clients.slice().sort(byName).map((c) => h('option', { value: c.id, selected: c.id === inv.clientId }, c.name)));
   csel.onchange = () => { inv.clientId = csel.value; hCl.textContent = client(inv.clientId).name; store.changed(); };
@@ -437,7 +439,7 @@ function invoiceCard(inv) {
   // Positionen
   const sums = [], tot = h('b', { class: 'num' }, eur(invoiceTotal(inv)));
   const upd = () => { sums.forEach((s, i) => { s.textContent = eur(lineTotal(inv.items[i])); }); tot.textContent = eur(invoiceTotal(inv)); hTot.textContent = tot.textContent; store.changed(); };
-  card.append(h('div', { class: 'irow ihd' }, h('span', {}, 'Beschreibung'), h('span', {}, 'Menge'), h('span', {}, 'Einzelpreis (€)'), h('span', { class: 'num' }, 'Betrag'), h('span')));
+  card.append(h('div', { class: 'irow ihd' }, h('span', {}, 'Beschreibung'), h('span', {}, 'Menge'), h('span', {}, 'Preis (€)'), h('span', { class: 'num' }, 'Betrag'), h('span')));
   inv.items.forEach((it, idx) => {
     const d = h('input', { type: 'text', class: 'idesc', value: it.desc || '', placeholder: 'Beschreibung', disabled: !editable, 'aria-label': 'Beschreibung Position ' + (idx + 1) });
     const q = h('input', { type: 'text', inputMode: 'decimal', value: fmtN(it.qty), disabled: !editable, placeholder: 'Menge', 'aria-label': 'Menge Position ' + (idx + 1) });
@@ -446,7 +448,7 @@ function invoiceCard(inv) {
     d.oninput = () => { it.desc = d.value; store.changed(); };
     q.oninput = () => { const n = num(q.value); it.qty = isNaN(n) ? 0 : n; upd(); };
     p.oninput = () => { const n = num(p.value); it.price = isNaN(n) ? 0 : n; upd(); };
-    card.append(h('div', { class: 'irow' }, d, q, p, s, editable ? h('button', { class: 'small', title: 'Position entfernen', 'aria-label': 'Position ' + (idx + 1) + ' entfernen', onclick: () => { inv.items.splice(idx, 1); store.changed(); render(); } }, '✕') : h('span')));
+    card.append(h('div', { class: 'irow' }, d, h('label', { class: 'mini' }, h('span', { class: 'cap' }, 'Menge'), q), h('label', { class: 'mini' }, h('span', { class: 'cap' }, 'Preis (€)'), p), s, editable ? h('button', { class: 'small', title: 'Position entfernen', 'aria-label': 'Position ' + (idx + 1) + ' entfernen', onclick: () => { inv.items.splice(idx, 1); store.changed(); render(); } }, '✕') : h('span')));
   });
   card.append(h('div', { class: 'row', style: 'margin:8px 0' }, editable ? h('button', { class: 'small', onclick: () => { inv.items.push({ desc: '', qty: 1, price: 0 }); store.changed(); render(); const ds = $('view').querySelectorAll('.idesc'); if (ds.length) ds[ds.length - 1].focus(); } }, '+ Position') : null, h('span', { class: 'sp' }), h('span', {}, 'Gesamtbetrag '), tot));
   if (f.me.taxNote) card.append(h('div', { class: 'hint pre' }, f.me.taxNote));
