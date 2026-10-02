@@ -152,7 +152,7 @@ function render() {
   if (tab === 'week') {
     const start = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate() - wdIdx(anchor));
     const days = Array.from({ length: 7 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
-    $('label').textContent = fmtDate(ymd(days[0])).slice(0, 6) + ' – ' + fmtDate(ymd(days[6]));
+    $('label').textContent = fmtDate(ymd(days[0])).replace(/\d{4}$/, '').replace(/[/-]$/, '') + ' – ' + fmtDate(ymd(days[6]));
     const occ = chores.flatMap((c) => occurrences(c, days[0], days[6])), t = ymd(new Date());
     return v.replaceChildren(bar, h('div', { class: 'week' }, days.map((d) => h('div', { class: 'day' + (ymd(d) === t ? ' today' : '') },
       h('h3', {}, WD[wdIdx(d)] + ' ' + d.getDate() + '.' + (d.getMonth() + 1) + '.'), occ.filter((o) => ymd(o.date) === ymd(d)).map((o) => chipFor(o, true))))));

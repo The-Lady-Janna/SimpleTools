@@ -125,7 +125,7 @@ function normalize() {
 }
 const metricOf = (id) => store.data.metrics.find((m) => m.id === id);
 const num = (s) => { const n = Number(String(s).trim().replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
-const fmtNum = (n) => (Math.round(n * 10) / 10).toString().replace('.', ',');
+const fmtNum = (n) => (Math.round(n * 10) / 10).toString().replace('.', SimpleI18n.dec);
 function fmtVal(m, v) {
   if (!m) return String(v);
   if (m.kind === 'bp') return v.sys + '/' + v.dia + ' ' + (m.unit || '');
@@ -218,7 +218,7 @@ $('csv').onclick = () => {
   const cell = (v) => { v = String(v ?? ''); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   const rows = [['Datum', 'Zeit', 'Messwert', 'Wert', 'Einheit', 'Notiz']].concat(store.data.entries.slice().sort((a, b) => stamp(a).localeCompare(stamp(b))).map((e) => {
     const m = metricOf(e.metric) || { name: e.metric, unit: '', kind: 'note' };
-    const v = m.kind === 'bp' ? e.value.sys + '/' + e.value.dia : m.kind === 'note' ? e.value : String(e.value).replace('.', ',');
+    const v = m.kind === 'bp' ? e.value.sys + '/' + e.value.dia : m.kind === 'note' ? e.value : String(e.value).replace('.', SimpleI18n.dec);
     return [e.date, e.time || '', m.name, v, m.unit, e.note || ''];
   }));
   download('gesundheitsprotokoll.csv', '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');

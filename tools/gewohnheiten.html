@@ -147,7 +147,7 @@ function render() {
   if (tab === 'today') return v.replaceChildren(todayView());
   if (tab === 'week') {
     const start = monday(anchor), days = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return d; });
-    $('label').textContent = fmtDate(ymd(days[0])).slice(0, 6) + ' – ' + fmtDate(ymd(days[6]));
+    $('label').textContent = fmtDate(ymd(days[0])).replace(/\d{4}$/, '').replace(/[/-]$/, '') + ' – ' + fmtDate(ymd(days[6]));
     const t = ymd(new Date());
     return v.replaceChildren(h('div', { class: 'card scroll' }, h('table', { class: 'grid' },
       h('thead', {}, h('tr', {}, h('th', { class: 'nm' }, ''), days.map((d) => h('th', { class: ymd(d) === t ? 'today' : '' }, WD[wdIdx(d)], h('div', { class: 'muted', style: 'font-size:.75rem;font-weight:400' }, d.getDate()))), h('th', {}, 'Woche'), h('th', {}, 'Serie'))),

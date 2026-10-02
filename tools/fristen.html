@@ -172,7 +172,7 @@ function render() {
 }
 function startEdit(it) {
   editId = it.id; $('name').value = it.name; $('type').value = it.type; $('end').value = it.end; $('notice').value = it.notice || 0; $('renew').value = it.renew || 0;
-  $('cost').value = it.cost ? String(it.cost).replace('.', ',') : ''; $('interval').value = it.interval || 'monat'; $('note').value = it.note || '';
+  $('cost').value = it.cost ? String(it.cost).replace('.', SimpleI18n.dec) : ''; $('interval').value = it.interval || 'monat'; $('note').value = it.note || '';
   $('submit').textContent = 'Übernehmen'; $('cancel').hidden = false; $('name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function resetForm() { editId = null; $('form').reset(); $('submit').textContent = 'Hinzufügen'; $('cancel').hidden = true; }

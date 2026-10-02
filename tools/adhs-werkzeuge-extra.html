@@ -484,7 +484,7 @@ function normTime(v) { const m = toMin(v); return m === null || m >= 1440 ? '' :
 const clock = (iso) => { const d = new Date(iso); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 
 /* ---------- Anzeige ---------- */
-function fmtN(x, dec) { dec = dec == null ? 1 : dec; return String(+Number(x).toFixed(dec)).replace('.', ','); }
+function fmtN(x, dec) { dec = dec == null ? 1 : dec; return String(+Number(x).toFixed(dec)).replace('.', SimpleI18n.dec); }
 const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const WD_LONG = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];

@@ -123,7 +123,7 @@
         if (any) r = outp.join('');
       }
     }
-    if (r == null) { if (/[A-Za-zÀ-ÿ]{2}/.test(core)) misses.add(core); return s; }
+    if (r == null) { if (/[A-Za-zÀ-ÿ]{2}/.test(abstractText(core).key.replace(/\{[#q€wm]\d*\}/g, ''))) misses.add(core); return s; }
     return lead + r + trail;
   }
 

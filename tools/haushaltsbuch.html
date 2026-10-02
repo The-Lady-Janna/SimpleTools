@@ -177,7 +177,7 @@ function render() {
   else cs.replaceChildren(h('table', {}, h('tbody', {}, names.map((c) => {
     const s = spent[c] || 0, b = store.data.budgets[c] || 0;
     const pct = b ? Math.min(100, s / b * 100) : (out ? s / out * 100 : 0);
-    const bud = h('input', { type: 'text', class: 'bud', inputMode: 'decimal', value: b ? String(b).replace('.', ',') : '', placeholder: 'Budget', 'aria-label': 'Budget ' + c });
+    const bud = h('input', { type: 'text', class: 'bud', inputMode: 'decimal', value: b ? String(b).replace('.', SimpleI18n.dec) : '', placeholder: 'Budget', 'aria-label': 'Budget ' + c });
     bud.onchange = () => {
       const n = parseAmount(bud.value);
       if (bud.value.trim() === '' || n === 0) delete store.data.budgets[c]; else if (!isNaN(n)) store.data.budgets[c] = n;
@@ -198,7 +198,7 @@ function render() {
     h('small', {}, parseYmd(x.m + '-01').toLocaleDateString('de-DE', { month: 'short' })))));
 }
 function startEdit(e) {
-  editId = e.id; $('fdate').value = e.date; $('ftype').value = e.type; $('famt').value = String(e.amount).replace('.', ',');
+  editId = e.id; $('fdate').value = e.date; $('ftype').value = e.type; $('famt').value = String(e.amount).replace('.', SimpleI18n.dec);
   $('fcat').value = e.category; $('fnote').value = e.note || '';
   $('fsubmit').textContent = 'Übernehmen'; $('fcancel').hidden = false; $('famt').focus();
 }
