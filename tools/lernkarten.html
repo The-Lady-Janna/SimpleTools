@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lernkarten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 960px; }
+  h2.sec { margin:0 0 8px; font-size:1.05rem; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; margin:12px 0; }
+  .sum .card { margin:0; text-align:center; padding:10px 8px; } .sum b { display:block; font-size:1.3rem; } .sum small { color:var(--muted); }
+  .meta { color:var(--muted); font-size:.85rem; }
+  .deck { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; padding:9px 0; border-bottom:1px solid var(--line); }
+  .deck:last-child { border-bottom:0; } .deck .nm { flex:1; min-width:150px; overflow-wrap:anywhere; }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin-top:10px; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .fc { perspective:1400px; margin:12px 0; } .fc.click { cursor:pointer; }
+  .flipper { display:grid; transform-style:preserve-3d; transition:transform .55s cubic-bezier(.4,.2,.2,1); }
+  .flipper.shown { transform:rotateY(180deg); }
+  .face { grid-area:1 / 1; backface-visibility:hidden; -webkit-backface-visibility:hidden; position:relative; min-height:240px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:40px 20px 24px; border:1px solid var(--line); border-radius:16px; background:var(--card); overflow-wrap:anywhere; white-space:pre-wrap; box-shadow:0 2px 10px rgba(0,0,0,.06); }
+  .face.back { transform:rotateY(180deg); border-color:var(--accent); }
+  .face .lab { position:absolute; top:12px; left:16px; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); }
+  .face .q { margin-top:16px; padding-top:8px; border-top:1px solid var(--line); font-size:.85rem; color:var(--muted); max-width:100%; }
+  @media (prefers-reduced-motion: reduce) { .flipper { transition:none; } }
+  .big { min-height:48px; font-size:1.05rem; padding:8px 18px; }
+  #bshow { width:100%; }
+  .answers { display:flex; flex-wrap:wrap; gap:10px; } .answers button { flex:1 1 150px; }
+  button.yes { background:var(--ok); color:var(--on-ok); border-color:var(--ok); } button.no { color:var(--err); border-color:var(--err); }
+  .hint { color:var(--muted); font-size:.82rem; margin:8px 0 0; text-align:center; }
+  .tiles3 { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:12px 0; } .tiles3 div { text-align:center; padding:8px; border:1px solid var(--line); border-radius:10px; background:var(--bg); } .tiles3 b { display:block; font-size:1.4rem; }
+  .miss { padding:5px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; } .miss:last-child { border-bottom:0; }
+  .chips { margin:0 0 10px; }
+  .crow { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:8px 0; border-bottom:1px solid var(--line); }
+  .crow:last-child { border-bottom:0; } .crow .ct { flex:1 1 220px; min-width:0; overflow-wrap:anywhere; } .crow .cf { font-weight:600; } .crow .cb { color:var(--muted); }
+  .crow .cm { display:flex; gap:6px; align-items:center; flex-wrap:wrap; font-size:.8rem; color:var(--muted); }
+  .crow.edit input, .crow.edit select { flex:1 1 140px; min-width:0; }
+  .row input[type=text] { flex:1 1 160px; min-width:0; }
+  details.io summary { cursor:pointer; font-weight:600; } details.io h3 { margin:12px 0 6px; font-size:.95rem; }
+  .brow { display:grid; grid-template-columns:7.5em minmax(0,1fr) 2.6em; gap:8px; align-items:center; margin:7px 0; }
+  .brow .tr { height:18px; background:var(--bg); border:1px solid var(--line); border-radius:9px; overflow:hidden; } .brow .tr i { display:block; height:100%; background:var(--bc); }
+  .brow span.n { text-align:right; font-variant-numeric:tabular-nums; }
+  .wk { display:flex; gap:4px; align-items:flex-end; margin-top:10px; }
+  .wk > div { flex:1; min-width:0; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; font-size:.72rem; color:var(--muted); line-height:1.3; }
+  .wk i { display:block; width:70%; background:var(--accent); border-radius:4px 4px 0 0; margin:2px 0; } .wk i.z { opacity:.3; }
+  .wk .today { color:var(--fg); font-weight:700; } .wk .nn { height:1.3em; color:var(--fg); }
+  table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; } td.r, th.r { text-align:right; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Lernkarten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs" id="tabs"><button data-tab="learn">Lernen</button><button data-tab="cards">Karten</button><button data-tab="stats">Statistik</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'lernkarten',
+  defaults: () => ({ decks: [], cards: [], log: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const INTERVALS = [1, 2, 4, 8, 16];
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+let tab = 'learn', session = null, curDeck = 'all', q = '', editId = null, limit = 100, perRound = 0, ioOpen = false, importMsg = '', after = null, listBox = null;
+
+function normalize() {
+  const d = store.data, t = ymd(new Date());
+  if (!Array.isArray(d.decks)) d.decks = [];
+  if (!Array.isArray(d.cards)) d.cards = [];
+  if (!d.log || typeof d.log !== 'object' || Array.isArray(d.log)) d.log = {};
+  d.decks = d.decks.filter((k) => k && typeof k === 'object');
+  d.cards = d.cards.filter((c) => c && typeof c === 'object');
+  d.decks.forEach((k) => { if (!k.id) k.id = uid(); k.name = String(k.name == null ? '' : k.name); });
+  d.cards.forEach((c) => {
+    if (!c.id) c.id = uid();
+    c.front = String(c.front == null ? '' : c.front); c.back = String(c.back == null ? '' : c.back);
+    c.box = Math.min(5, Math.max(1, Math.floor(Number(c.box)) || 1));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(c.due || '')) c.due = t;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(c.created || '')) c.created = t;
+    c.reps = Math.max(0, Math.floor(Number(c.reps)) || 0); c.lapses = Math.max(0, Math.floor(Number(c.lapses)) || 0);
+  });
+  for (const k of Object.keys(d.log)) { const n = Number(d.log[k]); d.log[k] = Number.isFinite(n) && n > 0 ? Math.floor(n) : 0; }
+  if (curDeck !== 'all' && !d.decks.some((k) => k.id === curDeck)) curDeck = 'all';
+}
+const today = () => ymd(new Date());
+const addDays = (s, n) => { const d = parseYmd(s); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+const dayDiff = (s) => Math.round((parseYmd(s) - parseYmd(today())) / 86400000);
+const inDays = (s) => { const n = dayDiff(s); return n <= 0 ? 'heute' : n === 1 ? 'morgen' : 'in ' + n + ' Tagen'; };
+const pl = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+const deckById = (id) => store.data.decks.find((k) => k.id === id);
+const deckName = (id) => { const k = deckById(id); return k ? k.name : '–'; };
+const cardById = (id) => store.data.cards.find((c) => c.id === id);
+const cardsOf = (id) => store.data.cards.filter((c) => id === 'all' || c.deck === id);
+const dueOf = (id) => cardsOf(id).filter((c) => c.due <= today());
+const nextDue = (id) => cardsOf(id).filter((c) => c.due > today()).map((c) => c.due).sort()[0] || '';
+const clean = (s) => String(s).replace(/[\t\r\n]+/g, ' ').trim();
+function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+function streak() {
+  const log = store.data.log; let n = 0, d = today();
+  if (!(log[d] > 0)) d = addDays(d, -1);
+  while (log[d] > 0 && n < 5000) { n++; d = addDays(d, -1); }
+  return n;
+}
+const newCard = (deck, front, back) => ({ id: uid(), deck, front, back, box: 1, due: today(), reps: 0, lapses: 0, created: today() });
+
+// ---------- Lernen ----------
+function start(id) {
+  let due = dueOf(id).sort((a, b) => a.due.localeCompare(b.due) || a.box - b.box);
+  if (perRound > 0) due = due.slice(0, perRound);
+  if (!due.length) return;
+  session = { deck: id, ids: shuffle(due).map((c) => c.id), idx: 0, shown: false, known: 0, unknown: 0, missed: [] };
+  render();
+}
+function showAnswer() {
+  const s = session; if (!s || s.shown) return;
+  const f = $('flipper'); if (!f) { s.shown = true; render(); return; }
+  s.shown = true; f.classList.add('shown'); $('fc').classList.remove('click');
+  f.querySelector('.front').setAttribute('aria-hidden', 'true'); f.querySelector('.back').setAttribute('aria-hidden', 'false');
+  $('bshow').hidden = true; $('answers').hidden = false;
+}
+function answer(ok) {
+  const s = session; if (!s || !s.shown) return;
+  const c = cardById(s.ids[s.idx]), t = today();
+  if (c) {
+    c.reps++;
+    if (ok) { c.box = Math.min(5, c.box + 1); c.due = addDays(t, INTERVALS[c.box - 1]); s.known++; }
+    else { c.box = 1; c.lapses++; c.due = t; s.unknown++; s.missed.push(c.id); }
+    store.data.log[t] = (store.data.log[t] || 0) + 1;
+  }
+  s.idx++; s.shown = false; store.changed(); render();
+}
+function learnView() {
+  if (session) return studyView();
+  const d = store.data, t = today(), n = d.log[t] || 0, st = streak();
+  const per = h('select', { 'aria-label': 'Karten pro Runde' }, [[0, 'alle fälligen'], [10, '10'], [20, '20'], [50, '50']].map(([v, l]) => h('option', { value: v, selected: v === perRound }, l)));
+  per.onchange = () => { perRound = +per.value; };
+  const head = h('div', { class: 'card row' }, h('span', {}, 'Heute: ', h('b', {}, pl(n, 'Wiederholung', 'Wiederholungen'))), h('span', {}, 'Serie: ', h('b', {}, pl(st, 'Tag', 'Tage'))), h('span', { class: 'sp' }), h('label', { class: 'row muted' }, 'Karten pro Runde', per));
+  if (!d.cards.length) return h('div', {}, head, h('div', { class: 'card muted' }, 'Noch keine Karten. Lege im Tab „Karten“ einen Stapel an und füge Karten hinzu – oder importiere eine Liste.', h('div', { style: 'margin-top:10px' }, h('button', { class: 'primary', onclick: () => { tab = 'cards'; render(); } }, 'Zu den Karten'))));
+  const rows = [['all', 'Alle Stapel']].concat(d.decks.map((k) => [k.id, k.name]));
+  return h('div', {}, head, h('div', { class: 'card' }, h('h2', { class: 'sec' }, 'Was möchtest du lernen?'), rows.map(([id, name]) => {
+    const cs = cardsOf(id), due = cs.filter((c) => c.due <= t).length, nx = nextDue(id);
+    return h('div', { class: 'deck' }, h('div', { class: 'nm' }, h('strong', {}, name), h('div', { class: 'meta' }, pl(cs.length, 'Karte', 'Karten') + (!due && nx ? ' · nächste ' + inDays(nx) : ''))),
+      h('span', { class: 'badge ' + (due ? 'warn' : 'ok') }, due ? due + ' fällig' : 'nichts fällig'),
+      h('button', { class: 'primary', disabled: !due, 'aria-label': (due ? 'Lernen starten: ' : 'Nichts fällig: ') + name, onclick: () => start(id) }, 'Starten'));
+  })));
+}
+function studyView() {
+  const s = session;
+  while (s.idx < s.ids.length && !cardById(s.ids[s.idx])) s.idx++;
+  if (s.idx >= s.ids.length) return endView();
+  const c = cardById(s.ids[s.idx]), total = s.ids.length;
+  const fs = (x) => (x.length > 140 ? '1.05rem' : x.length > 60 ? '1.3rem' : '1.7rem');
+  const face = (cls, label, text, extra) => h('div', { class: 'face ' + cls, 'aria-hidden': String(cls === 'front' ? s.shown : !s.shown) }, h('div', { class: 'lab' }, label), h('div', { style: 'font-size:' + fs(text) }, text), extra);
+  const flipper = h('div', { class: 'flipper' + (s.shown ? ' shown' : ''), id: 'flipper' }, face('front', 'Frage', c.front), face('back', 'Antwort', c.back, h('div', { class: 'q' }, 'Frage: ' + c.front)));
+  const fc = h('div', { class: 'fc' + (s.shown ? '' : ' click'), id: 'fc', onclick: () => showAnswer() }, flipper);
+  const show = h('button', { class: 'primary big', id: 'bshow', hidden: s.shown, title: 'Leertaste', onclick: () => showAnswer() }, 'Antwort zeigen');
+  const answers = h('div', { class: 'answers', id: 'answers', hidden: !s.shown },
+    h('button', { class: 'big no', id: 'bno', title: 'Taste 2 oder ←', onclick: () => answer(false) }, '✗ Nicht gewusst'),
+    h('button', { class: 'big yes', id: 'byes', title: 'Taste 1 oder →', onclick: () => answer(true) }, '✓ Gewusst'));
+  return h('div', {},
+    h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', {}, s.deck === 'all' ? 'Alle Stapel' : deckName(s.deck)), h('span', { class: 'muted' }, 'Karte ' + (s.idx + 1) + ' von ' + total), h('span', { class: 'sp' }),
+      h('span', { class: 'badge ok', title: 'gewusst' }, '✓ ' + s.known), h('span', { class: 'badge err', title: 'nicht gewusst' }, '✗ ' + s.unknown), h('button', { class: 'small', onclick: () => { session = null; render(); } }, 'Beenden')),
+      h('div', { class: 'bar', role: 'progressbar', 'aria-label': 'Fortschritt', 'aria-valuemin': 0, 'aria-valuemax': total, 'aria-valuenow': s.idx }, h('i', { style: 'width:' + (s.idx / total * 100) + '%' }))),
+    h('div', { class: 'row meta' }, s.deck === 'all' ? h('span', { class: 'badge' }, deckName(c.deck)) : null, h('span', { class: 'badge' }, 'Box ' + c.box)),
+    fc, show, answers, h('p', { class: 'hint' }, 'Tastatur: Leertaste = Antwort zeigen · 1 oder → = gewusst · 2 oder ← = nicht gewusst'));
+}
+function endView() {
+  const s = session, tot = s.known + s.unknown, pct = tot ? Math.round(s.known / tot * 100) : 0, left = dueOf(s.deck).length, nx = nextDue(s.deck);
+  const missed = s.missed.map(cardById).filter(Boolean);
+  return h('div', { class: 'card' }, h('h2', { class: 'sec', style: 'font-size:1.3rem' }, !tot ? 'Keine Karten gelernt' : pct >= 80 ? 'Stark! 🎉 Runde geschafft' : 'Runde geschafft ✓'),
+    h('div', { class: 'tiles3' }, h('div', {}, h('b', { style: 'color:var(--ok)' }, s.known), 'Gewusst'), h('div', {}, h('b', { style: 'color:var(--err)' }, s.unknown), 'Nicht gewusst'), h('div', {}, h('b', {}, pct + ' %'), 'Quote')),
+    missed.length ? h('details', {}, h('summary', {}, 'Nochmal ansehen (' + missed.length + ')'), missed.map((c) => h('div', { class: 'miss' }, h('strong', {}, c.front), ' → ', c.back))) : null,
+    h('p', { class: 'muted' }, left ? pl(left, 'Karte ist', 'Karten sind') + ' noch fällig (falsch beantwortete kommen heute wieder dran).' : 'Alles erledigt!' + (nx ? ' Nächste Karten: ' + inDays(nx) + ' (' + fmtDate(nx) + ').' : '')),
+    h('div', { class: 'row' }, left ? h('button', { class: 'primary', onclick: () => start(s.deck) }, 'Noch eine Runde (' + left + ' fällig)') : null, h('button', { onclick: () => { session = null; render(); } }, 'Zur Übersicht')));
+}
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+  const s = session; if (tab !== 'learn' || !s || s.idx >= s.ids.length) return;
+  const t = e.target, tag = t && t.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) return;
+  const k = e.key;
+  if (k === ' ' || k === 'Enter') { if (tag === 'BUTTON' || tag === 'A' || tag === 'SUMMARY') return; if (!s.shown) { e.preventDefault(); showAnswer(); } }
+  else if (s.shown && (k === '1' || k === 'ArrowRight')) { e.preventDefault(); answer(true); }
+  else if (s.shown && (k === '2' || k === 'ArrowLeft')) { e.preventDefault(); answer(false); }
+});
+
+// ---------- Karten ----------
+const nameTaken = (name, except) => store.data.decks.some((k) => k !== except && k.name.toLowerCase() === name.toLowerCase());
+function newDeck(name) {
+  name = name.trim(); if (!name) return;
+  if (nameTaken(name)) { alert('Einen Stapel „' + name + '“ gibt es schon.'); return; }
+  const k = { id: uid(), name }; store.data.decks.push(k); curDeck = k.id; q = ''; limit = 100;
+  after = () => { const el = $('newfront'); if (el) el.focus(); }; store.changed(); render();
+}
+function renameDeck(k, name) {
+  name = name.trim(); if (!name) { alert('Der Name darf nicht leer sein.'); return; }
+  if (nameTaken(name, k)) { alert('Einen Stapel „' + name + '“ gibt es schon.'); return; }
+  k.name = name; store.changed(); render();
+}
+function deleteDeck(k) {
+  const n = cardsOf(k.id).length;
+  if (!confirm('Stapel „' + k.name + '“ mit ' + pl(n, 'Karte', 'Karten') + ' wirklich löschen?')) return;
+  store.data.decks = store.data.decks.filter((x) => x !== k); store.data.cards = store.data.cards.filter((c) => c.deck !== k.id);
+  if (session && session.deck === k.id) session = null;
+  curDeck = 'all'; editId = null; store.changed(); render();
+}
+function parseImport(text) {
+  const out = []; let bad = 0;
+  for (const raw of text.split('\n')) {
+    const line = raw.replace(/\r$/, ''); if (!line.trim()) continue;
+    const i = line.includes('\t') ? line.indexOf('\t') : line.indexOf(';');
+    if (i < 0) { bad++; continue; }
+    const f = clean(line.slice(0, i)), b = clean(line.slice(i + 1));
+    if (!f || !b) { bad++; continue; }
+    out.push({ f, b });
+  }
+  return { out, bad };
+}
+function exportText(id) { return cardsOf(id).map((c) => { const f = clean(c.front), b = clean(c.back); return f + (/;/.test(f + b) ? '\t' : ';') + b; }).join('\n'); }
+function deckSelect(label, value) { return h('select', { 'aria-label': label }, store.data.decks.map((k) => h('option', { value: k.id, selected: k.id === value }, k.name))); }
+
+function cardRow(c) {
+  if (c.id === editId) {
+    const fr = h('input', { type: 'text', value: c.front, 'aria-label': 'Vorderseite' }), bk = h('input', { type: 'text', value: c.back, 'aria-label': 'Rückseite' }), ds = deckSelect('Stapel', c.deck);
+    const f = h('form', { class: 'crow edit' }, fr, bk, ds, h('button', { class: 'small primary' }, 'Speichern'), h('button', { type: 'button', class: 'small', onclick: () => { editId = null; fillList(); } }, 'Abbrechen'));
+    f.onkeydown = (e) => { if (e.key === 'Escape') { editId = null; fillList(); } };
+    f.onsubmit = (e) => {
+      e.preventDefault(); const a = fr.value.trim(), b = bk.value.trim();
+      if (!a || !b) { alert('Vorder- und Rückseite dürfen nicht leer sein.'); return; }
+      c.front = a; c.back = b; c.deck = ds.value; editId = null; store.changed(); render();
+    };
+    return f;
+  }
+  const n = dayDiff(c.due);
+  return h('div', { class: 'crow' }, h('div', { class: 'ct' }, h('div', { class: 'cf' }, c.front), h('div', { class: 'cb' }, c.back)),
+    h('div', { class: 'cm' }, curDeck === 'all' ? h('span', { class: 'badge' }, deckName(c.deck)) : null, h('span', { class: 'badge' }, 'Box ' + c.box), h('span', { class: n <= 0 ? 'badge warn' : '' }, n <= 0 ? 'fällig' : inDays(c.due))),
+    h('button', { class: 'small', title: 'Bearbeiten oder Stapel wechseln', 'aria-label': 'Karte bearbeiten: ' + c.front, onclick: () => { editId = c.id; fillList(); const i = listBox.querySelector('.edit input'); if (i) i.focus(); } }, '✎'),
+    h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Karte löschen: ' + c.front, onclick: () => { if (confirm('Karte „' + c.front + '“ löschen?')) { store.data.cards = store.data.cards.filter((x) => x !== c); store.changed(); render(); } } }, '✕'));
+}
+function fillList() {
+  const needle = q.trim().toLowerCase();
+  const all = cardsOf(curDeck).filter((c) => !needle || c.front.toLowerCase().includes(needle) || c.back.toLowerCase().includes(needle)).reverse();
+  const kids = [];
+  if (!all.length) kids.push(h('p', { class: 'muted' }, needle ? 'Keine Treffer.' : curDeck === 'all' ? 'Noch keine Karten. Füge oben die erste hinzu.' : 'Dieser Stapel ist noch leer. Füge oben Karten hinzu oder importiere eine Liste.'));
+  else kids.push(h('div', { class: 'meta', style: 'margin-bottom:4px' }, pl(all.length, 'Karte', 'Karten') + (needle ? ' gefunden' : '')), ...all.slice(0, limit).map(cardRow));
+  if (all.length > limit) kids.push(h('button', { style: 'margin-top:8px', onclick: () => { limit += 100; fillList(); } }, 'Weitere anzeigen (' + (all.length - limit) + ')'));
+  listBox.replaceChildren(...kids);
+}
+function cardsView() {
+  listBox = null;
+  const d = store.data, cur = deckById(curDeck);
+  const go = (id) => () => { curDeck = id; editId = null; limit = 100; render(); };
+  const chips = h('div', { class: 'tabs chips' }, h('button', { class: curDeck === 'all' ? 'on' : '', onclick: go('all') }, 'Alle (' + d.cards.length + ')'), d.decks.map((k) => h('button', { class: curDeck === k.id ? 'on' : '', onclick: go(k.id) }, k.name + ' (' + cardsOf(k.id).length + ')')));
+  const nd = h('input', { type: 'text', maxLength: 60, placeholder: 'Neuer Stapel, z. B. Spanisch', 'aria-label': 'Name des neuen Stapels' });
+  const ndf = h('form', { class: 'row' }, nd, h('button', { class: 'primary' }, '+ Stapel anlegen'));
+  ndf.onsubmit = (e) => { e.preventDefault(); newDeck(nd.value); };
+  const out = [];
+  const mgmt = h('div', { class: 'card' }, chips, ndf);
+  if (cur) {
+    const rn = h('input', { type: 'text', value: cur.name, maxLength: 60, 'aria-label': 'Stapel umbenennen' });
+    const rf = h('form', { class: 'row', style: 'margin-top:8px' }, rn, h('button', {}, 'Umbenennen'), h('button', { type: 'button', onclick: () => deleteDeck(cur) }, 'Stapel löschen'));
+    rf.onsubmit = (e) => { e.preventDefault(); renameDeck(cur, rn.value); };
+    mgmt.append(rf);
+  }
+  out.push(mgmt);
+  if (!d.decks.length) { out.push(h('div', { class: 'card muted' }, 'Lege oben deinen ersten Stapel an (z. B. „Vokabeln“). Danach kannst du Karten einzeln hinzufügen oder als Liste importieren.')); return h('div', {}, ...out); }
+  // Karte hinzufügen
+  const fr = h('input', { type: 'text', id: 'newfront', placeholder: 'Vorderseite (Frage)', 'aria-label': 'Vorderseite' }), bk = h('input', { type: 'text', placeholder: 'Rückseite (Antwort)', 'aria-label': 'Rückseite' });
+  const ds = deckSelect('Stapel für die neue Karte', curDeck === 'all' ? d.decks[0].id : curDeck); ds.hidden = curDeck !== 'all';
+  const af = h('form', { class: 'card row' }, fr, bk, ds, h('button', { class: 'primary' }, '+ Karte'));
+  af.onsubmit = (e) => {
+    e.preventDefault(); const a = fr.value.trim(), b = bk.value.trim();
+    if (!a || !b) { (a ? bk : fr).focus(); return; }
+    d.cards.push(newCard(curDeck === 'all' ? ds.value : curDeck, a, b));
+    after = () => { const el = $('newfront'); if (el) el.focus(); }; store.changed(); render();
+  };
+  out.push(af);
+  // Import / Export
+  const imp = h('textarea', { rows: 6, style: 'width:100%', placeholder: 'Pro Zeile eine Karte:\nVorderseite;Rückseite\n(auch mit Tabulator getrennt, z. B. aus Excel)', 'aria-label': 'Karten importieren' });
+  const file = h('input', { type: 'file', accept: '.txt,.csv,.tsv,text/plain', 'aria-label': 'Textdatei wählen' });
+  file.onchange = async () => { const f = file.files[0]; if (f) imp.value = await f.text(); };
+  const tgt = deckSelect('Ziel-Stapel für den Import', curDeck === 'all' ? d.decks[0].id : curDeck), msg = h('span', { class: 'muted', role: 'status' }, importMsg);
+  const doImport = () => {
+    const target = tgt.value, { out: lines, bad } = parseImport(imp.value);
+    const have = new Set(cardsOf(target).map((c) => (c.front + '\u0001' + c.back).toLowerCase()));
+    let n = 0, dup = 0;
+    for (const x of lines) { const key = (x.f + '\u0001' + x.b).toLowerCase(); if (have.has(key)) { dup++; continue; } have.add(key); d.cards.push(newCard(target, x.f, x.b)); n++; }
+    importMsg = (n ? pl(n, 'Karte', 'Karten') + ' importiert' : 'Keine neuen Karten erkannt') + (dup ? ' · ' + pl(dup, 'Duplikat', 'Duplikate') + ' übersprungen' : '') + (bad ? ' · ' + pl(bad, 'Zeile', 'Zeilen') + ' ohne Trennzeichen oder unvollständig ignoriert' : '') + '.';
+    msg.textContent = importMsg; if (n) { imp.value = ''; store.changed(); render(); }
+  };
+  const nEx = cardsOf(curDeck).length, slug = (cur ? cur.name : 'alle').toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-').replace(/^-|-$/g, '') || 'stapel';
+  const bcopy = h('button', { disabled: !nEx }, 'Als Text kopieren'); bcopy.onclick = () => copyText(exportText(curDeck), bcopy);
+  const io = h('details', { class: 'card io' }, h('summary', {}, 'Import & Export'),
+    h('h3', {}, 'Import'), imp, h('div', { class: 'row', style: 'margin-top:6px' }, file, tgt, h('button', { class: 'primary', onclick: doImport }, 'Importieren'), msg),
+    h('h3', {}, 'Export'), h('div', { class: 'row' }, h('span', { class: 'muted' }, (cur ? '„' + cur.name + '“' : 'Alle Stapel') + ' (' + pl(nEx, 'Karte', 'Karten') + '):'), bcopy,
+      h('button', { disabled: !nEx, onclick: () => download('lernkarten-' + slug + '.txt', exportText(curDeck) + '\n') }, 'Als Datei speichern')));
+  io.open = ioOpen; io.ontoggle = () => { ioOpen = io.open; };
+  out.push(io);
+  // Liste
+  const search = h('input', { type: 'text', value: q, placeholder: 'Karten durchsuchen …', style: 'width:100%', 'aria-label': 'Karten durchsuchen' });
+  search.oninput = () => { q = search.value; limit = 100; editId = null; fillList(); };
+  listBox = h('div', {});
+  out.push(h('div', { class: 'card' }, search, listBox));
+  return h('div', {}, ...out);
+}
+
+// ---------- Statistik ----------
+function statsView() {
+  const d = store.data, cards = d.cards, t = today();
+  const per = [1, 2, 3, 4, 5].map((b) => cards.filter((c) => c.box === b).length), total = cards.length, mastered = per[4], due = cards.filter((c) => c.due <= t).length;
+  const tile = (label, val, sub) => h('div', { class: 'card' }, h('small', {}, label), h('b', {}, val), sub ? h('small', {}, sub) : null);
+  const st = streak(), doneToday = (d.log[t] || 0) > 0;
+  const colors = ['var(--err)', 'var(--warn)', 'var(--c2)', 'var(--accent)', 'var(--ok)'], max = Math.max(1, ...per);
+  const box = h('div', { class: 'card' }, h('h2', { class: 'sec' }, 'Karten pro Box'),
+    per.map((n, i) => h('div', { class: 'brow' }, h('span', {}, 'Box ' + (i + 1), h('span', { class: 'meta' }, ' · ' + INTERVALS[i] + (INTERVALS[i] === 1 ? ' Tag' : ' Tage'))), h('div', { class: 'tr' }, h('i', { style: 'width:' + (n / max * 100) + '%;--bc:' + colors[i] })), h('span', { class: 'n' }, n))),
+    total ? null : h('p', { class: 'muted' }, 'Noch keine Karten.'));
+  const days = Array.from({ length: 14 }, (_, i) => addDays(t, i - 13)), vals = days.map((x) => d.log[x] || 0), vmax = Math.max(1, ...vals);
+  const chart = h('div', { class: 'card' }, h('h2', { class: 'sec' }, 'Wiederholungen der letzten 14 Tage'), h('div', { class: 'wk', role: 'img', 'aria-label': 'Balkendiagramm: ' + days.map((x, i) => fmtDate(x) + ' ' + vals[i]).join(', ') },
+    days.map((x, i) => { const dt = parseYmd(x); return h('div', { class: x === t ? 'today' : '', title: fmtDate(x) + ': ' + pl(vals[i], 'Wiederholung', 'Wiederholungen') },
+      h('span', { class: 'nn' }, vals[i] || ''), h('i', { class: vals[i] ? '' : 'z', style: 'height:' + (vals[i] ? Math.max(3, vals[i] / vmax * 100) : 2) + 'px' }), h('span', {}, WD[(dt.getDay() + 6) % 7]), h('span', {}, dt.getDate() + '.')); })));
+  const tbl = d.decks.length ? h('div', { class: 'card' }, h('h2', { class: 'sec' }, 'Pro Stapel'), h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Stapel'), h('th', { class: 'r' }, 'Karten'), h('th', { class: 'r' }, 'Fällig'), h('th', { class: 'r' }, 'Gemeistert'))),
+    h('tbody', {}, d.decks.map((k) => { const cs = cardsOf(k.id); return h('tr', {}, h('td', {}, k.name), h('td', { class: 'r' }, cs.length), h('td', { class: 'r' }, cs.filter((c) => c.due <= t).length), h('td', { class: 'r' }, cs.filter((c) => c.box === 5).length)); })))) : null;
+  return h('div', {}, h('div', { class: 'sum' }, tile('Karten gesamt', total), tile('Gemeistert (Box 5)', mastered, total ? Math.round(mastered / total * 100) + ' %' : ''), tile('Heute fällig', due), tile('Heute wiederholt', d.log[t] || 0), tile('Lernserie', pl(st, 'Tag', 'Tage'), st && !doneToday ? 'heute noch offen' : '')), box, chart, tbl);
+}
+
+function render() {
+  document.querySelectorAll('#tabs button').forEach((b) => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-pressed', String(b.dataset.tab === tab)); });
+  $('view').replaceChildren(tab === 'learn' ? learnView() : tab === 'cards' ? cardsView() : statsView());
+  if (tab === 'cards' && listBox) fillList();
+  if (after) { const f = after; after = null; f(); }
+}
+document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; editId = null; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

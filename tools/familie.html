@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Familien-Punkteplan</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1000px; }
+  .tabs button { min-height:44px; padding:6px 14px; font-size:1rem; }
+  .form { display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:8em; } input.emo-in { width:4.5em; text-align:center; font-size:1.3rem; }
+  .form input, .form select { min-height:40px; }
+  .form button, .tx button, .item button { min-height:40px; }
+  h2.sec { font-size:1.15rem; margin:22px 0 4px; }
+  .kids { display:flex; flex-wrap:wrap; gap:10px; margin:10px 0 6px; }
+  .kid { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:96px; padding:10px 12px 8px; border-radius:20px; border:2px solid var(--line); background:var(--card); touch-action:manipulation; }
+  .kid .av { width:64px; height:64px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:2rem; line-height:1; background:color-mix(in srgb, var(--kc) 26%, var(--card)); border:3px solid var(--kc); }
+  .kid .kn { font-weight:700; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .kid .ks { font-size:.85rem; color:var(--muted); }
+  .kid[aria-pressed=true] { border-color:var(--kc); background:color-mix(in srgb, var(--kc) 14%, var(--card)); box-shadow:0 0 0 3px color-mix(in srgb, var(--kc) 50%, transparent); transform:translateY(-2px); }
+  .hero { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
+  .hello { font-size:1.4rem; font-weight:800; line-height:1.25; }
+  .star { display:inline-flex; align-items:center; gap:6px; padding:6px 18px; border-radius:99px; font-size:1.6rem; font-weight:800; color:#4a3000; background:linear-gradient(135deg,#ffe37a,#ffb300); box-shadow:0 2px 6px rgba(0,0,0,.18), inset 0 0 0 2px rgba(255,255,255,.5); }
+  .star small { font-size:.8rem; font-weight:600; }
+  .bar { height:16px; background:var(--bg); border:1px solid var(--line); border-radius:99px; overflow:hidden; margin:8px 0 4px; }
+  .bar > i { display:block; height:100%; background:var(--kc, var(--accent)); border-radius:99px; transition:width .5s; } .bar.full > i { background:var(--ok); }
+  .hint { color:var(--muted); font-size:.92rem; margin:4px 0 0; }
+  .tiles2 { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; margin:12px 0; }
+  .big { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; min-height:140px; padding:16px 10px; text-align:center; font-size:1.05rem;
+    border-radius:22px; border:3px solid color-mix(in srgb, var(--kc) 45%, var(--line)); background:color-mix(in srgb, var(--kc) 9%, var(--card)); touch-action:manipulation; }
+  .big .em { font-size:2.8rem; line-height:1.1; }
+  .big .nm { font-weight:700; overflow-wrap:anywhere; }
+  .big .pt, .cost { display:inline-block; padding:1px 10px; border-radius:99px; font-weight:800; color:#4a3000; background:linear-gradient(135deg,#ffe37a,#ffb300); }
+  .big .ck { position:absolute; top:8px; right:8px; width:30px; height:30px; border-radius:50%; border:2px solid var(--line); background:var(--bg); display:flex; align-items:center; justify-content:center; font-weight:800; }
+  .big.done { background:color-mix(in srgb, var(--ok) 16%, var(--card)); border-color:var(--ok); }
+  .big.done .ck { background:var(--ok); border-color:var(--ok); color:var(--on-ok); }
+  .big.pop { animation:fam-pop .45s cubic-bezier(.3,1.8,.5,1); }
+  .big.pop .em { animation:fam-spin .5s ease-out; }
+  @keyframes fam-pop { 0% { transform:scale(.86); } 55% { transform:scale(1.1) rotate(-2deg); } 100% { transform:scale(1); } }
+  @keyframes fam-spin { 0% { transform:rotate(-25deg) scale(.8); } 100% { transform:none; } }
+  @media (prefers-reduced-motion: reduce) { .big.pop, .big.pop .em { animation:none; } .bar > i { transition:none; } }
+  .scroll { overflow-x:auto; }
+  table.grid { border-collapse:separate; border-spacing:0; width:100%; }
+  table.grid th, table.grid td { padding:4px 3px; text-align:center; border-bottom:1px solid var(--line); }
+  table.grid th.nm, table.grid td.nm { text-align:left; position:sticky; left:0; background:var(--card); z-index:1; padding-right:8px; }
+  table.grid th.today, table.grid td.today { background:color-mix(in srgb, var(--accent) 10%, var(--card)); }
+  table.grid tr.sel td.nm { box-shadow:inset 4px 0 0 var(--kc); }
+  table.grid tfoot td { font-weight:700; border-bottom:0; }
+  table.grid .dn { font-weight:400; font-size:.75rem; color:var(--muted); }
+  .kbtn { display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:99px; border:2px solid var(--kc); background:color-mix(in srgb, var(--kc) 18%, var(--card)); white-space:nowrap; min-height:40px; }
+  .nmcell { display:inline-block; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; }
+  .pts { display:inline-block; min-width:34px; padding:3px 4px; border-radius:10px; font-weight:700; }
+  .pts.some { background:color-mix(in srgb, var(--kc) 22%, var(--card)); } .pts.all { background:linear-gradient(135deg,#ffe37a,#ffb300); color:#4a3000; } .pts.none { color:var(--muted); font-weight:400; }
+  .cell { width:38px; height:38px; padding:0; border-radius:10px; border:2px solid var(--line); background:var(--bg); font-size:1.1rem; line-height:1; font-weight:800; touch-action:manipulation; }
+  .cell.done { background:var(--ok); border-color:var(--ok); color:var(--on-ok); }
+  .cell:disabled { opacity:.4; cursor:default; }
+  .na { color:var(--muted); opacity:.5; }
+  .shop { display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
+  .reward { margin:0; display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px; }
+  .reward .em { font-size:2.6rem; line-height:1.1; } .reward .nm { font-weight:700; overflow-wrap:anywhere; }
+  .reward .bar { width:100%; } .reward button { width:100%; min-height:46px; font-weight:700; margin-top:auto; }
+  .reward button:disabled { opacity:.55; cursor:default; }
+  .msg { font-size:1.1rem; font-weight:700; text-align:center; border-color:var(--ok); }
+  .tx { display:flex; flex-wrap:wrap; align-items:center; gap:4px 10px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .tx:last-child, .item:last-child { border-bottom:0; } .tx .d { color:var(--muted); font-size:.85rem; min-width:5.5em; } .tx .n { flex:1; min-width:100px; overflow-wrap:anywhere; } .tx .s { color:var(--muted); font-size:.82rem; min-width:5.5em; text-align:right; }
+  .pos { color:var(--ok); font-weight:700; } .neg { color:var(--err); font-weight:700; }
+  .bal { font-size:2rem; font-weight:800; line-height:1.1; }
+  .item { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:8px 0; border-bottom:1px solid var(--line); }
+  .item .nm { flex:1; min-width:150px; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .item .em { font-size:1.6rem; width:2rem; text-align:center; }
+  .mini { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:1.3rem; background:color-mix(in srgb, var(--kc) 26%, var(--card)); border:2px solid var(--kc); flex:none; }
+  .emo { display:flex; flex-wrap:wrap; gap:4px; width:100%; } .emo button { min-width:40px; padding:2px 6px; font-size:1.2rem; }
+  .pill { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; min-height:40px; border:1px solid var(--line); border-radius:99px; background:var(--bg); cursor:pointer; }
+  .pill input { width:18px; height:18px; margin:0; } .pill:has(input:checked) { background:color-mix(in srgb, var(--accent) 18%, var(--bg)); border-color:var(--accent); }
+  .grp { display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; } .grp .lbl { font-size:.8rem; color:var(--muted); width:100%; }
+  .sw { width:40px; height:40px; padding:0; border-radius:50%; border:3px solid var(--card); box-shadow:0 0 0 1px var(--line); } .sw[aria-pressed=true] { box-shadow:0 0 0 3px var(--fg); }
+  .empty { text-align:center; padding:22px 16px; } .empty .em { font-size:3rem; line-height:1.1; }
+  .nav { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .nav button { min-height:44px; min-width:44px; } .nav strong { flex:1; text-align:center; min-width:150px; }
+  @media (max-width:520px) {
+    .kid { min-width:84px; padding:8px 8px 6px; } .kid .av { width:54px; height:54px; font-size:1.7rem; }
+    .tiles2 { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; } .big { min-height:128px; } .big .em { font-size:2.4rem; }
+    .hello { font-size:1.2rem; } .star { font-size:1.35rem; padding:4px 14px; }
+    .nmcell { max-width:68px; } .cell { width:34px; height:34px; } .card.scroll { padding-left:8px; padding-right:8px; }
+    .tabs button { padding:6px 10px; font-size:.95rem; }
+  }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Familien-Punkteplan</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs"><button data-tab="today">☀️ Heute</button><button data-tab="week">📆 Woche</button><button data-tab="rewards">🎁 Belohnungen</button><button data-tab="pocket">💶 Taschengeld</button><button data-tab="manage">⚙️ Verwalten</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'familie',
+  defaults: () => ({ kids: [], tasks: [], done: {}, rewards: [], redeemed: [], pocket: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const PAL = ['--c1', '--c2', '--c3', '--c4', '--c5'];
+const KID_EMO = ['🦊', '🐻', '🐼', '🐯', '🦁', '🐸', '🐵', '🦄', '🐙', '🐱', '🐶', '🐰', '🦋', '🚀', '🌈', '👧', '👦'];
+const TASK_EMO = ['🪥', '🛏️', '🧹', '🍽️', '📚', '🗑️', '🐕', '🧺', '🎒', '🥦', '🧸', '🚲', '🌱', '🧼', '🎹', '👕'];
+const REW_EMO = ['🍦', '🎬', '🎮', '🧸', '🍕', '🎡', '🍫', '📱', '⚽', '🎁', '🏊', '🎨'];
+const wdIdx = (d) => (d.getDay() + 6) % 7;
+const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const monday = (d) => addDays(d, -wdIdx(d));
+const isoWeek = (d) => { const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7) + 3); const y0 = new Date(Date.UTC(t.getUTCFullYear(), 0, 4)); return 1 + Math.round(((t - y0) / 86400000 - 3 + ((y0.getUTCDay() + 6) % 7)) / 7); };
+let tab = 'today', sel = null, weekStart = monday(new Date()), edit = null, popKey = null, focusKey = null, msg = '', scrollTo = null, BAL = new Map(), curDay = ymd(new Date());
+
+const isObj = (o) => o && typeof o === 'object' && !Array.isArray(o);
+const str = (v) => (typeof v === 'string' ? v : '');
+const num = (v, def, lo) => { v = Math.round(Number(v)); return Number.isFinite(v) ? Math.max(lo, v) : def; };
+const round2 = (n) => Math.round(n * 100) / 100;
+function normColor(c, i) { const m = String(c || '').match(/^(?:var\()?(?:--)?c([1-5])\)?$/); if (m) return '--c' + m[1]; return /^#[0-9a-f]{3,8}$/i.test(String(c)) ? String(c) : PAL[i % 5]; }
+function normalize() {
+  const d = store.data, ids = new Set();
+  for (const k of ['kids', 'tasks', 'rewards', 'redeemed']) d[k] = Array.isArray(d[k]) ? d[k].filter(isObj) : [];
+  for (const k of ['done', 'pocket']) if (!isObj(d[k])) d[k] = {};
+  const fix = (o) => { if (!o.id || typeof o.id !== 'string' || ids.has(o.id)) o.id = uid(); ids.add(o.id); };
+  d.kids.forEach((k, i) => { fix(k); k.name = str(k.name); k.emoji = str(k.emoji) || '🙂'; k.color = normColor(k.color, i); k.allowance = Number(k.allowance) > 0 ? round2(Number(k.allowance)) : 0; });
+  d.tasks.forEach((t) => {
+    fix(t); t.name = str(t.name); t.emoji = str(t.emoji) || '⭐'; t.points = num(t.points, 1, 0);
+    t.days = [...new Set((Array.isArray(t.days) ? t.days : []).map(Number).filter((x) => Number.isInteger(x) && x >= 0 && x <= 6))].sort();
+    t.kidIds = Array.isArray(t.kidIds) ? t.kidIds.filter((x) => typeof x === 'string') : [];
+  });
+  d.rewards.forEach((r) => { fix(r); r.name = str(r.name); r.emoji = str(r.emoji) || '🎁'; r.cost = num(r.cost, 1, 0); });
+  d.redeemed.forEach((r) => { fix(r); r.kidId = str(r.kidId); r.rewardId = str(r.rewardId); r.name = str(r.name); r.cost = num(r.cost, 0, 0); r.date = str(r.date) || ymd(new Date()); });
+  for (const day of Object.keys(d.done)) { const a = Array.isArray(d.done[day]) ? [...new Set(d.done[day].filter((x) => typeof x === 'string' && x.includes(':')))] : []; if (a.length) d.done[day] = a; else delete d.done[day]; }
+  for (const k of Object.keys(d.pocket)) {
+    d.pocket[k] = (Array.isArray(d.pocket[k]) ? d.pocket[k] : []).filter(isObj);
+    d.pocket[k].forEach((e) => { fix(e); e.date = str(e.date) || ymd(new Date()); e.amount = Number.isFinite(Number(e.amount)) ? round2(Number(e.amount)) : 0; e.note = str(e.note); });
+  }
+}
+const kidById = (id) => store.data.kids.find((k) => k.id === id);
+const selKid = () => kidById(sel);
+const kcol = (k) => (k.color.startsWith('#') ? k.color : 'var(' + k.color + ')');
+const kstyle = (k) => '--kc:' + kcol(k);
+const taskDue = (t, kid, date) => (!t.days.length || t.days.includes(wdIdx(date))) && (!t.kidIds.length || t.kidIds.includes(kid.id));
+const isDone = (day, t, kid) => (store.data.done[day] || []).includes(t.id + ':' + kid.id);
+const sumPts = (ts) => ts.reduce((a, t) => a + t.points, 0);
+function calcBalances() {
+  const d = store.data, pts = new Map(d.tasks.map((t) => [t.id, t.points])), b = new Map(d.kids.map((k) => [k.id, 0]));
+  for (const day in d.done) for (const key of d.done[day]) { const i = key.indexOf(':'), p = pts.get(key.slice(0, i)), k = key.slice(i + 1); if (p != null && b.has(k)) b.set(k, b.get(k) + p); }
+  d.redeemed.forEach((r) => { if (b.has(r.kidId)) b.set(r.kidId, b.get(r.kidId) - r.cost); });
+  return b;
+}
+function toggle(day, t, kid) {
+  const d = store.data, key = t.id + ':' + kid.id, a = d.done[day] || (d.done[day] = []), i = a.indexOf(key);
+  if (i >= 0) a.splice(i, 1); else a.push(key);
+  if (!a.length) delete d.done[day];
+  store.changed(); render();
+}
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, '').replace(/^[+-]/, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? round2(Math.abs(n)) : NaN; }
+const fmtNum = (n) => String(n).replace('.', ',');
+const L = (t, el) => h('label', { class: 'f' }, t, el);
+const empty = (emoji, text, ...more) => h('div', { class: 'card empty' }, h('div', { class: 'em' }, emoji), h('p', {}, text), ...more);
+function loadSample() {
+  const d = store.data, T = (name, emoji, points, days) => ({ id: uid(), name, emoji, points, days, kidIds: [] }), R = (name, emoji, cost) => ({ id: uid(), name, emoji, cost });
+  const k1 = { id: uid(), name: 'Mia', emoji: '🦊', color: '--c1', allowance: 3 }, k2 = { id: uid(), name: 'Ben', emoji: '🐻', color: '--c2', allowance: 2 };
+  d.kids.push(k1, k2);
+  d.tasks.push(T('Zähne putzen', '🪥', 1, []), T('Bett machen', '🛏️', 1, []), T('Tisch decken', '🍽️', 2, []), T('Hausaufgaben', '📚', 3, [0, 1, 2, 3, 4]), T('Müll rausbringen', '🗑️', 2, [1, 4]), T('Zimmer aufräumen', '🧹', 4, [5]));
+  d.rewards.push(R('Eis essen', '🍦', 10), R('30 Min. Spielzeit', '🎮', 8), R('Filmabend', '🎬', 25), R('Kleines Spielzeug', '🧸', 50));
+  sel = k1.id; store.changed(); render();
+}
+function noKids() { return empty('👨‍👩‍👧‍👦', 'Noch keine Kinder angelegt. Lege unter „Verwalten“ Kinder, Aufgaben und Belohnungen an – oder starte mit Beispieldaten.',
+  h('div', { class: 'row', style: 'justify-content:center' }, h('button', { class: 'primary', onclick: () => { tab = 'manage'; render(); } }, 'Zu „Verwalten“'), h('button', { onclick: loadSample }, 'Beispieldaten laden'))); }
+function kidBar(sub) {
+  return h('div', { class: 'kids', role: 'group', 'aria-label': 'Kind auswählen' }, store.data.kids.map((k) => h('button', { type: 'button', class: 'kid', style: kstyle(k), 'aria-pressed': String(k.id === sel), onclick: () => { sel = k.id; msg = ''; render(); } },
+    h('span', { class: 'av' }, k.emoji), h('span', { class: 'kn' }, k.name || '–'), h('span', { class: 'ks' }, sub(k)))));
+}
+const balStr = (k) => '⭐ ' + (BAL.get(k.id) || 0);
+function render() {
+  const d = store.data;
+  if (!kidById(sel)) sel = d.kids.length ? d.kids[0].id : null;
+  BAL = calcBalances(); curDay = ymd(new Date());
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const views = { today: todayView, week: weekView, rewards: rewardsView, pocket: pocketView, manage: manageView };
+  $('view').replaceChildren(views[tab]());
+  popKey = null;
+  if (focusKey) { const el = document.querySelector('[data-fk="' + focusKey + '"]'); if (el) el.focus({ preventScroll: true }); focusKey = null; }
+  if (scrollTo) { const f = $(scrollTo); if (f) { f.scrollIntoView({ block: 'center' }); const i = f.querySelector('input[type=text]'); if (i) i.focus({ preventScroll: true }); } scrollTo = null; }
+}
+// ---------- Heute ----------
+function rewardHint(kid) {
+  const bal = BAL.get(kid.id) || 0, rs = store.data.rewards.slice().sort((a, b) => a.cost - b.cost), next = rs.find((r) => r.cost > bal);
+  if (rs.some((r) => r.cost <= bal && r.cost > 0)) return h('p', { class: 'hint' }, '🎁 Du kannst schon etwas einlösen! ', h('button', { class: 'small', onclick: () => { tab = 'rewards'; msg = ''; render(); } }, 'Zu den Belohnungen'));
+  return next ? h('p', { class: 'hint' }, 'Noch ' + (next.cost - bal) + ' ⭐ bis ' + next.emoji + ' ' + next.name) : null;
+}
+function todayView() {
+  const d = store.data;
+  if (!d.kids.length) return noKids();
+  const kid = selKid(), now = new Date(), day = ymd(now), due = d.tasks.filter((t) => taskDue(t, kid, now)), dn = due.filter((t) => isDone(day, t, kid));
+  const pct = due.length ? Math.round(dn.length / due.length * 100) : 0, full = due.length > 0 && dn.length === due.length;
+  const tiles = due.map((t) => {
+    const ok = isDone(day, t, kid), key = t.id + ':' + kid.id;
+    const b = h('button', { type: 'button', class: 'big' + (ok ? ' done' : '') + (popKey === key ? ' pop' : ''), 'aria-pressed': String(ok), 'aria-label': t.name + ', ' + t.points + ' Punkte' + (ok ? ', erledigt' : ''), dataset: { fk: key } },
+      h('span', { class: 'em' }, t.emoji), h('span', { class: 'nm' }, t.name), h('span', { class: 'pt' }, '+' + t.points + ' ⭐'), h('span', { class: 'ck', 'aria-hidden': 'true' }, ok ? '✓' : ''));
+    b.onclick = () => { popKey = ok ? null : key; focusKey = key; toggle(day, t, kid); };
+    return b;
+  });
+  return h('div', { style: kstyle(kid) }, kidBar(balStr),
+    h('div', { class: 'card hero' }, h('div', {}, h('div', { class: 'hello' }, 'Hallo ' + kid.name + '! ' + kid.emoji), h('div', { class: 'muted' }, now.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }))), h('span', { class: 'sp' }),
+      h('div', { class: 'star', title: 'Punktestand' }, '⭐', h('span', { id: 'balance' }, BAL.get(kid.id) || 0), h('small', {}, 'Punkte'))),
+    due.length ? h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', {}, dn.length + ' von ' + due.length + ' erledigt'), h('span', { class: 'sp' }), h('span', { class: 'muted' }, sumPts(dn) + ' von ' + sumPts(due) + ' ⭐ heute')),
+      h('div', { class: 'bar' + (full ? ' full' : ''), role: 'progressbar', 'aria-label': 'Fortschritt heute', 'aria-valuemin': 0, 'aria-valuemax': 100, 'aria-valuenow': pct }, h('i', { style: 'width:' + pct + '%' })),
+      full ? h('p', { class: 'hint' }, '🎉 Alles geschafft – super gemacht, ' + kid.name + '!') : null, rewardHint(kid))
+      : empty('🎈', d.tasks.length ? 'Heute ist für ' + kid.name + ' nichts dran. Genieß den Tag!' : 'Noch keine Aufgaben. Lege sie unter „Verwalten“ an.'),
+    h('div', { class: 'tiles2' }, tiles));
+}
+// ---------- Woche ----------
+function weekView() {
+  const d = store.data;
+  if (!d.kids.length) return noKids();
+  const kid = selKid(), todayK = ymd(new Date()), days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), keys = days.map(ymd), tmap = new Map(d.tasks.map((t) => [t.id, t]));
+  const dayPts = (k, key) => (d.done[key] || []).reduce((a, x) => { const i = x.indexOf(':'), t = tmap.get(x.slice(0, i)); return a + (t && x.slice(i + 1) === k.id ? t.points : 0); }, 0);
+  const nav = h('div', { class: 'card nav' }, h('button', { 'aria-label': 'Vorherige Woche', onclick: () => { weekStart = addDays(weekStart, -7); render(); } }, '‹'),
+    h('strong', {}, 'KW ' + isoWeek(weekStart) + ' · ' + fmtDate(keys[0]).slice(0, 6) + ' – ' + fmtDate(keys[6])), h('button', { 'aria-label': 'Nächste Woche', onclick: () => { weekStart = addDays(weekStart, 7); render(); } }, '›'),
+    h('button', { onclick: () => { weekStart = monday(new Date()); render(); } }, 'Diese Woche'));
+  const head = (extra) => h('tr', {}, h('th', { class: 'nm' }, extra), days.map((dt, i) => h('th', { class: keys[i] === todayK ? 'today' : '' }, WD[i], h('div', { class: 'dn' }, dt.getDate() + '.' + (dt.getMonth() + 1) + '.'))), h('th', {}, 'Σ'));
+  const kidRows = d.kids.map((k) => {
+    let tot = 0;
+    const cells = days.map((dt, i) => {
+      const p = dayPts(k, keys[i]), due = d.tasks.filter((t) => taskDue(t, k, dt)), all = due.length > 0 && due.every((t) => isDone(keys[i], t, k)); tot += p;
+      return h('td', { class: keys[i] === todayK ? 'today' : '' }, h('span', { class: 'pts ' + (all ? 'all' : p ? 'some' : 'none'), style: kstyle(k), title: all ? 'Alles erledigt' : '' }, p || '·'));
+    });
+    return h('tr', { class: k.id === sel ? 'sel' : '', style: kstyle(k) }, h('td', { class: 'nm' }, h('button', { class: 'kbtn', 'aria-pressed': String(k.id === sel), 'aria-label': k.name + ' auswählen', onclick: () => { sel = k.id; render(); } }, k.emoji, h('span', { class: 'nmcell' }, k.name))), cells, h('td', {}, h('b', {}, tot + ' ⭐')));
+  });
+  const mine = d.tasks.filter((t) => !t.kidIds.length || t.kidIds.includes(kid.id)), colSum = keys.map(() => 0);
+  const taskRows = mine.map((t) => {
+    let n = 0;
+    const cells = days.map((dt, i) => {
+      const ok = isDone(keys[i], t, kid), show = taskDue(t, kid, dt) || ok, fut = keys[i] > todayK;
+      if (ok) { n++; colSum[i] += t.points; }
+      if (!show) return h('td', { class: keys[i] === todayK ? 'today' : '' }, h('span', { class: 'na' }, '–'));
+      const b = h('button', { type: 'button', class: 'cell' + (ok ? ' done' : ''), disabled: fut && !ok, 'aria-pressed': String(ok), 'aria-label': t.name + ', ' + WD[i] + ' ' + fmtDate(keys[i]) + (ok ? ', erledigt' : ', offen'), dataset: { fk: t.id + ':' + kid.id + ':' + keys[i] } }, ok ? '✓' : '');
+      b.onclick = () => { focusKey = t.id + ':' + kid.id + ':' + keys[i]; toggle(keys[i], t, kid); };
+      return h('td', { class: keys[i] === todayK ? 'today' : '' }, b);
+    });
+    return h('tr', {}, h('td', { class: 'nm' }, t.emoji + ' ', h('span', { class: 'nmcell' }, t.name)), cells, h('td', {}, n * t.points));
+  });
+  return h('div', {}, nav,
+    h('div', { class: 'card scroll' }, h('table', { class: 'grid', 'aria-label': 'Punkte pro Kind und Tag' }, h('thead', {}, head('Kind')), h('tbody', {}, kidRows))),
+    kidBar(balStr),
+    h('div', { class: 'card scroll', style: kstyle(kid) }, h('h2', { style: 'margin:0 0 6px;font-size:1.1rem' }, kid.emoji + ' ' + kid.name + ' – Aufgaben der Woche'),
+      mine.length ? h('table', { class: 'grid', 'aria-label': 'Aufgaben von ' + kid.name }, h('thead', {}, head('Aufgabe')), h('tbody', {}, taskRows), h('tfoot', {}, h('tr', {}, h('td', { class: 'nm' }, 'Punkte'), colSum.map((p) => h('td', {}, p || '·')), h('td', {}, colSum.reduce((a, b) => a + b, 0) + ' ⭐'))))
+        : h('p', { class: 'muted' }, 'Noch keine Aufgaben für ' + kid.name + '.'),
+      h('p', { class: 'hint' }, 'Tippe auf ein Feld, um den Haken für den Tag zu setzen oder zu entfernen. Zukünftige Tage sind gesperrt.')));
+}
+// ---------- Belohnungen ----------
+function redeem(kid, r) {
+  if ((calcBalances().get(kid.id) || 0) < r.cost) return;
+  store.data.redeemed.push({ id: uid(), kidId: kid.id, rewardId: r.id, name: r.name, cost: r.cost, date: ymd(new Date()) });
+  msg = '🎉 ' + kid.name + ' hat „' + r.name + '“ eingelöst!'; store.changed(); render();
+}
+function rewardsView() {
+  const d = store.data;
+  if (!d.kids.length) return noKids();
+  const kid = selKid(), bal = BAL.get(kid.id) || 0;
+  const shop = d.rewards.slice().sort((a, b) => a.cost - b.cost || a.name.localeCompare(b.name)).map((r) => {
+    const can = bal >= r.cost, pct = r.cost > 0 ? Math.min(100, Math.max(0, bal / r.cost * 100)) : 100;
+    return h('div', { class: 'card reward' }, h('div', { class: 'em' }, r.emoji), h('div', { class: 'nm' }, r.name), h('span', { class: 'cost' }, '⭐ ' + r.cost),
+      h('div', { class: 'bar' + (can ? ' full' : '') }, h('i', { style: 'width:' + pct + '%' })),
+      h('button', { class: can ? 'primary' : '', disabled: !can, onclick: () => redeem(kid, r) }, can ? '🎁 Einlösen' : 'Noch ' + (r.cost - bal) + ' ⭐'));
+  });
+  const hist = d.redeemed.slice().reverse().sort((a, b) => b.date.localeCompare(a.date));
+  return h('div', { style: kstyle(kid) }, kidBar(balStr),
+    h('div', { class: 'card hero' }, h('div', { class: 'hello' }, kid.name + ' hat'), h('span', { class: 'sp' }), h('div', { class: 'star' }, '⭐', h('span', { id: 'balance' }, bal), h('small', {}, 'Punkte'))),
+    msg ? h('div', { class: 'card msg', role: 'status' }, msg) : null,
+    h('h2', { class: 'sec' }, '🛍️ Belohnungen'),
+    shop.length ? h('div', { class: 'shop' }, shop) : empty('🎁', 'Noch keine Belohnungen. Lege sie unter „Verwalten“ an.'),
+    h('h2', { class: 'sec' }, '🧾 Eingelöst'),
+    h('div', { class: 'card' }, hist.length ? [hist.slice(0, 30).map((r) => { const k = kidById(r.kidId);
+      return h('div', { class: 'tx' }, h('span', { class: 'd' }, fmtDate(r.date)), h('span', { class: 'n' }, (k ? k.emoji + ' ' + k.name + ': ' : '') + r.name), h('b', { class: 'neg' }, '−' + r.cost + ' ⭐'),
+        h('button', { class: 'small', onclick: () => { if (confirm('„' + r.name + '“' + (k ? ' (' + k.name + ')' : '') + ' rückgängig machen? Die ' + r.cost + ' Punkte werden zurückgebucht.')) { d.redeemed = d.redeemed.filter((x) => x !== r); store.changed(); render(); } } }, 'Rückgängig')); }),
+      hist.length > 30 ? h('p', { class: 'hint' }, '… und ' + (hist.length - 30) + ' ältere Einlösungen') : null] : h('p', { class: 'muted', style: 'margin:0' }, 'Noch nichts eingelöst.')));
+}
+// ---------- Taschengeld ----------
+function pocketView() {
+  const d = store.data;
+  if (!d.kids.length) return noKids();
+  const kid = selKid(), list = d.pocket[kid.id] || [], bal = round2(list.reduce((a, e) => a + e.amount, 0)), wk = ymd(monday(new Date()));
+  const sub = (k) => eur(round2((d.pocket[k.id] || []).reduce((a, e) => a + e.amount, 0)));
+  const al = h('input', { type: 'text', inputMode: 'decimal', class: 'w', value: kid.allowance ? fmtNum(kid.allowance) : '', placeholder: '0,00', 'aria-label': 'Wochengeld in Euro' });
+  const af = h('form', { class: 'form' }, L('Wochengeld (€ pro Woche)', al), h('button', {}, 'Speichern'));
+  af.onsubmit = (e) => { e.preventDefault(); const a = al.value.trim() === '' ? 0 : parseAmount(al.value); if (Number.isNaN(a)) { alert('Bitte einen gültigen Betrag eingeben (z. B. 2,50).'); return; } kid.allowance = a; store.changed(); render(); };
+  const lastAl = list.filter((e) => e.week).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const book = h('button', { class: 'primary', disabled: !(kid.allowance > 0) }, '💶 Wochengeld buchen' + (kid.allowance > 0 ? ' (' + eur(kid.allowance) + ')' : ''));
+  book.onclick = () => {
+    if (list.some((e) => e.week === wk) && !confirm('Das Wochengeld für diese Woche wurde schon gebucht. Trotzdem noch einmal buchen?')) return;
+    (d.pocket[kid.id] || (d.pocket[kid.id] = [])).push({ id: uid(), date: ymd(new Date()), amount: kid.allowance, note: 'Wochengeld', week: wk }); store.changed(); render();
+  };
+  const amt = h('input', { type: 'text', inputMode: 'decimal', class: 'w', required: true, placeholder: 'z. B. 2,50', 'aria-label': 'Betrag in Euro' });
+  const note = h('input', { type: 'text', placeholder: 'z. B. Eis gekauft', style: 'min-width:160px', 'aria-label': 'Notiz' });
+  const date = h('input', { type: 'date', value: ymd(new Date()), 'aria-label': 'Datum' });
+  const f = h('form', { class: 'form' }, L('Betrag (€)', amt), L('Notiz', note), L('Datum', date), h('button', { class: 'primary', dataset: { sign: '+' } }, '＋ Einnahme'), h('button', { dataset: { sign: '-' } }, '− Ausgabe'));
+  f.onsubmit = (e) => {
+    e.preventDefault(); const a = parseAmount(amt.value);
+    if (!(a > 0)) { alert('Bitte einen Betrag größer 0 eingeben (z. B. 2,50).'); return; }
+    (d.pocket[kid.id] || (d.pocket[kid.id] = [])).push({ id: uid(), date: date.value || ymd(new Date()), amount: e.submitter && e.submitter.dataset.sign === '-' ? -a : a, note: note.value.trim() });
+    store.changed(); render();
+  };
+  let run = 0;
+  const rows = list.map((e, i) => ({ e, i })).sort((a, b) => a.e.date.localeCompare(b.e.date) || a.i - b.i).map((x) => { run = round2(run + x.e.amount); return { e: x.e, run }; }).reverse();
+  return h('div', { style: kstyle(kid) }, kidBar(sub),
+    h('div', { class: 'card hero' }, h('div', {}, h('div', { class: 'muted' }, kid.name + ' hat'), h('div', { class: 'bal ' + (bal < 0 ? 'neg' : 'pos'), id: 'pocketbal' }, eur(bal))), h('span', { class: 'sp' }),
+      h('div', { style: 'display:flex;flex-direction:column;gap:6px;align-items:flex-start' }, af, h('div', { class: 'row' }, book, lastAl ? h('span', { class: 'hint' }, 'zuletzt am ' + fmtDate(lastAl.date)) : null))),
+    h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 8px;font-size:1.05rem' }, 'Neue Buchung'), f),
+    h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 4px;font-size:1.05rem' }, 'Verlauf'), rows.length ? rows.map(({ e, run: r }) => h('div', { class: 'tx' },
+      h('span', { class: 'd' }, fmtDate(e.date)), h('span', { class: 'n' }, e.note || (e.amount < 0 ? 'Ausgabe' : 'Einnahme')), h('b', { class: e.amount < 0 ? 'neg' : 'pos' }, (e.amount > 0 ? '+' : '') + eur(e.amount)), h('span', { class: 's' }, 'Saldo ' + eur(r)),
+      h('button', { class: 'small', title: 'Buchung löschen', 'aria-label': 'Buchung löschen', onclick: () => { if (confirm('Buchung „' + (e.note || eur(e.amount)) + '“ löschen?')) { d.pocket[kid.id] = d.pocket[kid.id].filter((x) => x !== e); store.changed(); render(); } } }, '✕')))
+      : h('p', { class: 'muted', style: 'margin:0' }, 'Noch keine Buchungen.')));
+}
+// ---------- Verwalten ----------
+const picker = (input, list) => h('div', { class: 'emo', 'aria-label': 'Emoji wählen', role: 'group' }, list.map((e) => h('button', { type: 'button', 'aria-label': 'Emoji ' + e, onclick: () => { input.value = e; } }, e)));
+const startEdit = (kind, id) => { edit = { kind, id }; scrollTo = 'f-' + kind; render(); };
+const endEdit = () => { edit = null; render(); };
+const editing = (kind) => (edit && edit.kind === kind ? edit : null);
+const daysText = (t) => (!t.days.length ? 'täglich' : t.days.join() === '0,1,2,3,4' ? 'Mo–Fr' : t.days.join() === '5,6' ? 'Sa + So' : t.days.map((i) => WD[i]).join(' '));
+function kidForm() {
+  const d = store.data, cur = editing('kid') && kidById(edit.id); let color = cur ? cur.color : PAL[d.kids.length % 5];
+  const name = h('input', { type: 'text', required: true, maxLength: 30, placeholder: 'Name', 'aria-label': 'Name', value: cur ? cur.name : '' });
+  const emoji = h('input', { type: 'text', maxLength: 8, class: 'emo-in', 'aria-label': 'Emoji', value: cur ? cur.emoji : KID_EMO[d.kids.length % KID_EMO.length] });
+  const sw = PAL.map((p) => h('button', { type: 'button', class: 'sw', style: 'background:var(' + p + ')', 'aria-label': 'Farbe ' + p.slice(3), 'aria-pressed': String(p === color), dataset: { c: p }, onclick: () => { color = p; sw.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.c === color))); } }));
+  const cancel = h('button', { type: 'button', hidden: !cur, onclick: endEdit }, 'Abbrechen');
+  const f = h('form', { class: 'card form', id: 'f-kid' }, L('Name', name), L('Emoji', emoji), h('div', { class: 'grp' }, h('span', { class: 'lbl' }, 'Farbe'), sw), picker(emoji, KID_EMO), h('button', { class: 'primary' }, cur ? 'Übernehmen' : 'Kind hinzufügen'), cancel);
+  f.onsubmit = (e) => {
+    e.preventDefault(); const rec = { name: name.value.trim(), emoji: emoji.value.trim() || '🙂', color };
+    if (!rec.name) return;
+    if (cur) Object.assign(cur, rec); else { const k = { id: uid(), allowance: 0, ...rec }; d.kids.push(k); if (!sel) sel = k.id; }
+    edit = null; store.changed(); render();
+  };
+  return f;
+}
+function taskForm() {
+  const d = store.data, cur = editing('task') && d.tasks.find((t) => t.id === edit.id);
+  const name = h('input', { type: 'text', required: true, maxLength: 60, placeholder: 'z. B. Zähne putzen', 'aria-label': 'Aufgabe', style: 'min-width:180px', value: cur ? cur.name : '' });
+  const emoji = h('input', { type: 'text', maxLength: 8, class: 'emo-in', 'aria-label': 'Emoji', value: cur ? cur.emoji : TASK_EMO[d.tasks.length % TASK_EMO.length] });
+  const pts = h('input', { type: 'number', min: 1, max: 999, step: 1, class: 'w', required: true, 'aria-label': 'Punkte', value: cur ? cur.points : 1, style: 'width:6em' });
+  const dayIn = WD.map((w, i) => h('input', { type: 'checkbox', checked: cur ? cur.days.includes(i) : false }));
+  const setDays = (a) => dayIn.forEach((c, i) => { c.checked = a.includes(i); });
+  const kidIn = d.kids.map((k) => h('input', { type: 'checkbox', checked: cur ? cur.kidIds.includes(k.id) : false }));
+  const cancel = h('button', { type: 'button', hidden: !cur, onclick: endEdit }, 'Abbrechen');
+  const f = h('form', { class: 'card form', id: 'f-task' }, L('Aufgabe', name), L('Emoji', emoji), L('Punkte ⭐', pts), picker(emoji, TASK_EMO),
+    h('div', { class: 'grp' }, h('span', { class: 'lbl' }, 'An welchen Tagen? (nichts gewählt = täglich)'), WD.map((w, i) => h('label', { class: 'pill' }, dayIn[i], w)),
+      h('button', { type: 'button', class: 'small', onclick: () => setDays([0, 1, 2, 3, 4]) }, 'Mo–Fr'), h('button', { type: 'button', class: 'small', onclick: () => setDays([5, 6]) }, 'Wochenende'), h('button', { type: 'button', class: 'small', onclick: () => setDays([]) }, 'Täglich')),
+    d.kids.length ? h('div', { class: 'grp' }, h('span', { class: 'lbl' }, 'Für wen? (nichts gewählt = für alle Kinder)'), d.kids.map((k, i) => h('label', { class: 'pill' }, kidIn[i], k.emoji + ' ' + k.name))) : null,
+    cur ? h('p', { class: 'hint', style: 'width:100%;margin:0' }, 'Geänderte Punkte gelten auch rückwirkend für bereits erledigte Tage.') : null,
+    h('button', { class: 'primary' }, cur ? 'Übernehmen' : 'Aufgabe hinzufügen'), cancel);
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const days = dayIn.map((c, i) => (c.checked ? i : -1)).filter((i) => i >= 0), kidIds = d.kids.filter((k, i) => kidIn[i].checked).map((k) => k.id);
+    const rec = { name: name.value.trim(), emoji: emoji.value.trim() || '⭐', points: num(pts.value, 1, 1), days: days.length === 7 ? [] : days, kidIds: kidIds.length === d.kids.length ? [] : kidIds };
+    if (!rec.name) return;
+    if (cur) Object.assign(cur, rec); else d.tasks.push({ id: uid(), ...rec });
+    edit = null; store.changed(); render();
+  };
+  return f;
+}
+function rewardForm() {
+  const d = store.data, cur = editing('reward') && d.rewards.find((r) => r.id === edit.id);
+  const name = h('input', { type: 'text', required: true, maxLength: 60, placeholder: 'z. B. Eis essen', 'aria-label': 'Belohnung', style: 'min-width:180px', value: cur ? cur.name : '' });
+  const emoji = h('input', { type: 'text', maxLength: 8, class: 'emo-in', 'aria-label': 'Emoji', value: cur ? cur.emoji : REW_EMO[d.rewards.length % REW_EMO.length] });
+  const cost = h('input', { type: 'number', min: 1, step: 1, required: true, 'aria-label': 'Kosten in Punkten', value: cur ? cur.cost : 10, style: 'width:6em' });
+  const cancel = h('button', { type: 'button', hidden: !cur, onclick: endEdit }, 'Abbrechen');
+  const f = h('form', { class: 'card form', id: 'f-reward' }, L('Belohnung', name), L('Emoji', emoji), L('Kosten ⭐', cost), picker(emoji, REW_EMO), h('button', { class: 'primary' }, cur ? 'Übernehmen' : 'Belohnung hinzufügen'), cancel);
+  f.onsubmit = (e) => {
+    e.preventDefault(); const rec = { name: name.value.trim(), emoji: emoji.value.trim() || '🎁', cost: num(cost.value, 1, 1) };
+    if (!rec.name) return;
+    if (cur) Object.assign(cur, rec); else d.rewards.push({ id: uid(), ...rec });
+    edit = null; store.changed(); render();
+  };
+  return f;
+}
+function manageView() {
+  const d = store.data;
+  const delBtn = (what, fn) => h('button', { class: 'small', title: 'Löschen', 'aria-label': what + ' löschen', onclick: fn }, '✕');
+  const kids = d.kids.map((k) => h('div', { class: 'item', style: kstyle(k) }, h('span', { class: 'mini' }, k.emoji), h('div', { class: 'nm' }, h('strong', {}, k.name), h('div', { class: 'meta' }, '⭐ ' + (BAL.get(k.id) || 0) + ' Punkte' + (k.allowance > 0 ? ' · Wochengeld ' + eur(k.allowance) : ''))),
+    h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': k.name + ' bearbeiten', onclick: () => startEdit('kid', k.id) }, '✎'),
+    delBtn(k.name, () => {
+      if (!confirm('„' + k.name + '“ löschen? Alle Haken, Einlösungen und Taschengeld-Buchungen dieses Kindes gehen verloren.')) return;
+      d.kids = d.kids.filter((x) => x !== k); d.redeemed = d.redeemed.filter((r) => r.kidId !== k.id); delete d.pocket[k.id];
+      for (const day of Object.keys(d.done)) { d.done[day] = d.done[day].filter((x) => x.slice(x.indexOf(':') + 1) !== k.id); if (!d.done[day].length) delete d.done[day]; }
+      d.tasks.forEach((t) => { t.kidIds = t.kidIds.filter((x) => x !== k.id); });
+      edit = null; store.changed(); render();
+    })));
+  const tasks = d.tasks.map((t) => h('div', { class: 'item' }, h('span', { class: 'em' }, t.emoji), h('div', { class: 'nm' }, h('strong', {}, t.name), h('div', { class: 'meta' }, daysText(t) + ' · ' + (t.kidIds.length ? t.kidIds.map((id) => (kidById(id) || { name: '?' }).name).join(', ') : 'alle Kinder'))),
+    h('span', { class: 'cost' }, '+' + t.points + ' ⭐'),
+    h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': t.name + ' bearbeiten', onclick: () => startEdit('task', t.id) }, '✎'),
+    delBtn(t.name, () => {
+      let n = 0; for (const day in d.done) n += d.done[day].filter((x) => x.startsWith(t.id + ':')).length;
+      if (!confirm('„' + t.name + '“ löschen?' + (n ? ' Die ' + n + ' bereits gesetzten Haken (und ihre Punkte) werden ebenfalls entfernt.' : ''))) return;
+      d.tasks = d.tasks.filter((x) => x !== t);
+      for (const day of Object.keys(d.done)) { d.done[day] = d.done[day].filter((x) => !x.startsWith(t.id + ':')); if (!d.done[day].length) delete d.done[day]; }
+      edit = null; store.changed(); render();
+    })));
+  const rewards = d.rewards.map((r) => h('div', { class: 'item' }, h('span', { class: 'em' }, r.emoji), h('div', { class: 'nm' }, h('strong', {}, r.name)), h('span', { class: 'cost' }, '⭐ ' + r.cost),
+    h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': r.name + ' bearbeiten', onclick: () => startEdit('reward', r.id) }, '✎'),
+    delBtn(r.name, () => { if (confirm('„' + r.name + '“ löschen? Bereits eingelöste Belohnungen bleiben im Verlauf erhalten.')) { d.rewards = d.rewards.filter((x) => x !== r); edit = null; store.changed(); render(); } })));
+  const list = (items, text) => h('div', { class: 'card' }, items.length ? items : h('p', { class: 'muted', style: 'margin:0' }, text));
+  return h('div', {},
+    !d.kids.length && !d.tasks.length && !d.rewards.length ? h('div', { class: 'card' }, h('strong', {}, 'Neu hier? '), 'Lege Kinder, Aufgaben und Belohnungen an – oder probiere es mit ', h('button', { class: 'small', onclick: loadSample }, 'Beispieldaten')) : null,
+    h('h2', { class: 'sec' }, '🧒 Kinder'), kidForm(), list(kids, 'Noch keine Kinder.'),
+    h('h2', { class: 'sec' }, '✅ Aufgaben'), taskForm(), list(tasks, 'Noch keine Aufgaben.'),
+    h('h2', { class: 'sec' }, '🎁 Belohnungen'), rewardForm(), list(rewards, 'Noch keine Belohnungen.'));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; edit = null; msg = ''; render(); });
+// Datumswechsel bei offenem Tablet über Nacht
+setInterval(() => { if (ymd(new Date()) !== curDay) { weekStart = monday(new Date()); render(); } }, 30000);
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
