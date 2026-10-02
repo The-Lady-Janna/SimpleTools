@@ -82,7 +82,7 @@
   .pos { color:var(--ok); font-weight:700; } .neg { color:var(--err); font-weight:700; }
   .bal { font-size:2rem; font-weight:800; line-height:1.1; }
   .item { display:flex; align-items:center; gap:6px 10px; padding:8px 0; border-bottom:1px solid var(--line); }
-  .item .nm { flex:1; min-width:0; overflow-wrap:anywhere; } .item button, .item .cost { flex:none; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .item .nm { flex:1; min-width:0; overflow-wrap:break-word; } .item button, .item .cost { flex:none; } .item .meta { color:var(--muted); font-size:.85rem; }
   .item .em { font-size:1.6rem; width:2rem; text-align:center; }
   .mini { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:1.3rem; background:color-mix(in srgb, var(--kc) 26%, var(--card)); border:2px solid var(--kc); flex:none; }
   .emo { display:flex; flex-wrap:wrap; gap:4px; width:100%; } .emo button { min-width:40px; padding:2px 6px; font-size:1.2rem; }
@@ -101,6 +101,7 @@
     table.tt tr.tn { display:table-row; } table.tt tr.tn td { text-align:left; border-bottom:0; padding:8px 2px 0; font-weight:600; } table.tt .nm { display:none; }
     .shop { grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; } .reward { padding:10px; } .reward .em { font-size:2.2rem; }
     .tx .s { flex:1; text-align:right; } .tx .d { min-width:0; }
+    .item { gap:6px; } .item .em { width:1.6rem; font-size:1.4rem; } .item button { min-height:36px; padding:2px 8px; } .item .cost { font-size:.88rem; padding:1px 7px; }
     .tabs button { padding:6px 10px; font-size:.95rem; }
   }
 

@@ -443,7 +443,8 @@ function checklist(p, key, title, ph) {
 }
 function projCard(p) {
   const name = h('input', { type: 'text', class: 'pname', value: p.name, maxLength: 120, 'aria-label': 'Projektname' });
-  name.oninput = () => { p.name = name.value; store.changed(); }; name.onchange = () => { if (!name.value.trim()) { name.value = p.name = 'Ohne Namen'; store.changed(); } };
+  const del = h('button', { class: 'small', title: 'Projekt löschen', 'aria-label': p.name + ' löschen', onclick: () => { if (confirm('Projekt „' + p.name + '“ löschen?')) { store.data.projects = store.data.projects.filter((x) => x !== p); store.changed(); render(); } } }, '✕');
+  name.oninput = () => { p.name = name.value; del.setAttribute('aria-label', p.name + ' löschen'); store.changed(); }; name.onchange = () => { if (!name.value.trim()) { name.value = p.name = 'Ohne Namen'; store.changed(); } };
   const type = h('select', { 'aria-label': 'Art des Projekts' }, Object.keys(PTYPES).map((t) => h('option', { value: t, selected: t === p.type }, PTYPES[t] + ' ' + t))); type.onchange = () => { p.type = type.value; store.changed(); render(); };
   const st = h('select', { class: 'badge ' + ST_CLS[p.status], 'aria-label': 'Status' }, STATUS.map((s) => h('option', { value: s, selected: s === p.status }, s))); st.onchange = () => setStatus(p, st.value);
   const dur = h('div', { class: 'muted', style: 'font-size:.85rem;margin-top:4px' }, durText(p));
@@ -451,7 +452,7 @@ function projCard(p) {
   d1.onchange = () => { p.started = d1.value; store.changed(); dur.textContent = durText(p); }; d2.onchange = () => { p.finished = d2.value; store.changed(); dur.textContent = durText(p); };
   const notes = h('textarea', { placeholder: 'Anleitung, Maße, Wolle/Material, Ideen …', 'aria-label': 'Notizen', value: p.notes }); notes.oninput = () => { p.notes = notes.value; store.changed(); };
   return h('div', { class: 'card proj' }, h('div', { class: 'head' }, name, st, type,
-    h('button', { class: 'small', title: 'Projekt löschen', 'aria-label': p.name + ' löschen', onclick: () => { if (confirm('Projekt „' + p.name + '“ löschen?')) { store.data.projects = store.data.projects.filter((x) => x !== p); store.changed(); render(); } } }, '✕')),
+    del),
     h('div', { class: 'pgrid' }, counterBox(p), checklist(p, 'materials', 'Material', 'z. B. 200 g Wolle, Nadel 4 mm'), checklist(p, 'steps', 'Schritte', 'z. B. Bündchen stricken'),
       h('div', {}, h('h4', {}, h('span', {}, 'Notizen & Daten')), notes,
         h('div', { class: 'fgrid', style: 'margin-top:8px' }, h('label', { class: 'f' }, 'Begonnen', d1), h('label', { class: 'f' }, 'Fertig', d2)), dur)));
