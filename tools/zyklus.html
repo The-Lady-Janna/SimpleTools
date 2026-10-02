@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zyklus &amp; Wohlbefinden</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  main h2 { font-size:1.05rem; margin:0 0 8px; }
+  h2.sect { margin:22px 0 4px; font-size:1.2rem; }
+  .notes { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:10px; margin:10px 0; }
+  .notes .card { margin:0; display:flex; flex-direction:column; gap:4px; font-size:.92rem; }
+  .notes .card b { font-size:1rem; }
+  .notes .priv { border-color:var(--ok); background:color-mix(in srgb, var(--ok) 8%, var(--card)); }
+  .notes .priv b { color:var(--ok); }
+  .notes .disc { border-color:var(--warn); background:color-mix(in srgb, var(--warn) 9%, var(--card)); }
+  .notes .disc b { color:var(--warn); }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; display:flex; flex-direction:column; gap:2px; justify-content:center; }
+  .sum b { font-size:1.25rem; line-height:1.25; } .sum .sub { font-size:.82rem; }
+  .warnc { color:var(--warn); }
+  .layout { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:12px; align-items:start; margin:12px 0; }
+  .layout > .card, .layout > div > .card { margin:0; }
+  @media (max-width: 900px) { .layout { grid-template-columns:minmax(0,1fr); } }
+  .cal { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; margin-top:10px; }
+  .cal .dh { text-align:center; font-size:.8rem; color:var(--muted); padding:2px 0; }
+  .cd { position:relative; display:flex; flex-direction:column; justify-content:space-between; align-items:center; min-height:62px; padding:4px 3px; border-radius:8px;
+        border:1px solid var(--line); background:var(--card); min-width:0; }
+  .cd .n { font-size:.88rem; line-height:1.35; min-width:1.7em; text-align:center; border-radius:99px; padding:0 4px; }
+  .cd.out { opacity:.45; }
+  .cd.pred { border:2px dashed color-mix(in srgb, var(--c5) 75%, transparent); background:color-mix(in srgb, var(--c5) 8%, var(--card)); }
+  .cd.fertile { background:color-mix(in srgb, var(--c2) 15%, var(--card)); box-shadow:inset 0 -4px 0 color-mix(in srgb, var(--c2) 65%, transparent); }
+  .cd.f1 { background:color-mix(in srgb, var(--c5) 26%, var(--card)); border-color:var(--c5); }
+  .cd.f2 { background:color-mix(in srgb, var(--c5) 50%, var(--card)); border-color:var(--c5); }
+  .cd.f3 { background:color-mix(in srgb, var(--c5) 72%, var(--card)); border-color:var(--c5); }
+  .cd.today .n { background:var(--accent); color:var(--on-accent); font-weight:700; }
+  .cd.sel { outline:2px solid var(--accent); outline-offset:1px; }
+  .cd:hover { border-color:var(--accent); }
+  .ovm { position:absolute; top:4px; right:4px; width:10px; height:10px; border-radius:50%; border:2px solid var(--c2); background:var(--card); }
+  .ovm.lg { position:static; display:inline-block; vertical-align:-1px; margin-right:6px; }
+  .dots { display:flex; gap:3px; height:8px; align-items:center; }
+  .dot { display:inline-block; width:6px; height:6px; border-radius:50%; } .dot.sym { background:var(--c4); } .dot.note { background:var(--muted); }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.82rem; margin-top:12px; }
+  .legend span { display:inline-flex; align-items:center; gap:2px; white-space:nowrap; }
+  .legend .dot { margin-right:6px; }
+  .sw { display:inline-block; width:.85em; height:.85em; border-radius:3px; margin-right:6px; border:1px solid var(--c5); flex:none; }
+  .legend .sw + .sw { margin-left:-3px; }
+  .sw.f1 { background:color-mix(in srgb, var(--c5) 26%, var(--card)); } .sw.f2 { background:color-mix(in srgb, var(--c5) 50%, var(--card)); } .sw.f3 { background:color-mix(in srgb, var(--c5) 72%, var(--card)); }
+  .sw.pr { border:2px dashed color-mix(in srgb, var(--c5) 75%, transparent); background:color-mix(in srgb, var(--c5) 8%, var(--card)); }
+  .sw.fe { border-color:var(--c2); background:color-mix(in srgb, var(--c2) 15%, var(--card)); box-shadow:inset 0 -3px 0 color-mix(in srgb, var(--c2) 65%, transparent); }
+  .small-note { font-size:.8rem; color:var(--muted); margin:8px 0 0; }
+  .ed .head { display:flex; align-items:center; gap:6px; margin-bottom:4px; } .ed .head h2 { margin:0; flex:1; line-height:1.3; }
+  .ed .phase { color:var(--muted); font-size:.88rem; margin:0 0 8px; }
+  .fld { margin:12px 0; } .fld .lbl { font-size:.82rem; color:var(--muted); margin-bottom:4px; }
+  .opts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .opt { min-height:38px; padding:4px 12px; }
+  .opt.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .opt.emo { font-size:1.35rem; line-height:1.2; padding:2px 10px; }
+  .opt.num { min-width:42px; padding:4px 0; }
+  .opts .lo { font-size:.8rem; color:var(--muted); }
+  .sy { border-radius:99px; padding:3px 12px; font-size:.9rem; min-height:34px; }
+  .sy.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .sy.rm { border-style:dashed; }
+  .ed form.row input[type=text] { flex:1; min-width:150px; }
+  .ed input.w { width:6.5em; } .ed textarea { width:100%; min-height:70px; resize:vertical; }
+  .ed input[aria-invalid=true] { border-color:var(--err); }
+  .ed .foot { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px; border-top:1px solid var(--line); padding-top:10px; }
+  .ph { text-align:center; padding:22px 16px; }
+  .hgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; margin:8px 0 12px; }
+  .hgrid .card { margin:0; min-width:0; }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; } th { font-weight:600; color:var(--muted); font-size:.8rem; }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; } svg.chart text.val { fill:var(--fg); font-weight:600; }
+  .srow { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:2px 10px; margin:8px 0; font-size:.92rem; }
+  .bar { grid-column:1 / -1; height:8px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--c4); }
+  .form { display:flex; flex-wrap:wrap; gap:12px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.nw { width:7em; }
+  @media (max-width: 560px) { .cd { min-height:48px; padding:3px 1px; } .cd .n { font-size:.82rem; min-width:1.5em; } .cal { gap:3px; } .ovm { top:2px; right:2px; width:8px; height:8px; } }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Zyklus &amp; Wohlbefinden</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="notes">
+    <div class="card priv"><b>🔒 Nur lokal gespeichert – nichts wird gesendet</b><span>Deine Einträge liegen ausschließlich in der Datei, die du oben speicherst, auf diesem Gerät. Diese Seite verschickt keine Daten und braucht kein Konto.</span></div>
+    <div class="card disc" role="note"><b>⚠ Keine medizinische Beratung – nicht zur Verhütung geeignet</b><span>Alle Vorhersagen (nächste Periode, fruchtbares Fenster, Eisprung) sind grobe Schätzungen aus deinen eigenen Eingaben und können deutlich danebenliegen. Verlasse dich nicht darauf, um eine Schwangerschaft zu vermeiden oder zu planen. Bei Beschwerden oder auffälligen Zyklen sprich mit einer Ärztin oder einem Arzt.</span></div>
+  </div>
+  <div class="sum" id="sum"></div>
+  <div class="layout">
+    <div class="card" id="calcard">
+      <div class="toolbar" id="nav">
+        <button id="prev" aria-label="Voriger Monat">‹</button><strong id="label" aria-live="polite"></strong><button id="next" aria-label="Nächster Monat">›</button>
+        <span class="sp"></span><button id="now">Heute</button><button id="logtoday" class="primary">＋ Heute eintragen</button>
+      </div>
+      <div class="cal" id="cal" role="group" aria-label="Monatskalender"></div>
+      <div class="legend" aria-label="Legende">
+        <span><i class="sw f1"></i><i class="sw f2"></i><i class="sw f3"></i>Periode (leicht → stark)</span>
+        <span><i class="sw pr"></i>Erwartete Periode</span>
+        <span><i class="sw fe"></i>Fruchtbares Fenster</span>
+        <span><i class="ovm lg"></i>Eisprung</span>
+        <span><i class="dot sym"></i>Symptome</span>
+        <span><i class="dot note"></i>Notiz</span>
+      </div>
+      <p class="small-note">Erwartete Periode, fruchtbares Fenster und Eisprung sind Schätzungen (Kalendermethode): Eisprung ≈ Zyklustag „Zykluslänge − 14“, fruchtbar ≈ 5 Tage davor bis 1 Tag danach. Sie sind besonders bei unregelmäßigen Zyklen ungenau.</p>
+    </div>
+    <div id="editor"></div>
+  </div>
+  <h2 class="sect">Verlauf</h2>
+  <div class="hgrid">
+    <div class="card"><h2>Letzte Zyklen</h2><div id="cycles"></div></div>
+    <div class="card"><h2>Zykluslängen</h2><div id="chart"></div><p class="small-note" id="chartnote"></p></div>
+    <div class="card"><h2>Häufigste Symptome</h2><div id="top"></div></div>
+  </div>
+  <div class="card">
+    <h2>Einstellungen</h2>
+    <div class="form">
+      <label class="f">Standard-Zykluslänge (Tage)<input type="number" id="cl" class="nw" min="15" max="60" step="1"></label>
+      <label class="f">Standard-Periodendauer (Tage)<input type="number" id="pl" class="nw" min="1" max="10" step="1"></label>
+    </div>
+    <p class="small-note">Diese Werte gelten, solange noch keine Zyklen eingetragen sind. Danach rechnet das Tool mit dem Durchschnitt deiner letzten (bis zu 6) Zyklen und Perioden.</p>
+  </div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'zyklus',
+  defaults: () => ({ days: {}, settings: { cycleLength: 28, periodLength: 5 }, symptoms: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const DEFAULT_SYMPTOMS = ['Kopfschmerzen', 'Krämpfe', 'Müdigkeit', 'Heißhunger', 'Blähbauch', 'Stimmungsschwankungen', 'Rückenschmerzen', 'Hautunreinheiten', 'Schlafprobleme', 'Brustspannen'];
+const FLOWN = ['Keine', 'Leicht', 'Mittel', 'Stark'];
+const MOODS = [['😣', 'sehr schlecht'], ['🙁', 'schlecht'], ['😐', 'neutral'], ['🙂', 'gut'], ['😄', 'sehr gut']];
+const LEVELS = ['sehr niedrig', 'niedrig', 'mittel', 'hoch', 'sehr hoch'];
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+let sel = null, manage = false, M = null;
+let view = { y: new Date().getFullYear(), m: new Date().getMonth() };
+
+const KEY = /^\d{4}-\d{2}-\d{2}$/;
+const validKey = (k) => KEY.test(k) && ymd(parseYmd(k)) === k;
+const T0 = () => ymd(new Date());
+const addDays = (k, n) => { const d = parseYmd(k); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+const diff = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
+const fmt1 = (n) => (Math.round(n * 10) / 10).toLocaleString('de-DE');
+const tage = (n) => n === 1 ? '1 Tag' : n + ' Tage';
+const tageDat = (n) => n === 1 ? '1 Tag' : n + ' Tagen';
+const longDate = (k) => parseYmd(k).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+function normalize() {
+  const d = store.data, obj = (v) => v && typeof v === 'object' && !Array.isArray(v);
+  if (!obj(d.days)) d.days = {};
+  if (!obj(d.settings)) d.settings = {};
+  const cl = Math.round(+d.settings.cycleLength), pl = Math.round(+d.settings.periodLength);
+  d.settings.cycleLength = cl >= 15 && cl <= 60 ? cl : 28;
+  d.settings.periodLength = pl >= 1 && pl <= 10 ? pl : 5;
+  if (!Array.isArray(d.symptoms)) d.symptoms = [];
+  d.symptoms = [...new Set(d.symptoms.filter((s) => typeof s === 'string' && s.trim()).map((s) => s.trim()))];
+  if (!d.symptoms.length) d.symptoms = DEFAULT_SYMPTOMS.slice();
+  for (const k of Object.keys(d.days)) {
+    if (!validKey(k)) continue;   // Unbekanntes bleibt unangetastet
+    let r = d.days[k];
+    if (!obj(r)) r = d.days[k] = {};
+    const f = Math.round(+r.flow); r.flow = f >= 0 && f <= 3 ? f : 0;
+    r.symptoms = Array.isArray(r.symptoms) ? r.symptoms.filter((s) => typeof s === 'string') : [];
+    r.note = typeof r.note === 'string' ? r.note : '';
+    for (const x of ['mood', 'energy']) { const v = Math.round(+r[x]); if (v >= 1 && v <= 5) r[x] = v; else delete r[x]; }
+    const t = +r.temp; if (r.temp != null && r.temp !== '' && Number.isFinite(t)) r.temp = t; else delete r.temp;
+  }
+  if (sel && !validKey(sel)) sel = null;
+}
+const isEmpty = (r) => !r.flow && !r.symptoms.length && !r.mood && !r.energy && !r.note.trim() && r.temp == null;
+function touch(k, fn) {
+  const days = store.data.days, r = days[k] || { flow: 0, symptoms: [], note: '' };
+  fn(r);
+  if (isEmpty(r)) delete days[k]; else days[k] = r;
+}
+function edit(k, fn) { touch(k, fn); store.changed(); render(); }
+
+// ---------- Zyklen ableiten & Schätzungen ----------
+function model() {
+  const d = store.data, t = T0(), mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const keys = Object.keys(d.days).filter(validKey).sort(), ps = [];
+  let cur = null;
+  for (const k of keys) {
+    if (!(d.days[k].flow > 0)) continue;
+    if (cur && addDays(cur.end, 1) === k) { cur.end = k; cur.len++; } else { cur = { start: k, end: k, len: 1, cycleLen: null, counted: false }; ps.push(cur); }
+  }
+  ps.forEach((p, i) => { if (ps[i + 1]) { p.cycleLen = diff(p.start, ps[i + 1].start); p.counted = p.cycleLen >= 15 && p.cycleLen <= 100; } });
+  const last = ps[ps.length - 1] || null;
+  const gaps = ps.filter((p) => p.counted).map((p) => p.cycleLen).slice(-6);
+  const lens = ps.filter((p) => !(p === last && diff(p.end, t) <= 1)).map((p) => p.len).slice(-6);   // laufende Periode zählt noch nicht
+  const avgCycle = gaps.length ? mean(gaps) : d.settings.cycleLength, avgPeriod = lens.length ? mean(lens) : d.settings.periodLength;
+  const cl = Math.round(avgCycle), pl = Math.max(1, Math.round(avgPeriod));
+  const marks = {}, mark = (k, o) => { marks[k] = Object.assign(marks[k] || {}, o); };
+  const cyc = ps.filter((p) => p.cycleLen == null || p.counted).map((p) => ({ start: p.start, len: p.counted ? p.cycleLen : cl }));
+  if (last) for (let i = 1; i <= 3; i++) cyc.push({ start: addDays(last.start, i * cl), len: cl, pred: true });
+  for (const c of cyc) {
+    const ov = addDays(c.start, c.len - 15);   // Zyklustag (Zykluslänge − 14)
+    mark(ov, { ov: true });
+    for (let i = -5; i <= 1; i++) mark(addDays(ov, i), { fertile: true });
+    if (c.pred) for (let i = 0; i < pl; i++) mark(addDays(c.start, i), { pred: true });
+  }
+  let curP = null; for (const p of ps) if (p.start <= t) curP = p;
+  const n = curP ? diff(curP.start, t) + 1 : 0;
+  return { ps, last, curP, cycleDay: n > 0 && n <= 120 ? n : 0, t, avgCycle, avgPeriod, cl, pl, gapsN: gaps.length, lensN: lens.length, marks, nextStart: last ? addDays(last.start, cl) : null };
+}
+function cycleDayOf(k) { let p = null; for (const q of M.ps) if (q.start <= k) p = q; const n = p ? diff(p.start, k) + 1 : 0; return n > 0 && n <= 120 ? n : 0; }
+function phase(k) {
+  const r = store.data.days[k], mk = M.marks[k] || {};
+  if (r && r.flow) return 'Periode (' + FLOWN[r.flow].toLowerCase() + ')';
+  if (mk.ov) return 'Eisprung (Schätzung)';
+  if (mk.fertile) return 'Fruchtbares Fenster (Schätzung)';
+  if (mk.pred && k >= M.t) return 'Erwartete Periode (Schätzung)';
+  return '';
+}
+
+// ---------- Anzeige ----------
+function render() {
+  M = model();
+  renderSum(); renderCal(); renderEditor(); renderHist();
+  for (const [id, v] of [['cl', store.data.settings.cycleLength], ['pl', store.data.settings.periodLength]]) if (document.activeElement !== $(id)) $(id).value = v;
+}
+function light() { M = model(); renderSum(); renderCal(); renderHist(); }   // ohne Editor (Fokus bleibt beim Tippen)
+function sc(label, big, sub, cls) { return h('div', { class: 'card' }, h('span', { class: 'muted' }, label), h('b', { class: cls || '' }, big), h('span', { class: 'muted sub' }, sub)); }
+function renderSum() {
+  const n = M.cycleDay, ph = phase(M.t);
+  let nb = '–', ns = 'Trage deine erste Periode im Kalender ein.', cls = '';
+  if (M.nextStart) {
+    const d = diff(M.t, M.nextStart);
+    nb = d > 1 ? 'in ' + d + ' Tagen' : d === 1 ? 'morgen' : d === 0 ? 'heute erwartet' : 'seit ' + tageDat(-d) + ' überfällig';
+    if (d < 0) cls = 'warnc';
+    ns = 'ca. ' + parseYmd(M.nextStart).toLocaleDateString('de-DE', { weekday: 'short' }) + ', ' + fmtDate(M.nextStart) + ' (Schätzung)' + (d < -14 ? ' – evtl. fehlen Einträge' : '');
+  }
+  $('sum').replaceChildren(
+    sc('Aktueller Zyklus', n ? 'Zyklustag ' + n : '–', n ? (ph ? ph + ' · ' : '') + 'seit ' + fmtDate(M.curP.start) : 'Noch keine Periode eingetragen'),
+    sc('Nächste Periode', nb, ns, cls),
+    sc('Ø Zykluslänge', fmt1(M.avgCycle) + ' Tage', M.gapsN ? 'aus ' + M.gapsN + (M.gapsN === 1 ? ' Zyklus' : ' Zyklen') : 'Standardwert (noch keine Zyklen)'),
+    sc('Ø Periodendauer', fmt1(M.avgPeriod) + ' Tage', M.lensN ? 'aus ' + M.lensN + (M.lensN === 1 ? ' Periode' : ' Perioden') : 'Standardwert (noch keine Daten)'));
+}
+function renderCal() {
+  const { y, m } = view, first = new Date(y, m, 1), lead = (first.getDay() + 6) % 7, weeks = Math.ceil((lead + new Date(y, m + 1, 0).getDate()) / 7);
+  $('label').textContent = first.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  const cells = Array.from({ length: weeks * 7 }, (_, i) => new Date(y, m, 1 - lead + i));
+  $('cal').replaceChildren(...WD.map((w) => h('div', { class: 'dh' }, w)), ...cells.map(cell));
+}
+function cell(dt) {
+  const k = ymd(dt), r = store.data.days[k], mk = M.marks[k] || {}, flow = r ? r.flow : 0, pred = !flow && mk.pred && k >= M.t;
+  const cls = ['cd']; if (dt.getMonth() !== view.m) cls.push('out'); if (flow) cls.push('f' + flow); if (pred) cls.push('pred'); if (mk.fertile) cls.push('fertile'); if (k === M.t) cls.push('today'); if (k === sel) cls.push('sel');
+  const sym = r && r.symptoms.length, note = r && r.note.trim();
+  const info = [flow ? 'Periode ' + FLOWN[flow].toLowerCase() : null, pred ? 'erwartete Periode (Schätzung)' : null, mk.ov ? 'Eisprung (Schätzung)' : null, mk.fertile ? 'fruchtbares Fenster (Schätzung)' : null, sym ? 'Symptome' : null, note ? 'Notiz' : null, k === M.t ? 'heute' : null].filter(Boolean);
+  return h('button', { type: 'button', class: cls.join(' '), dataset: { date: k }, 'aria-pressed': String(k === sel), 'aria-label': dt.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' }) + (info.length ? ': ' + info.join(', ') : ''), title: info.join(', '), onclick: () => pick(k) },
+    h('span', { class: 'n' }, dt.getDate()), mk.ov ? h('i', { class: 'ovm' }) : null, h('span', { class: 'dots' }, sym ? h('i', { class: 'dot sym' }) : null, note ? h('i', { class: 'dot note' }) : null));
+}
+function pick(k, toggle = true) {
+  sel = toggle && sel === k ? null : k;
+  render();
+  if (sel && matchMedia('(max-width: 900px)').matches) $('editor').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function go(n) { sel = addDays(sel, n); const d = parseYmd(sel); view = { y: d.getFullYear(), m: d.getMonth() }; render(); }
+
+function renderEditor() {
+  const ed = $('editor'), ae = document.activeElement, fk = ae && ed.contains(ae) ? ae.dataset.fk : null;
+  if (!sel) { ed.replaceChildren(h('div', { class: 'card muted ph' }, 'Wähle im Kalender einen Tag, um Blutung, Stimmung, Energie, Symptome, Temperatur und Notizen einzutragen.')); return; }
+  const k = sel, rec = store.data.days[k] || { flow: 0, symptoms: [], note: '' };
+  const opt = (kids, on, fn, key, props) => h('button', Object.assign({ type: 'button', class: 'opt' + (on ? ' on' : ''), 'aria-pressed': String(on), dataset: { fk: key }, onclick: fn }, props), kids);
+  const cd = cycleDayOf(k), ph = phase(k);
+  const head = h('div', { class: 'head' },
+    h('button', { type: 'button', class: 'small', 'aria-label': 'Vorheriger Tag', dataset: { fk: 'prev' }, onclick: () => go(-1) }, '‹'),
+    h('h2', {}, longDate(k)),
+    h('button', { type: 'button', class: 'small', 'aria-label': 'Nächster Tag', dataset: { fk: 'next' }, onclick: () => go(1) }, '›'),
+    h('button', { type: 'button', class: 'small', 'aria-label': 'Bearbeitung schließen', dataset: { fk: 'close' }, onclick: () => { sel = null; render(); } }, '✕'));
+  const flow = h('div', { class: 'opts' }, FLOWN.map((n, i) => opt([i ? h('i', { class: 'sw f' + i }) : null, n], rec.flow === i, () => edit(k, (r) => { r.flow = i; }), 'flow' + i)));
+  const p = M.ps.find((q) => q.start <= k && k <= q.end);
+  const fill = rec.flow > 0 && p && p.len < M.pl ? h('button', { type: 'button', class: 'small', style: 'margin-top:8px', dataset: { fk: 'fill' }, onclick: () => {
+    for (let i = p.len; i < M.pl; i++) { const day = addDays(p.start, i); const e = store.data.days[day]; if (e && e.flow > 0) break; touch(day, (r) => { r.flow = Math.max(1, rec.flow - 1); }); }
+    store.changed(); render();
+  } }, 'Periode auf ' + M.pl + ' Tage auffüllen') : null;
+  const mood = h('div', { class: 'opts' }, MOODS.map(([e, n], i) => opt(e, rec.mood === i + 1, () => edit(k, (r) => { if (r.mood === i + 1) delete r.mood; else r.mood = i + 1; }), 'mood' + i, { class: 'opt emo' + (rec.mood === i + 1 ? ' on' : ''), title: n, 'aria-label': 'Stimmung ' + (i + 1) + ' von 5: ' + n })));
+  const energy = h('div', { class: 'opts' }, h('span', { class: 'lo' }, 'niedrig'), LEVELS.map((n, i) => opt(String(i + 1), rec.energy === i + 1, () => edit(k, (r) => { if (r.energy === i + 1) delete r.energy; else r.energy = i + 1; }), 'en' + i, { class: 'opt num' + (rec.energy === i + 1 ? ' on' : ''), title: 'Energie ' + n, 'aria-label': 'Energie ' + (i + 1) + ' von 5: ' + n })), h('span', { class: 'lo' }, 'hoch'));
+  const names = store.data.symptoms.concat(rec.symptoms.filter((s) => !store.data.symptoms.includes(s)));
+  const chips = h('div', { class: 'opts' }, names.map((n, i) => {
+    if (manage) return h('button', { type: 'button', class: 'sy rm', title: 'Aus der Liste entfernen', 'aria-label': n + ' aus der Liste entfernen', dataset: { fk: 'sy' + i }, onclick: () => removeSymptom(n) }, n + ' ✕');
+    const on = rec.symptoms.includes(n);
+    return h('button', { type: 'button', class: 'sy' + (on ? ' on' : ''), 'aria-pressed': String(on), dataset: { fk: 'sy' + i }, onclick: () => edit(k, (r) => { r.symptoms = on ? r.symptoms.filter((s) => s !== n) : r.symptoms.concat(n); }) }, n);
+  }));
+  const ns = h('input', { type: 'text', placeholder: 'Eigenes Symptom …', maxLength: 40, 'aria-label': 'Eigenes Symptom', dataset: { fk: 'newsym' } });
+  const addF = h('form', { class: 'row', style: 'margin-top:8px' }, ns, h('button', { class: 'small', dataset: { fk: 'addsym' } }, 'Hinzufügen'),
+    h('button', { type: 'button', class: 'small', 'aria-pressed': String(manage), dataset: { fk: 'manage' }, onclick: () => { manage = !manage; render(); } }, manage ? 'Fertig' : '✎ Liste bearbeiten'));
+  addF.onsubmit = (e) => {
+    e.preventDefault();
+    const v = ns.value.trim(); if (!v) return;
+    const ex = store.data.symptoms.find((s) => s.toLowerCase() === v.toLowerCase()), name = ex || v;
+    if (!ex) store.data.symptoms.push(name);
+    manage = false;
+    edit(k, (r) => { if (!r.symptoms.includes(name)) r.symptoms.push(name); });
+  };
+  const temp = h('input', { type: 'text', inputMode: 'decimal', class: 'w', placeholder: '36,5', 'aria-label': 'Körpertemperatur in °C (optional)', value: rec.temp != null ? String(rec.temp).replace('.', ',') : '' });
+  temp.oninput = () => {
+    const s = temp.value.trim().replace(/[^\d,.\-]/g, '');
+    if (!temp.value.trim()) { touch(k, (r) => { delete r.temp; }); temp.removeAttribute('aria-invalid'); store.changed(); light(); return; }
+    const n = parseFloat(s.replace(',', '.'));
+    if (Number.isFinite(n) && n >= 34 && n <= 42) { touch(k, (r) => { r.temp = Math.round(n * 100) / 100; }); temp.removeAttribute('aria-invalid'); store.changed(); light(); }
+    else temp.setAttribute('aria-invalid', 'true');
+  };
+  const note = h('textarea', { placeholder: 'Notiz zum Tag …', 'aria-label': 'Notiz' }); note.value = rec.note || '';
+  note.oninput = () => { touch(k, (r) => { r.note = note.value; }); store.changed(); light(); };
+  const clear = h('button', { type: 'button', class: 'small', dataset: { fk: 'clear' }, onclick: () => {
+    if (store.data.days[k] && !confirm('Alle Einträge für den ' + fmtDate(k) + ' löschen?')) return;
+    delete store.data.days[k]; store.changed(); render();
+  } }, 'Tag leeren');
+  const F = (label, ...kids) => h('div', { class: 'fld' }, h('div', { class: 'lbl' }, label), kids);
+  ed.replaceChildren(h('div', { class: 'card ed' }, head, h('p', { class: 'phase' }, [cd ? 'Zyklustag ' + cd : '', ph].filter(Boolean).join(' · ') || 'Kein Zyklus für diesen Tag bekannt'),
+    F('Blutung', flow, fill), F('Stimmung', mood), F('Energie', energy), F('Symptome', chips, addF), F('Körpertemperatur °C (optional)', temp), F('Notiz', note), h('div', { class: 'foot' }, clear)));
+  if (fk) { const el = [...ed.querySelectorAll('[data-fk]')].find((e) => e.dataset.fk === fk); if (el) el.focus(); }
+}
+function removeSymptom(n) {
+  if (!confirm('„' + n + '“ aus der Liste und von allen Tagen entfernen?')) return;
+  store.data.symptoms = store.data.symptoms.filter((s) => s !== n);
+  for (const k of Object.keys(store.data.days)) if (validKey(k)) touch(k, (r) => { r.symptoms = r.symptoms.filter((s) => s !== n); });
+  store.changed(); render();
+}
+
+// ---------- Verlauf ----------
+function renderHist() {
+  const rows = M.ps.slice(-10).reverse();
+  $('cycles').replaceChildren(rows.length ? h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Start'), h('th', {}, 'Zyklus'), h('th', {}, 'Periode'))),
+    h('tbody', {}, rows.map((p) => h('tr', {}, h('td', {}, fmtDate(p.start)),
+      h('td', {}, p.cycleLen != null ? tage(p.cycleLen) + (p.counted ? '' : ' (nicht gewertet)') : p === M.curP && M.cycleDay ? 'aktuell, Tag ' + M.cycleDay : 'aktuell'),
+      h('td', {}, tage(p.len)))))) : h('p', { class: 'muted' }, 'Noch keine Perioden eingetragen. Tippe im Kalender auf den ersten Tag deiner Periode und wähle die Stärke der Blutung.'));
+  drawChart();
+  const cnt = {};
+  for (const k of Object.keys(store.data.days)) if (validKey(k)) for (const s of new Set(store.data.days[k].symptoms)) cnt[s] = (cnt[s] || 0) + 1;
+  const top = Object.entries(cnt).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de')).slice(0, 5), max = top.length ? top[0][1] : 1;
+  $('top').replaceChildren(...(top.length ? top.map(([n, c]) => h('div', { class: 'srow' }, h('span', {}, n), h('b', {}, c + (c === 1 ? ' Tag' : ' Tage')), h('div', { class: 'bar' }, h('i', { style: 'width:' + (c / max * 100) + '%' }))))
+    : [h('p', { class: 'muted' }, 'Noch keine Symptome eingetragen.')]));
+}
+function drawChart() {
+  const box = $('chart'), data = M.ps.filter((p) => p.cycleLen != null);
+  $('chartnote').textContent = '';
+  if (!data.length) { box.replaceChildren(h('p', { class: 'muted' }, 'Sobald zwei Perioden eingetragen sind, erscheint hier der Verlauf deiner Zykluslängen.')); return; }
+  const NS = 'http://www.w3.org/2000/svg', W = Math.max(260, Math.min(900, box.clientWidth || 560)), H = 200, L = 30, R = 8, T = 20, B = 26;
+  const pts = data.slice(-Math.max(3, Math.min(12, Math.floor((W - L - R) / 40))));
+  const top = Math.max(40, Math.ceil((Math.max(...pts.map((p) => p.cycleLen)) + 2) / 10) * 10);
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img');
+  svg.setAttribute('aria-label', 'Balkendiagramm der Zykluslängen in Tagen: ' + pts.map((p) => p.cycleLen).join(', '));
+  const el = (tag, a, t, parent) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; (parent || svg).append(n); return n; };
+  const Y = (v) => T + (1 - v / top) * (H - T - B), slot = (W - L - R) / pts.length, bw = Math.min(44, slot * 0.62);
+  for (let v = 0; v <= top; v += 10) { el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, v); }
+  pts.forEach((p, i) => {
+    const cx = L + slot * (i + 0.5), y = Y(p.cycleLen);
+    const r = el('rect', { x: cx - bw / 2, y, width: bw, height: Y(0) - y, rx: 3, fill: p.counted ? 'var(--accent)' : 'var(--muted)', opacity: p.counted ? 0.85 : 0.45 });
+    el('title', {}, 'Start ' + fmtDate(p.start) + ': ' + tage(p.cycleLen), r);
+    el('text', { x: cx, y: y - 4, 'text-anchor': 'middle', class: 'val' }, p.cycleLen);
+    el('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, fmtDate(p.start).slice(0, 6));
+  });
+  if (M.gapsN) el('line', { x1: L, x2: W - R, y1: Y(M.avgCycle), y2: Y(M.avgCycle), stroke: 'var(--c5)', 'stroke-width': 1.5, 'stroke-dasharray': '5 4' });
+  box.replaceChildren(svg);
+  $('chartnote').textContent = (M.gapsN ? 'Gestrichelt: Durchschnitt (Ø ' + fmt1(M.avgCycle) + ' Tage). ' : '') + 'Beschriftung = Beginn der jeweiligen Periode.';
+}
+
+// ---------- Bedienung ----------
+const gotoMonth = (k) => { const d = parseYmd(k); view = { y: d.getFullYear(), m: d.getMonth() }; };
+$('prev').onclick = () => { const d = new Date(view.y, view.m - 1, 1); view = { y: d.getFullYear(), m: d.getMonth() }; renderCal(); };
+$('next').onclick = () => { const d = new Date(view.y, view.m + 1, 1); view = { y: d.getFullYear(), m: d.getMonth() }; renderCal(); };
+$('now').onclick = () => { gotoMonth(T0()); renderCal(); };
+$('logtoday').onclick = () => { gotoMonth(T0()); pick(T0(), false); };
+function setSetting(key, id, lo, hi) {
+  const n = Math.round(parseFloat($(id).value));
+  if (Number.isFinite(n)) { store.data.settings[key] = Math.min(hi, Math.max(lo, n)); store.changed(); }
+  $(id).value = store.data.settings[key]; render();
+}
+$('cl').onchange = () => setSetting('cycleLength', 'cl', 15, 60);
+$('pl').onchange = () => setSetting('periodLength', 'pl', 1, 10);
+let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { if (M) drawChart(); }, 120); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

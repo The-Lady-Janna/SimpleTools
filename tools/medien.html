@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Medien-Backlog</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  .sm { font-size:.82rem; }
+  .layout { display:grid; grid-template-columns:minmax(0,1fr) 340px; grid-template-areas:"list queue" "list goals"; column-gap:16px; align-items:start; }
+  @media (max-width: 960px) { .layout { grid-template-columns:minmax(0,1fr); grid-template-areas:"queue" "list" "goals"; } }
+  #queueBox { grid-area:queue; min-width:0; } #listBox { grid-area:list; min-width:0; } #goalsBox { grid-area:goals; min-width:0; }
+  .side h2 { margin:0 0 8px; font-size:1.05rem; }
+  .filters .tabs { margin:0 0 10px; }
+  .filters .row select { max-width:100%; }
+  .filters input.sp { min-width:160px; }
+  .qi { display:flex; align-items:center; gap:6px; padding:6px 0; border-bottom:1px solid var(--line); }
+  .qi:last-child { border-bottom:0; }
+  .qi .n { width:1.7em; height:1.7em; border-radius:50%; background:var(--accent); color:var(--on-accent); font-size:.8rem; display:flex; align-items:center; justify-content:center; flex:none; }
+  .qi .tt { flex:1; min-width:0; overflow-wrap:anywhere; line-height:1.3; }
+  .it .ih { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+  .it .ico { font-size:1.5rem; line-height:1; }
+  .it .tt { flex:1; min-width:150px; overflow-wrap:anywhere; line-height:1.3; }
+  select.st { padding:3px 8px; border-width:2px; }
+  select.st[data-st="Läuft"] { border-color:var(--accent); } select.st[data-st="Fertig"] { border-color:var(--ok); } select.st[data-st="Abgebrochen"] { border-color:var(--err); }
+  .pg { margin-top:8px; } .pgl { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:4px; }
+  input.q { width:5.5em; padding:2px 8px; }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--accent); } .bar.ok > i { background:var(--ok); }
+  .meta { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; margin-top:8px; }
+  .stars { display:inline-flex; }
+  .stars button { border:0; background:none; padding:0 2px; min-width:24px; min-height:28px; font-size:1.2rem; line-height:1; color:var(--muted); }
+  .stars button.on { color:var(--warn); }
+  .badge.tag { cursor:pointer; color:var(--muted); }
+  .acts { margin-top:8px; }
+  .det { margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:8px 10px; }
+  .det label.f input, .det label.f select, .det label.f textarea { width:100%; min-width:0; }
+  .det .wide { grid-column:1 / -1; } .det textarea { min-height:70px; resize:vertical; }
+  .det .acts { margin:0; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); gap:8px; margin-bottom:6px; }
+  .sum div { text-align:center; border:1px solid var(--line); border-radius:8px; padding:6px 4px; background:var(--bg); font-size:.78rem; color:var(--muted); }
+  .sum b { display:block; font-size:1.2rem; color:var(--fg); }
+  .gr { padding:8px 0; border-top:1px solid var(--line); }
+  .gl { display:flex; align-items:center; gap:4px 8px; flex-wrap:wrap; margin-bottom:5px; } .gl .nm { font-weight:600; }
+  input.g { width:4.6em; padding:3px 6px; text-align:center; }
+  .pace.ok { color:var(--ok); } .pace.warn { color:var(--warn); } .pace { margin-top:3px; color:var(--muted); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Medien-Backlog</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <form id="qa" class="card form">
+    <label class="f" style="flex:1;min-width:180px">Titel<input type="text" id="qt" required placeholder="z. B. Dune" autocomplete="off"></label>
+    <label class="f">Typ<select id="qtype"></select></label>
+    <label class="f">Status<select id="qstatus"></select></label>
+    <button class="primary">Hinzufügen</button>
+  </form>
+  <div class="layout">
+    <section id="queueBox" class="card side">
+      <h2>⏭ Als Nächstes <span class="muted" id="qcount"></span></h2>
+      <div id="queue"></div>
+    </section>
+    <section id="listBox">
+      <div class="card filters">
+        <div class="tabs" id="stabs">
+          <button type="button" data-st="">Alle</button><button type="button" data-st="Wunsch">Wunsch</button><button type="button" data-st="Läuft">Läuft</button><button type="button" data-st="Fertig">Fertig</button><button type="button" data-st="Abgebrochen">Abgebrochen</button>
+        </div>
+        <div class="row">
+          <input type="text" id="q" class="sp" placeholder="Suchen (Titel, Autor, Tags, Notizen)…" aria-label="Suchen" autocomplete="off">
+          <select id="ftype" aria-label="Nach Typ filtern"></select>
+          <select id="sort" aria-label="Sortierung"><option value="added">Zuletzt hinzugefügt</option><option value="rating">Bewertung</option><option value="title">Titel (A–Z)</option></select>
+        </div>
+        <div class="muted sm" id="count" style="margin-top:6px"></div>
+      </div>
+      <div id="list"></div>
+    </section>
+    <section id="goalsBox" class="card side">
+      <h2>🎯 Jahresziele <span class="muted" id="gyear"></span></h2>
+      <div class="sum" id="stats"></div>
+      <div id="grows"></div>
+      <p class="muted sm" id="ghint" style="margin:8px 0 0"></p>
+    </section>
+  </div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'medien',
+  defaults: () => ({ media: [], goals: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const TYPES = {
+  book: { l: 'Buch', pl: 'Bücher', ico: '📚', unit: 'pages', who: 'z. B. Frank Herbert' },
+  series: { l: 'Serie', pl: 'Serien', ico: '📺', unit: 'episodes', who: 'Studio / Sender' },
+  film: { l: 'Film', pl: 'Filme', ico: '🎬', unit: 'hours', who: 'Regie / Studio' },
+  game: { l: 'Spiel', pl: 'Spiele', ico: '🎮', unit: 'hours', who: 'Entwickler / Studio' },
+  podcast: { l: 'Podcast', pl: 'Podcasts', ico: '🎧', unit: 'episodes', who: 'Host / Produktion' },
+  other: { l: 'Sonstiges', pl: 'Sonstiges', ico: '📦', unit: 'hours', who: 'Urheber:in' },
+};
+const UNITS = { pages: 'Seiten', episodes: 'Folgen', hours: 'Stunden' };
+const STATUS = ['Wunsch', 'Läuft', 'Fertig', 'Abgebrochen'];
+const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+const isYmd = (s) => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const num = (v) => { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : 0; };
+const today = () => ymd(new Date());
+const unitOf = (m) => m.unit || TYPES[m.type].unit;
+const fmtNum = (n) => (Math.round(n * 10) / 10).toLocaleString('de-DE', { useGrouping: false, maximumFractionDigits: 1 });
+function parseNum(s) {
+  s = String(s == null ? '' : s).trim().replace(/\s/g, '');
+  if (!s) return 0;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+  const n = Number(s); return Number.isFinite(n) && n >= 0 ? n : NaN;
+}
+let fType = '', fStatus = '', fText = '', fSort = 'added';
+const openIds = new Set();
+
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.media)) d.media = [];
+  if (!d.goals || typeof d.goals !== 'object' || Array.isArray(d.goals)) d.goals = {};
+  d.media = d.media.filter((m) => m && typeof m === 'object' && !Array.isArray(m));
+  const seen = new Set();
+  d.media.forEach((m) => {
+    if (typeof m.id !== 'string' || !m.id || seen.has(m.id)) m.id = uid();
+    seen.add(m.id);
+    for (const k of ['title', 'creator', 'notes']) if (typeof m[k] !== 'string') m[k] = '';
+    if (typeof m.type !== 'string' || !has(TYPES, m.type)) m.type = 'other';
+    if (!STATUS.includes(m.status)) m.status = 'Wunsch';
+    m.cur = num(m.cur); m.total = num(m.total);
+    if (typeof m.unit !== 'string' || (m.unit !== '' && !has(UNITS, m.unit))) m.unit = '';
+    m.rating = Math.min(5, Math.max(0, Math.round(Number(m.rating)) || 0));
+    for (const k of ['started', 'finished']) if (!isYmd(m[k])) m[k] = '';
+    m.tags = Array.isArray(m.tags) ? m.tags.map((t) => String(t).trim()).filter(Boolean) : [];
+    m.added = Number.isFinite(Number(m.added)) ? Number(m.added) : 0;
+    m.next = !!m.next && m.status !== 'Läuft' && m.status !== 'Fertig';
+    m.nq = m.next ? num(m.nq) : 0;
+  });
+  d.media.filter((m) => m.next).sort((a, b) => a.nq - b.nq).forEach((m, i) => { m.nq = i + 1; });
+  for (const t in TYPES) if (t in d.goals) { const g = Math.floor(Number(d.goals[t])); if (g > 0) d.goals[t] = g; else delete d.goals[t]; }
+}
+
+// Statuswechsel: Start-/Enddatum automatisch, Fertig/Läuft verlassen die Warteschlange
+function applyStatus(it, st) {
+  if (it.status === st) return;
+  it.status = st;
+  if (st === 'Läuft' && !it.started) it.started = today();
+  if (st === 'Läuft' || st === 'Fertig') { it.next = false; it.nq = 0; }
+  if (st === 'Fertig') { if (!it.finished) it.finished = today(); if (it.total > 0 && it.cur < it.total) it.cur = it.total; }
+  else it.finished = '';
+}
+const queue = () => store.data.media.filter((m) => m.next).sort((a, b) => a.nq - b.nq);
+function toggleNext(it) {
+  if (it.next) { it.next = false; it.nq = 0; } else { it.next = true; it.nq = Math.max(0, ...queue().map((m) => m.nq)) + 1; }
+  store.changed(); render();
+}
+function moveNext(it, dir) {
+  const q = queue(); q.forEach((m, i) => { m.nq = i + 1; });
+  const i = q.indexOf(it), j = i + dir;
+  if (i < 0 || j < 0 || j >= q.length) return;
+  const t = q[i].nq; q[i].nq = q[j].nq; q[j].nq = t;
+  store.changed(); render();
+}
+
+function matches(m, skipStatus) {
+  if (fType && m.type !== fType) return false;
+  if (!skipStatus && fStatus && m.status !== fStatus) return false;
+  const q = fText.trim().toLowerCase();
+  return !q || [m.title, m.creator, m.notes, ...m.tags].join('\n').toLowerCase().includes(q);
+}
+function sorted(list) {
+  const idx = new Map(store.data.media.map((m, i) => [m, i]));
+  const byTitle = (a, b) => a.title.localeCompare(b.title, 'de', { sensitivity: 'base' });
+  if (fSort === 'rating') return list.sort((a, b) => b.rating - a.rating || byTitle(a, b));
+  if (fSort === 'title') return list.sort(byTitle);
+  return list.sort((a, b) => b.added - a.added || idx.get(b) - idx.get(a));
+}
+function resetFilters() { fType = ''; fStatus = ''; fText = ''; $('ftype').value = ''; $('q').value = ''; render(); }
+
+function render() {
+  const a = document.activeElement, fk = a && a.dataset ? a.dataset.fk : null;
+  renderTabs(); renderList(); renderQueue(); renderGoals();
+  if (fk) { const n = document.querySelector('[data-fk="' + fk + '"]'); if (n && n !== document.activeElement) n.focus(); }
+}
+function renderTabs() {
+  const base = store.data.media.filter((m) => matches(m, true));
+  document.querySelectorAll('#stabs button').forEach((b) => {
+    const st = b.dataset.st, n = st ? base.filter((m) => m.status === st).length : base.length;
+    b.textContent = (st || 'Alle') + ' (' + n + ')'; b.classList.toggle('on', st === fStatus); b.setAttribute('aria-pressed', String(st === fStatus));
+  });
+}
+function renderList() {
+  const all = store.data.media, list = sorted(all.filter((m) => matches(m))), box = $('list');
+  $('count').textContent = all.length ? list.length + ' von ' + all.length + ' Einträgen' : '';
+  if (!all.length) return box.replaceChildren(h('div', { class: 'card muted' }, 'Noch keine Einträge. Füge oben dein erstes Buch, deinen ersten Film oder dein erstes Spiel hinzu – Titel, Typ und Status genügen. Alles Weitere (Fortschritt, Bewertung, Notizen) trägst du über „Details“ nach.'));
+  if (!list.length) return box.replaceChildren(h('div', { class: 'card muted' }, 'Keine Treffer für diese Filter. ', h('button', { class: 'small', onclick: resetFilters }, 'Filter zurücksetzen')));
+  box.replaceChildren(...list.map(card));
+}
+
+function card(it) {
+  const T = TYPES[it.type], wrap = h('div', { class: 'card it' }), head = h('div'), det = h('div', { class: 'det' });
+  let fill = null, bar = null, pctEl = null, detCur = null;
+  const unitL = () => UNITS[unitOf(it)];
+  const pct = () => (it.total > 0 ? Math.min(100, it.cur / it.total * 100) : 0);
+  const upd = () => { // Fortschrittsanzeige an Ort und Stelle (ohne Eingabefeld neu zu bauen)
+    if (!fill) return;
+    fill.style.width = pct() + '%'; bar.classList.toggle('ok', it.total > 0 && it.cur >= it.total);
+    pctEl.textContent = (it.total > 0 ? '/ ' + fmtNum(it.total) + ' ' : '') + unitL() + (it.total > 0 ? ' · ' + Math.round(pct()) + ' %' : '');
+  };
+  const light = () => { store.changed(); fillHead(); renderQueue(); renderGoals(); };
+  const go = (st) => () => { applyStatus(it, st); store.changed(); render(); };
+  const btn = (label, fn, cls, fk) => h('button', { class: 'small ' + (cls || ''), onclick: fn, dataset: fk ? { fk: fk + it.id } : {} }, label);
+
+  function fillHead() {
+    fill = bar = pctEl = null;
+    const isOpen = openIds.has(it.id);
+    const st = h('select', { class: 'st', 'aria-label': 'Status: ' + it.title, dataset: { st: it.status, fk: 's:' + it.id } }, STATUS.map((s) => h('option', { value: s, selected: s === it.status }, s)));
+    st.onchange = () => { applyStatus(it, st.value); store.changed(); render(); };
+    const kids = [h('div', { class: 'ih' },
+      h('span', { class: 'ico', title: T.l }, T.ico),
+      h('div', { class: 'tt' }, h('strong', {}, it.title || '(ohne Titel)'), h('div', { class: 'muted sm' }, [T.l, it.creator].filter(Boolean).join(' · '))),
+      st,
+      h('button', { class: 'small', 'aria-expanded': String(isOpen), dataset: { fk: 'd:' + it.id }, onclick: () => { if (isOpen) openIds.delete(it.id); else openIds.add(it.id); render(); } }, isOpen ? 'Schließen ▴' : 'Details ▾'))];
+    if (it.status === 'Läuft' || it.total > 0 || it.cur > 0) {
+      fill = h('i'); bar = h('div', { class: 'bar' }, fill); pctEl = h('span', { class: 'muted sm' });
+      let first;
+      if (it.status === 'Läuft') {
+        first = h('input', { type: 'text', inputMode: 'decimal', class: 'q', value: fmtNum(it.cur), 'aria-label': 'Aktueller Fortschritt (' + unitL() + '): ' + it.title });
+        first.onchange = () => {
+          const v = parseNum(first.value);
+          if (!isNaN(v)) { it.cur = v; store.changed(); upd(); if (detCur && document.activeElement !== detCur) detCur.value = v ? fmtNum(v) : ''; }
+          first.value = fmtNum(it.cur);
+        };
+      } else first = h('b', {}, fmtNum(it.cur));
+      kids.push(h('div', { class: 'pg' }, h('div', { class: 'pgl' }, first, pctEl), bar)); upd();
+    }
+    const meta = [];
+    if (it.status !== 'Wunsch' || it.rating) meta.push(h('span', { class: 'stars', role: 'group', 'aria-label': 'Bewertung' }, [1, 2, 3, 4, 5].map((n) => h('button', {
+      type: 'button', class: n <= it.rating ? 'on' : '', title: n + (n === 1 ? ' Stern' : ' Sterne') + (n === it.rating ? ' (erneut klicken zum Entfernen)' : ''), 'aria-label': n + (n === 1 ? ' Stern' : ' Sterne'), 'aria-pressed': String(n === it.rating), dataset: { fk: 'r' + n + ':' + it.id },
+      onclick: () => { it.rating = it.rating === n ? 0 : n; store.changed(); render(); } }, n <= it.rating ? '★' : '☆'))));
+    const dates = [it.started && 'Gestartet ' + fmtDate(it.started), it.finished && 'Beendet ' + fmtDate(it.finished)].filter(Boolean).join(' · ');
+    if (dates) meta.push(h('span', { class: 'muted sm' }, dates));
+    it.tags.forEach((t) => meta.push(h('button', { class: 'badge tag', title: 'Nach „' + t + '“ suchen', onclick: () => { fText = t; $('q').value = t; render(); } }, '#' + t)));
+    if (meta.length) kids.push(h('div', { class: 'meta' }, meta));
+    const acts = [];
+    if (it.status === 'Wunsch') acts.push(btn('▶ Starten', go('Läuft'), 'primary'));
+    if (it.status === 'Läuft') acts.push(btn('✓ Fertig', go('Fertig'), 'primary'), btn('Abbrechen', go('Abgebrochen')));
+    if (it.status === 'Abgebrochen') acts.push(btn('↺ Wieder aufnehmen', go('Läuft')));
+    if (it.status === 'Wunsch' || it.status === 'Abgebrochen') {
+      const q = btn(it.next ? '★ In „Als Nächstes“' : '☆ Als Nächstes', () => toggleNext(it), it.next ? 'primary' : '', 'n:');
+      q.setAttribute('aria-pressed', String(it.next)); q.title = it.next ? 'Aus der Warteschlange entfernen' : 'In die Warteschlange „Als Nächstes“ aufnehmen'; acts.push(q);
+    }
+    acts.push(h('span', { class: 'sp' }), btn('Löschen', () => { if (confirm('„' + (it.title || 'Eintrag') + '“ löschen?')) { store.data.media = store.data.media.filter((x) => x !== it); openIds.delete(it.id); store.changed(); render(); } }));
+    kids.push(h('div', { class: 'row acts' }, acts));
+    head.replaceChildren(...kids);
+  }
+
+  function fillDet() {
+    const isOpen = openIds.has(it.id); det.hidden = !isOpen; det.replaceChildren(); detCur = null;
+    if (!isOpen) return;
+    const L = (t, el, cls) => h('label', { class: 'f' + (cls ? ' ' + cls : '') }, t, el);
+    const txt = (key, ph) => { const i = h('input', { type: 'text', value: it[key], placeholder: ph || '' }); i.oninput = () => { it[key] = i.value; light(); }; return i; };
+    const sel = (opts, cur, fn, fk) => { const s = h('select', { dataset: { fk: fk + it.id } }, opts.map(([v, l]) => h('option', { value: v, selected: v === cur }, l))); s.onchange = () => fn(s.value); return s; };
+    const numIn = (key) => { const i = h('input', { type: 'text', inputMode: 'decimal', value: it[key] ? fmtNum(it[key]) : '', placeholder: '0' }); i.oninput = () => { const v = parseNum(i.value); if (isNaN(v)) return; it[key] = v; light(); }; return i; };
+    const date = (key) => { const i = h('input', { type: 'date', value: it[key] }); i.oninput = () => { it[key] = i.value; light(); }; return i; };
+    const tags = h('input', { type: 'text', value: it.tags.join(', '), placeholder: 'kommagetrennt, z. B. Sci-Fi, Klassiker' });
+    tags.oninput = () => { it.tags = [...new Set(tags.value.split(/[,;]/).map((s) => s.trim()).filter(Boolean))]; light(); };
+    const notes = h('textarea', { rows: 3, placeholder: 'Gedanken, Empfehlung von, Zitate …' }); notes.value = it.notes; notes.oninput = () => { it.notes = notes.value; light(); };
+    detCur = numIn('cur');
+    det.append(
+      L('Titel', txt('title'), 'wide'),
+      L('Autor / Studio', txt('creator', T.who), 'wide'),
+      L('Typ', sel(Object.keys(TYPES).map((k) => [k, TYPES[k].ico + ' ' + TYPES[k].l]), it.type, (v) => { it.type = v; store.changed(); render(); }, 'dt:')),
+      L('Status', sel(STATUS.map((s) => [s, s]), it.status, (v) => { applyStatus(it, v); store.changed(); render(); }, 'ds:')),
+      L('Fortschritt aktuell', detCur),
+      L('Fortschritt gesamt', numIn('total')),
+      L('Einheit', sel([['', 'Standard (' + UNITS[T.unit] + ')'], ...Object.keys(UNITS).map((u) => [u, UNITS[u]])], it.unit, (v) => { it.unit = v; store.changed(); render(); }, 'du:')),
+      L('Gestartet', date('started')),
+      it.status === 'Fertig' ? h('label', { class: 'f', title: 'Ohne Datum zählt der Eintrag nicht für das Jahresziel.' }, 'Beendet', date('finished')) : null,
+      L('Tags (optional)', tags, 'wide'),
+      L('Notizen', notes, 'wide'),
+      h('div', { class: 'row acts wide' }, btn('Schließen', () => { openIds.delete(it.id); render(); })));
+  }
+  fillHead(); fillDet();
+  wrap.append(head, det);
+  return wrap;
+}
+
+function renderQueue() {
+  const q = queue();
+  $('qcount').textContent = q.length ? '(' + q.length + ')' : '';
+  const ib = (label, aria, fn, fk, dis) => h('button', { class: 'small', 'aria-label': aria, title: aria, disabled: !!dis, dataset: { fk }, onclick: fn }, label);
+  $('queue').replaceChildren(...(q.length ? q.map((m, i) => h('div', { class: 'qi' },
+    h('span', { class: 'n' }, String(i + 1)),
+    h('div', { class: 'tt' }, h('strong', {}, TYPES[m.type].ico + ' ' + (m.title || '(ohne Titel)')), m.creator ? h('div', { class: 'muted sm' }, m.creator) : null),
+    ib('▲', 'Nach oben: ' + m.title, () => moveNext(m, -1), 'qu:' + m.id, i === 0),
+    ib('▼', 'Nach unten: ' + m.title, () => moveNext(m, 1), 'qd:' + m.id, i === q.length - 1),
+    h('button', { class: 'small primary', title: 'Jetzt starten', onclick: () => { applyStatus(m, 'Läuft'); store.changed(); render(); } }, '▶'),
+    ib('✕', 'Aus „Als Nächstes“ entfernen: ' + m.title, () => toggleNext(m), 'qx:' + m.id))) :
+    [h('p', { class: 'muted sm', style: 'margin:0' }, 'Noch nichts vorgemerkt. Markiere einen Wunsch-Eintrag mit „☆ Als Nächstes“, dann erscheint er hier – mit ▲ ▼ legst du die Reihenfolge fest.')]));
+}
+
+const gref = {};
+function renderGoals() {
+  const d = store.data, year = String(new Date().getFullYear());
+  const done = d.media.filter((m) => m.status === 'Fertig' && m.finished.startsWith(year)), rated = d.media.filter((m) => m.rating > 0);
+  const avg = (l) => l.reduce((a, m) => a + m.rating, 0) / l.length;
+  const stat = (v, l) => h('div', {}, h('b', {}, v), l);
+  $('gyear').textContent = year;
+  $('stats').replaceChildren(stat(done.length, 'Fertig ' + year), stat(rated.length ? fmtNum(avg(rated)) + ' ★' : '–', 'Ø Bewertung' + (rated.length ? ' (' + rated.length + ')' : '')),
+    stat(d.media.filter((m) => m.status === 'Läuft').length, 'Läuft gerade'), stat(d.media.filter((m) => m.status === 'Wunsch').length, 'Auf der Liste'));
+  const rows = $('grows');
+  if (!rows.children.length) for (const t in TYPES) {
+    const T = TYPES[t], fillEl = h('i'), bar = h('div', { class: 'bar' }, fillEl), cnt = h('b'), avgEl = h('span', { class: 'muted sm' }), pace = h('div', { class: 'pace sm' });
+    const inp = h('input', { type: 'number', class: 'g', min: 0, max: 9999, step: 1, placeholder: 'Ziel', 'aria-label': 'Jahresziel ' + T.pl });
+    inp.onchange = () => {
+      const n = Math.min(9999, Math.floor(Number(inp.value)));
+      if (n > 0) store.data.goals[t] = n; else delete store.data.goals[t];
+      inp.value = n > 0 ? n : ''; store.changed(); renderGoals();
+    };
+    gref[t] = { fill: fillEl, bar, cnt, avg: avgEl, pace, inp };
+    rows.append(h('div', { class: 'gr' }, h('div', { class: 'gl' }, h('span', { class: 'nm' }, T.ico + ' ' + T.pl), avgEl, h('span', { class: 'sp' }), cnt, inp), bar, pace));
+  }
+  const now = new Date(), frac = (now - new Date(now.getFullYear(), 0, 1)) / (new Date(now.getFullYear() + 1, 0, 1) - new Date(now.getFullYear(), 0, 1));
+  let any = false;
+  for (const t in TYPES) {
+    const r = gref[t], g = d.goals[t] || 0, n = done.filter((m) => m.type === t).length, ra = rated.filter((m) => m.type === t);
+    if (g) any = true;
+    r.cnt.textContent = g ? n + ' / ' + g : n + ' fertig';
+    r.avg.textContent = ra.length ? 'Ø ' + fmtNum(avg(ra)) + ' ★' : '';
+    r.bar.hidden = !g; r.pace.hidden = !g;
+    r.fill.style.width = g ? Math.min(100, n / g * 100) + '%' : '0'; r.bar.classList.toggle('ok', g > 0 && n >= g);
+    if (g) {
+      const behind = Math.floor(g * frac - n);
+      r.pace.textContent = n >= g ? 'Ziel erreicht 🎉' : 'Noch ' + (g - n) + ' bis zum Ziel · ' + (behind >= 1 ? behind + ' im Rückstand' : 'im Plan');
+      r.pace.className = 'pace sm ' + (n >= g || behind < 1 ? 'ok' : 'warn');
+    }
+    if (document.activeElement !== r.inp) r.inp.value = g || '';
+  }
+  $('ghint').textContent = (any ? '' : 'Trage ein Jahresziel ein, z. B. 24 Bücher pro Jahr. ') + 'Gezählt werden Einträge mit Status „Fertig“ und Enddatum in diesem Jahr.';
+}
+
+// ---- Verdrahtung ----
+const opt = (v, l) => h('option', { value: v }, l);
+$('qtype').replaceChildren(...Object.keys(TYPES).map((k) => opt(k, TYPES[k].ico + ' ' + TYPES[k].l)));
+$('qstatus').replaceChildren(...STATUS.map((s) => opt(s, s)));
+$('ftype').replaceChildren(opt('', 'Alle Typen'), ...Object.keys(TYPES).map((k) => opt(k, TYPES[k].ico + ' ' + TYPES[k].pl)));
+$('qa').onsubmit = (e) => {
+  e.preventDefault();
+  const title = $('qt').value.trim(); if (!title) return;
+  const it = { id: uid(), title, creator: '', type: $('qtype').value, status: 'Wunsch', cur: 0, total: 0, unit: '', rating: 0, notes: '', started: '', finished: '', tags: [], next: false, nq: 0, added: Date.now() };
+  applyStatus(it, $('qstatus').value);
+  store.data.media.push(it);
+  if (!matches(it)) resetFilters();
+  $('qt').value = ''; $('qt').focus(); store.changed(); render();
+};
+document.querySelectorAll('#stabs button').forEach((b) => b.onclick = () => { fStatus = b.dataset.st; render(); });
+$('ftype').onchange = () => { fType = $('ftype').value; render(); };
+$('sort').onchange = () => { fSort = $('sort').value; render(); };
+$('q').oninput = () => { fText = $('q').value; render(); };
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

@@ -260,7 +260,7 @@ function sideList() {
 }
 function journeyHead(j) {
   const p = phase(j), r = range(j);
-  return h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { class: 'sp', style: 'margin:0;font-size:1.2rem;overflow-wrap:anywhere' }, j.name || 'Ohne Namen'), h('span', { class: 'badge ' + p.cls }, p.text),
+  return h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { style: 'margin:0;font-size:1.2rem;overflow-wrap:anywhere;flex:1 1 9em;min-width:0' }, j.name || 'Ohne Namen'), h('span', { class: 'badge ' + p.cls }, p.text),
     h('button', { class: 'small', onclick: () => { editJ = j.id; focusKey = 'jname'; render(); } }, 'Bearbeiten'),
     h('button', { class: 'small', onclick: () => {
       if (!confirm('Reise „' + (j.name || 'Ohne Namen') + '“ mit Tagesplan, Buchungen und Budget löschen? Packlisten bleiben erhalten.')) return;

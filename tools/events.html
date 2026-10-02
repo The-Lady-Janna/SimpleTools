@@ -43,7 +43,9 @@
   button.st.zugesagt { border-color:var(--ok); color:var(--ok); background:color-mix(in srgb, var(--ok) 12%, var(--card)); }
   button.st.abgesagt { border-color:var(--err); color:var(--err); }
   .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
-  .item:last-child { border-bottom:0; } .item .nm { flex:1 1 150px; min-width:0; overflow-wrap:anywhere; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .item:last-child { border-bottom:0; } .item .nm { flex:1 1 100px; min-width:0; overflow-wrap:anywhere; } .item .meta { color:var(--muted); font-size:.85rem; }
+  .acts { display:flex; gap:6px; align-items:center; flex:none; margin-left:auto; }
+  @media (max-width: 600px) { .stats .st-tile:last-child { grid-column:1 / -1; } }
   .item.done .nm { text-decoration:line-through; opacity:.6; } .item input[type=checkbox] { width:1.15rem; height:1.15rem; flex:none; }
   .erow { display:flex; flex-wrap:wrap; gap:6px; align-items:center; width:100%; } .erow input[type=text] { flex:1 1 120px; min-width:0; }
   .bar { height:12px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; flex:1; min-width:60px; }
@@ -139,7 +141,7 @@ const sum = (arr, k) => arr.reduce((a, x) => a + (x[k] || 0), 0);
 const cur = () => store.data.events.find((e) => e.id === curId) || null;
 const byName = (a, b) => a.name.localeCompare(b.name, 'de');
 const fmtIn = (n) => String(Math.round(n * 100) / 100).replace('.', ',');
-function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',') || /^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
 function sortedEvents() {
   const t = ymd(new Date()), ev = store.data.events;
   const up = ev.filter((e) => !e.date || e.date >= t).sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || byName(a, b));
@@ -182,6 +184,7 @@ function taskCd(t) {
 const L = (t, el, cls) => h('label', { class: 'f' + (cls ? ' ' + cls : '') }, t, el);
 const delBtn = (what, fn) => h('button', { class: 'small', title: what + ' löschen', 'aria-label': what + ' löschen', onclick: fn }, '✕');
 const editBtn = (id, sel) => h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => { editRow = id; refocus = sel || '.erow input'; render(); } }, '✎');
+const acts = (...k) => h('span', { class: 'acts' }, ...k);
 const rm = (arr, x) => { const i = arr.indexOf(x); if (i >= 0) arr.splice(i, 1); store.changed(); render(); };
 function rowForm(fields, onSave) {
   const stop = () => { editRow = null; render(); };
@@ -314,8 +317,7 @@ function guestRow(ev, g) {
   const next = STATUS[(STATUS.indexOf(g.status) + 1) % 3];
   return h('div', { class: 'item', dataset: { gid: g.id } },
     h('div', { class: 'nm' }, h('strong', {}, g.name), g.plus ? h('span', { class: 'badge', style: 'margin-left:6px', title: g.plus + ' Begleitperson(en)' }, '+' + g.plus) : null, g.group ? h('span', { class: 'badge', style: 'margin-left:6px' }, g.group) : null, g.note ? h('div', { class: 'meta' }, g.note) : null),
-    h('button', { class: 'st ' + g.status, title: 'Status ändern → ' + next, onclick: () => { g.status = next; store.changed(); render(); } }, g.status),
-    editBtn(g.id), delBtn('Gast', () => rm(ev.guests, g)));
+    acts(h('button', { class: 'st ' + g.status, title: 'Status ändern → ' + next, onclick: () => { g.status = next; store.changed(); render(); } }, g.status), editBtn(g.id), delBtn('Gast', () => rm(ev.guests, g))));
 }
 
 /* ---------- Aufgaben ---------- */
@@ -356,8 +358,7 @@ function tasksView(ev) {
       return h('div', { class: 'item' }, rowForm([x, d], () => { if (x.value.trim()) t.text = x.value.trim(); t.due = d.value; }));
     }
     const c = t.done ? null : taskCd(t), cb = h('input', { type: 'checkbox', checked: t.done, 'aria-label': 'Erledigt: ' + t.text }); cb.onchange = () => { t.done = cb.checked; store.changed(); render(); };
-    return h('div', { class: 'item' + (t.done ? ' done' : ''), dataset: { tid: t.id } }, cb, h('div', { class: 'nm' }, t.text, t.due ? h('div', { class: 'meta' }, fmtDate(t.due)) : null), c ? h('span', { class: 'badge ' + c.c, title: c.title || '' }, c.t) : null,
-      editBtn(t.id), delBtn('Aufgabe', () => rm(ev.tasks, t)));
+    return h('div', { class: 'item' + (t.done ? ' done' : ''), dataset: { tid: t.id } }, cb, h('div', { class: 'nm' }, t.text, t.due ? h('div', { class: 'meta' }, fmtDate(t.due)) : null), acts(c ? h('span', { class: 'badge ' + c.c, title: c.title || '' }, c.t) : null, editBtn(t.id), delBtn('Aufgabe', () => rm(ev.tasks, t))));
   });
   return h('div', {}, f, msg ? h('p', { class: 'muted tpl-msg' }, msg) : null,
     h('div', { class: 'card' }, h('div', { class: 'row', style: 'margin-bottom:8px' }, h('strong', {}, done + ' von ' + ev.tasks.length + ' erledigt'), h('div', { class: 'bar ' + (done && done === ev.tasks.length ? 'ok' : '') }, h('i', { style: 'width:' + pct + '%' })), h('label', { class: 'muted', style: 'font-size:.88rem' }, hd, ' Erledigte ausblenden')),
@@ -424,17 +425,17 @@ function menuEdit(m) {
   return h('div', { class: 'item' }, rowForm([co, x], () => { m.course = co.value; if (x.value.trim()) m.dish = x.value.trim(); }));
 }
 function menuCard(ev) {
-  const co = h('select', { id: 'm-course', 'aria-label': 'Gang' }, COURSES.map((c) => h('option', { value: c }, c))), di = h('input', { type: 'text', id: 'm-dish', required: true, placeholder: 'Gericht, z. B. Kürbissuppe', 'aria-label': 'Gericht', class: 'sp', style: 'min-width:0' });
+  const co = h('select', { id: 'm-course', 'aria-label': 'Gang' }, COURSES.map((c) => h('option', { value: c }, c))), di = h('input', { type: 'text', id: 'm-dish', required: true, placeholder: 'Gericht, z. B. Kürbissuppe', 'aria-label': 'Gericht', style: 'flex:1 1 140px;min-width:0' });
   co.value = menuCourse;
   co.onchange = () => { menuCourse = co.value; };
   const f = h('form', { class: 'row' }, co, di, h('button', { class: 'primary' }, 'Hinzufügen'));
   f.onsubmit = (e) => { e.preventDefault(); if (!di.value.trim()) return; ev.menu.push({ id: uid(), course: co.value, dish: di.value.trim() }); menuCourse = co.value; refocus = '#m-dish'; store.changed(); render(); };
   const groups = COURSES.map((c) => ({ c, items: ev.menu.filter((m) => m.course === c) })).filter((g) => g.items.length);
   return h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 8px;font-size:1.05rem' }, '🍽️ Menü'), f,
-    ...(groups.length ? groups.map((g) => [h('div', { class: 'course' }, g.c), ...g.items.map((m) => editRow === m.id ? menuEdit(m) : h('div', { class: 'item', dataset: { mid: m.id } }, h('div', { class: 'nm' }, m.dish), editBtn(m.id), delBtn('Gericht', () => rm(ev.menu, m))))]).flat() : [h('p', { class: 'muted', style: 'margin:10px 0 0' }, 'Noch kein Menü. Plane Vorspeise, Hauptgang, Dessert, Getränke und Snacks.')]));
+    ...(groups.length ? groups.map((g) => [h('div', { class: 'course' }, g.c), ...g.items.map((m) => editRow === m.id ? menuEdit(m) : h('div', { class: 'item', dataset: { mid: m.id } }, h('div', { class: 'nm' }, m.dish), acts(editBtn(m.id), delBtn('Gericht', () => rm(ev.menu, m)))))]).flat() : [h('p', { class: 'muted', style: 'margin:10px 0 0' }, 'Noch kein Menü. Plane Vorspeise, Hauptgang, Dessert, Getränke und Snacks.')]));
 }
 function shopCard(ev) {
-  const tx = h('input', { type: 'text', id: 's-text', required: true, placeholder: 'Artikel, z. B. 2 kg Kartoffeln', 'aria-label': 'Artikel', class: 'sp', style: 'min-width:0' });
+  const tx = h('input', { type: 'text', id: 's-text', required: true, placeholder: 'Artikel, z. B. 2 kg Kartoffeln', 'aria-label': 'Artikel', style: 'flex:1 1 140px;min-width:0' });
   const f = h('form', { class: 'row' }, tx, h('button', { class: 'primary' }, 'Hinzufügen'));
   f.onsubmit = (e) => { e.preventDefault(); if (!tx.value.trim()) return; ev.shopping.push({ id: uid(), text: tx.value.trim(), done: false }); refocus = '#s-text'; store.changed(); render(); };
   const done = ev.shopping.filter((s) => s.done).length;
@@ -444,7 +445,7 @@ function shopCard(ev) {
   const rows = ev.shopping.map((s) => {
     if (editRow === s.id) { const x = h('input', { type: 'text', value: s.text, required: true, 'aria-label': 'Artikel' }); return h('div', { class: 'item' }, rowForm([x], () => { if (x.value.trim()) s.text = x.value.trim(); })); }
     const cb = h('input', { type: 'checkbox', checked: s.done, 'aria-label': 'Gekauft: ' + s.text }); cb.onchange = () => { s.done = cb.checked; store.changed(); render(); };
-    return h('div', { class: 'item' + (s.done ? ' done' : ''), dataset: { sid: s.id } }, cb, h('div', { class: 'nm' }, s.text), editBtn(s.id), delBtn('Artikel', () => rm(ev.shopping, s)));
+    return h('div', { class: 'item' + (s.done ? ' done' : ''), dataset: { sid: s.id } }, cb, h('div', { class: 'nm' }, s.text), acts(editBtn(s.id), delBtn('Artikel', () => rm(ev.shopping, s))));
   });
   return h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 8px;font-size:1.05rem' }, '🛒 Einkaufsliste'), f,
     h('div', { class: 'row', style: 'margin:8px 0 2px' }, h('span', { class: 'muted' }, done + ' / ' + ev.shopping.length + ' erledigt'), h('span', { class: 'sp' }), copy, clr),

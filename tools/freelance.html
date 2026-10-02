@@ -198,7 +198,7 @@ function render() {
 /* ---------- Timer ---------- */
 const elapsedMs = () => { const t = F().timer; return t ? Math.max(0, Date.now() - Date.parse(t.start)) : 0; };
 // Nur den Zähler aktualisieren – kein Neuzeichnen
-setInterval(() => { const el = document.getElementById('tlive'); if (el) el.textContent = clock(elapsedMs()); }, 1000);
+setInterval(() => { const el = document.getElementById('tlive'); if (el) { const c = clock(elapsedMs()); if (el.textContent !== c) el.textContent = c; } }, 250);
 function startTimer(pid, note) { if (F().timer || !project(pid)) return; F().timer = { projectId: pid, start: new Date().toISOString(), note: note || '' }; store.changed(); render(); }
 function stopTimer() {
   const t = F().timer; if (!t) return;
