@@ -161,7 +161,7 @@ function render() {
   $('label').textContent = anchor.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
   const days = Array.from({ length: n }, (_, i) => new Date(y, m, i + 1)), t = ymd(new Date());
   v.replaceChildren(h('div', { class: 'card scroll' }, h('table', { class: 'grid' },
-    h('thead', {}, h('tr', {}, h('th', { class: 'nm' }, ''), days.map((d) => h('th', { class: ymd(d) === t ? 'today' : '', style: 'font-size:.75rem' }, d.getDate(), h('div', { class: 'muted', style: 'font-weight:400' }, WD[wdIdx(d)][0]))), h('th', {}, '%'))),
+    h('thead', {}, h('tr', {}, h('th', { class: 'nm' }, ''), days.map((d) => h('th', { class: ymd(d) === t ? 'today' : '', style: 'font-size:.75rem' }, d.getDate(), h('div', { class: 'muted', style: 'font-weight:400' }, (window.SimpleI18n ? SimpleI18n.translate(WD[wdIdx(d)]) : WD[wdIdx(d)]).charAt(0)))), h('th', {}, '%'))),
     h('tbody', {}, hs.map((hb) => {
       const past = days.filter((d) => ymd(d) <= t && scheduled(hb, d)), done = past.filter((d) => isDone(hb, ymd(d))).length;
       return h('tr', {}, h('td', { class: 'nm' }, (hb.icon ? hb.icon + ' ' : '') + hb.name), days.map((d) => h('td', {}, dayCell(hb, d))), h('td', { class: 'streak' }, past.length ? Math.round(done / past.length * 100) + ' %' : '–'));
