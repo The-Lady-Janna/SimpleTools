@@ -55,6 +55,7 @@
   .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(105px,1fr)); gap:8px; margin-bottom:6px; }
   .sum div { text-align:center; border:1px solid var(--line); border-radius:8px; padding:6px 4px; background:var(--bg); font-size:.78rem; color:var(--muted); }
   .sum b { display:block; font-size:1.2rem; color:var(--fg); }
+  @media (max-width: 600px) { .filters input.sp { flex:1 1 100%; } .sum { grid-template-columns:repeat(2,1fr); } }
   .gr { padding:8px 0; border-top:1px solid var(--line); }
   .gl { display:flex; align-items:center; gap:4px 8px; flex-wrap:wrap; margin-bottom:5px; } .gl .nm { font-weight:600; }
   input.g { width:4.6em; padding:3px 6px; text-align:center; }
