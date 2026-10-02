@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schule &amp; Studium</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 960px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  label.f input, label.f select { max-width:100%; }
+  .hint { color:var(--muted); font-size:.82rem; }
+  .dot { display:inline-block; width:.8em; height:.8em; border-radius:50%; background:var(--sc,var(--accent)); flex:none; }
+  .item { display:flex; flex-wrap:wrap; gap:8px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); }
+  .item:last-child { border-bottom:0; }
+  .item .grow { flex:1; min-width:150px; }
+  .item.done .grow { text-decoration:line-through; color:var(--muted); }
+  .srow input[type=text] { min-width:0; } .srow input.nm { flex:1; min-width:120px; } .srow input.wt { width:6em; }
+  input[type=color] { width:38px; height:34px; padding:2px; flex:none; }
+  .ttwrap { overflow-x:auto; }
+  table.tt { border-collapse:collapse; width:100%; min-width:640px; table-layout:fixed; }
+  table.tt th, table.tt td { border:1px solid var(--line); padding:4px; vertical-align:top; }
+  table.tt th.tm { width:136px; font-weight:400; } table.tt th.tm input { font-size:.78rem; padding:3px 2px; }
+  table.tt th.today { background:var(--accent); color:var(--on-accent); }
+  table.tt td.cell { border-left:4px solid var(--sc,var(--line)); }
+  table.tt select, table.tt input { width:100%; font-size:.82rem; padding:3px 4px; margin:0; box-sizing:border-box; }
+  table.tt td input.room { margin-top:3px; }
+  .tmrow { display:flex; gap:4px; align-items:center; flex-wrap:wrap; } .tmrow input { width:100%; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:10px; }
+  .sc { border:1px solid var(--line); border-left:5px solid var(--sc,var(--accent)); border-radius:10px; padding:8px 10px; background:var(--bg); }
+  .sc .avg { font-size:1.3rem; font-weight:700; }
+  .big { font-size:2rem; font-weight:700; line-height:1.1; }
+  table.pl { width:100%; border-collapse:collapse; } table.pl td, table.pl th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; }
+  .bar { height:8px; border-radius:4px; background:var(--sc,var(--accent)); min-width:2px; }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:15px; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Schule &amp; Studium</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs"><button data-tab="subjects">Fächer</button><button data-tab="plan">Stundenplan</button><button data-tab="grades">Noten</button><button data-tab="exams">Prüfungen</button><button data-tab="homework">Hausaufgaben</button><button data-tab="study">Lernzeit</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'schule',
+  defaults: () => ({ subjects: [], slots: [{ id: 'z1', from: '08:00', to: '08:45' }, { id: 'z2', from: '08:50', to: '09:35' }, { id: 'z3', from: '09:55', to: '10:40' }, { id: 'z4', from: '10:45', to: '11:30' }, { id: 'z5', from: '11:40', to: '12:25' }, { id: 'z6', from: '12:30', to: '13:15' }], lessons: [], grades: [], gradeSystem: 'de', exams: [], homework: [], study: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+let tab = 'subjects', wStart = '', gFilter = '';
+const COLORS = ['#4f8cff', '#e8590c', '#2f9e44', '#ae3ec9', '#f59f00', '#1098ad', '#d6336c', '#7048e8'];
+const KINDS = ['Klausur', 'Test', 'Mündlich'], KW = { 'Klausur': 2, 'Test': 1, 'Mündlich': 1 };
+const SYS = { de: { lo: 1, hi: 6 }, pct: { lo: 0, hi: 100 }, gpa: { lo: 0, hi: 4 } };
+const gf = { id: null, date: '', subject: '', kind: 'Klausur', v: '', w: '2', wTouched: false };
+const num = (s) => { const n = parseFloat(String(s).trim().replace(',', '.')); return isFinite(n) ? n : NaN; };
+const fmtN = (n, d) => (d == null ? String(Math.round(n * 100) / 100) : n.toFixed(d)).replace('.', SimpleI18n.dec);
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+const mondayOf = (s) => { const d = parseYmd(s); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return ymd(d); };
+const dayDiff = (s) => Math.round((parseYmd(s) - parseYmd(ymd(new Date()))) / 864e5);
+const dayName = (i, f) => new Date(2021, 0, 4 + i).toLocaleDateString('de-DE', { weekday: f || 'short' });
+const todayIdx = () => (new Date().getDay() + 6) % 7;
+const sub = (id) => store.data.subjects.find((s) => s.id === id);
+const byDate = (a, b) => a.date.localeCompare(b.date);
+function normalize() {
+  const d = store.data;
+  for (const k of ['subjects', 'slots', 'lessons', 'grades', 'exams', 'homework', 'study']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!SYS[d.gradeSystem]) d.gradeSystem = 'de';
+  d.subjects.forEach((s, i) => { s.name = String(s.name || ''); s.color = /^#[0-9a-f]{6}$/i.test(s.color) ? s.color : COLORS[i % COLORS.length]; s.weight = isFinite(s.weight) ? Math.max(0, +s.weight) : 1; });
+  d.grades.forEach((g) => { if (!SYS[g.sys]) g.sys = 'de'; g.weight = g.weight > 0 ? +g.weight : 1; });
+  if (!wStart) wStart = mondayOf(ymd(new Date()));
+  if (!gf.date) gf.date = ymd(new Date());
+}
+// ---- Noten-Umrechnung (linear über Prozent) ----
+const toPct = (v, sys) => sys === 'de' ? (6 - v) / 5 * 100 : sys === 'gpa' ? v / 4 * 100 : v;
+const fromPct = (p, sys) => sys === 'de' ? 6 - p / 100 * 5 : sys === 'gpa' ? p / 100 * 4 : p;
+function showPct(p) {
+  const s = store.data.gradeSystem, v = fromPct(p, s);
+  return s === 'pct' ? fmtN(v, 1) + ' %' : fmtN(v, 2);
+}
+function showGrade(g) {
+  const s = store.data.gradeSystem;
+  if (g.sys === s) return s === 'pct' ? fmtN(g.value) + ' %' : fmtN(g.value);
+  return showPct(toPct(g.value, g.sys));
+}
+const pctBadge = (p) => p >= 70 ? 'ok' : p >= 50 ? 'warn' : 'err';
+function avgPct(list) {
+  let a = 0, w = 0;
+  for (const g of list) { a += toPct(g.value, g.sys) * g.weight; w += g.weight; }
+  return w ? a / w : null;
+}
+function subjAvg(id) { return avgPct(store.data.grades.filter((g) => g.subject === id)); }
+function totalAvg() {
+  let a = 0, w = 0, n = 0, plain = 0;
+  for (const s of store.data.subjects) { const p = subjAvg(s.id); if (p == null) continue; a += p * s.weight; w += s.weight; plain += p; n++; }
+  return w > 0 ? a / w : n ? plain / n : null;
+}
+const fmtMin = (m) => { const hh = Math.floor(m / 60), mm = Math.round(m % 60); return hh && mm ? `${hh} Std. ${mm} Min.` : hh ? `${hh} Std.` : `${mm} Min.`; };
+const subjDot = (id) => h('span', { class: 'dot', style: '--sc:' + ((sub(id) || {}).color || 'var(--muted)') });
+const subjSelect = (value, label, withNone) => h('select', { 'aria-label': label }, withNone ? h('option', { value: '' }, '– kein Fach –') : null, store.data.subjects.map((s) => h('option', { value: s.id, selected: s.id === value }, s.name || '(ohne Namen)')));
+const needSubjects = () => h('div', { class: 'card muted' }, 'Lege zuerst im Tab Fächer ein Fach an.');
+function field(label, input) { return h('label', { class: 'f' }, label, input); }
+
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const v = { subjects: subjectsView, plan: planView, grades: gradesView, exams: examsView, homework: homeworkView, study: studyView }[tab]();
+  $('view').replaceChildren(v);
+}
+
+// ================= Fächer =================
+function subjectsView() {
+  const name = h('input', { type: 'text', required: true, placeholder: 'Fach, z. B. Mathematik', 'aria-label': 'Name', style: 'flex:1;min-width:150px' });
+  const col = h('input', { type: 'color', value: COLORS[store.data.subjects.length % COLORS.length], 'aria-label': 'Farbe' });
+  const wt = h('input', { type: 'text', inputMode: 'decimal', value: '1', placeholder: 'Gewichtung / ECTS', 'aria-label': 'Gewichtung / ECTS', style: 'width:9em' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'row' }, col, name, wt, h('button', { class: 'primary' }, 'Fach hinzufügen')));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const n = name.value.trim(), w = num(wt.value);
+    if (!n) return;
+    store.data.subjects.push({ id: uid(), name: n, color: col.value, weight: isFinite(w) && w >= 0 ? w : 1 });
+    store.changed(); render();
+  };
+  const list = store.data.subjects.map((s) => {
+    const c = h('input', { type: 'color', value: s.color, 'aria-label': 'Farbe' }); c.onchange = () => { s.color = c.value; store.changed(); };
+    const n = h('input', { type: 'text', class: 'nm', value: s.name, 'aria-label': 'Name' }); n.onchange = () => { s.name = n.value.trim() || s.name; n.value = s.name; store.changed(); };
+    const w = h('input', { type: 'text', inputMode: 'decimal', class: 'wt', value: fmtN(s.weight), 'aria-label': 'Gewichtung / ECTS' });
+    w.onchange = () => { const x = num(w.value); if (isFinite(x) && x >= 0) s.weight = x; w.value = fmtN(s.weight); store.changed(); render(); };
+    const del = h('button', { class: 'small', title: 'Fach löschen', 'aria-label': 'Fach löschen', onclick: () => {
+      if (!confirm('Fach „' + s.name + '“ löschen? Zugehörige Stunden, Noten, Prüfungen, Hausaufgaben und Lernzeiten werden ebenfalls entfernt.')) return;
+      const d = store.data;
+      d.subjects = d.subjects.filter((x) => x !== s);
+      d.lessons = d.lessons.filter((x) => x.subject !== s.id); d.grades = d.grades.filter((x) => x.subject !== s.id);
+      d.exams = d.exams.filter((x) => x.subject !== s.id); d.study = d.study.filter((x) => x.subject !== s.id);
+      d.homework.forEach((x) => { if (x.subject === s.id) x.subject = ''; });
+      store.changed(); render();
+    } }, '✕');
+    return h('div', { class: 'item srow' }, c, n, w, del);
+  });
+  const sum = store.data.subjects.reduce((a, s) => a + s.weight, 0);
+  return h('div', {}, f, h('div', { class: 'card' },
+    list.length ? [list, h('p', { class: 'hint', style: 'margin:8px 0 0' }, `Summe: ${fmtN(sum)}`)] : h('p', { class: 'muted' }, 'Noch keine Fächer.'),
+    h('p', { class: 'hint', style: 'margin:8px 0 0' }, 'Die Gewichtung (z. B. ECTS-Punkte) bestimmt, wie stark ein Fach im Gesamtschnitt zählt.')));
+}
+
+// ================= Stundenplan =================
+function planView() {
+  const d = store.data, slots = d.slots.slice().sort((a, b) => a.from.localeCompare(b.from));
+  const head = h('tr', {}, h('th', { class: 'tm' }, 'Zeit'), [0, 1, 2, 3, 4].map((i) => h('th', { class: i === todayIdx() ? 'today' : '' }, dayName(i, 'long'))));
+  const rows = slots.map((sl) => {
+    const f = h('input', { type: 'time', value: sl.from, 'aria-label': 'Beginn' }), t = h('input', { type: 'time', value: sl.to, 'aria-label': 'Ende' });
+    f.onchange = () => { if (f.value) { sl.from = f.value; store.changed(); render(); } }; t.onchange = () => { if (t.value) { sl.to = t.value; store.changed(); } };
+    const del = h('button', { class: 'small', title: 'Zeitslot entfernen', 'aria-label': 'Zeitslot entfernen', onclick: () => {
+      if (!confirm('Zeitslot ' + sl.from + '–' + sl.to + ' mit allen Stunden entfernen?')) return;
+      d.slots = d.slots.filter((x) => x !== sl); d.lessons = d.lessons.filter((x) => x.slot !== sl.id); store.changed(); render();
+    } }, '✕');
+    const cells = [0, 1, 2, 3, 4].map((day) => {
+      let ls = d.lessons.find((x) => x.slot === sl.id && x.day === day);
+      const sel = h('select', { 'aria-label': 'Fach' }, h('option', { value: '' }, '–'), d.subjects.map((s) => h('option', { value: s.id, selected: ls && ls.subject === s.id }, s.name || '(ohne Namen)')));
+      const room = h('input', { type: 'text', class: 'room', placeholder: 'Raum', 'aria-label': 'Raum', value: ls ? ls.room || '' : '' });
+      room.hidden = !ls;
+      sel.onchange = () => {
+        ls = d.lessons.find((x) => x.slot === sl.id && x.day === day);
+        if (!sel.value) d.lessons = d.lessons.filter((x) => x !== ls);
+        else if (ls) ls.subject = sel.value;
+        else d.lessons.push({ id: uid(), day, slot: sl.id, subject: sel.value, room: '' });
+        store.changed(); render();
+      };
+      room.onchange = () => { if (ls) { ls.room = room.value.trim(); store.changed(); } };
+      return h('td', { class: 'cell', style: ls && sub(ls.subject) ? '--sc:' + sub(ls.subject).color : '' }, sel, room);
+    });
+    return h('tr', {}, h('th', { class: 'tm' }, h('div', { class: 'tmrow' }, f, t, del)), cells);
+  });
+  const add = h('button', { onclick: () => {
+    const last = slots[slots.length - 1], [hh, mm] = last ? last.to.split(':').map(Number) : [8, 0], end = hh * 60 + mm + 45;
+    d.slots.push({ id: uid(), from: pad(hh) + ':' + pad(mm), to: pad(Math.min(23, Math.floor(end / 60))) + ':' + pad(end % 60) });
+    store.changed(); render();
+  } }, '+ Zeitslot');
+  return h('div', { class: 'card' },
+    d.subjects.length ? null : h('p', { class: 'muted', style: 'margin-top:0' }, 'Lege zuerst im Tab Fächer ein Fach an.'),
+    h('div', { class: 'ttwrap' }, h('table', { class: 'tt' }, h('thead', {}, head), h('tbody', {}, rows))),
+    h('div', { class: 'row', style: 'margin-top:10px' }, add, h('span', { class: 'hint' }, 'Wähle in jedem Feld das Fach und trage bei Bedarf den Raum ein.')));
+}
+
+// ================= Noten =================
+function gradesView() {
+  const d = store.data, sys = d.gradeSystem;
+  const ss = h('select', { 'aria-label': 'Notensystem' }, [['de', '1–6 (Deutschland)'], ['pct', '0–100 %'], ['gpa', 'GPA 0–4']].map(([k, l]) => h('option', { value: k, selected: k === sys }, l)));
+  ss.onchange = () => { d.gradeSystem = ss.value; gf.v = ''; store.changed(); render(); };
+  const tot = totalAvg();
+  const top = h('div', { class: 'card' }, h('div', { class: 'row' }, h('div', {}, h('div', { class: 'muted' }, 'Gesamtschnitt'), tot == null ? h('div', { class: 'big' }, '–') : h('div', { class: 'big' }, showPct(tot))),
+    h('span', { class: 'sp' }), field('Notensystem', ss)),
+    h('p', { class: 'hint', style: 'margin:8px 0 0' }, 'Noten werden gewichtet gemittelt; der Gesamtschnitt nutzt die Gewichtung der Fächer. Umrechnung zwischen den Systemen linear.'));
+  if (!d.subjects.length) return h('div', {}, top, needSubjects());
+  if (!sub(gf.subject)) gf.subject = d.subjects[0].id;
+  const dt = h('input', { type: 'date', value: gf.date, required: true, 'aria-label': 'Datum' }); dt.oninput = () => { gf.date = dt.value; };
+  const sj = subjSelect(gf.subject, 'Fach'); sj.onchange = () => { gf.subject = sj.value; };
+  const kd = h('select', { 'aria-label': 'Art' }, KINDS.map((k) => h('option', { value: k, selected: k === gf.kind }, k)));
+  const ph = 'z. B. ' + (sys === 'de' ? '2' + SimpleI18n.dec + '3' : sys === 'gpa' ? '3' + SimpleI18n.dec + '5' : '85');
+  const vi = h('input', { type: 'text', inputMode: 'decimal', value: gf.v, placeholder: ph, required: true, 'aria-label': 'Note', style: 'width:6em' }); vi.oninput = () => { gf.v = vi.value; };
+  const wi = h('input', { type: 'text', inputMode: 'decimal', value: gf.w, placeholder: 'Gewicht', 'aria-label': 'Gewicht', style: 'width:5em' }); wi.oninput = () => { gf.w = wi.value; gf.wTouched = true; };
+  kd.onchange = () => { gf.kind = kd.value; if (!gf.wTouched) { gf.w = String(KW[gf.kind]); wi.value = gf.w; } };
+  const reset = () => { Object.assign(gf, { id: null, v: '', kind: 'Klausur', w: '2', wTouched: false }); };
+  const cancel = gf.id ? h('button', { type: 'button', onclick: () => { reset(); render(); } }, 'Abbrechen') : null;
+  const form = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Datum', dt), field('Fach', sj), field('Art', kd), field('Note', vi), field('Gewicht', wi),
+    h('button', { class: 'primary' }, gf.id ? 'Speichern' : 'Hinzufügen'), cancel));
+  form.onsubmit = (e) => {
+    e.preventDefault();
+    const v = num(vi.value), w = num(wi.value), r = SYS[sys];
+    if (!isFinite(v) || v < r.lo || v > r.hi) { alert(sys === 'de' ? 'Bitte eine Note von 1 bis 6 eingeben.' : sys === 'gpa' ? 'Bitte einen Wert von 0 bis 4 eingeben.' : 'Bitte einen Wert von 0 bis 100 eingeben.'); return; }
+    if (!dt.value) return;
+    const rec = { date: dt.value, subject: gf.subject, kind: gf.kind, value: v, sys, weight: isFinite(w) && w > 0 ? w : 1 };
+    if (gf.id) Object.assign(d.grades.find((x) => x.id === gf.id) || {}, rec); else d.grades.push(Object.assign({ id: uid() }, rec));
+    reset(); store.changed(); render();
+  };
+  const cards = d.subjects.map((s) => {
+    const gs = d.grades.filter((g) => g.subject === s.id), p = avgPct(gs);
+    return h('div', { class: 'sc', style: '--sc:' + s.color }, h('div', { class: 'row' }, h('strong', {}, s.name || '(ohne Namen)'), h('span', { class: 'sp' }), p == null ? null : h('span', { class: 'badge ' + pctBadge(p) }, gs.length === 1 ? '1 Note' : `${gs.length} Noten`)),
+      h('div', { class: 'avg' }, p == null ? '–' : showPct(p)));
+  });
+  const fl = h('select', { 'aria-label': 'Fach filtern' }, h('option', { value: '' }, 'Alle Fächer'), d.subjects.map((s) => h('option', { value: s.id, selected: s.id === gFilter }, s.name || '(ohne Namen)')));
+  fl.onchange = () => { gFilter = fl.value; render(); };
+  const list = d.grades.filter((g) => !gFilter || g.subject === gFilter).sort((a, b) => b.date.localeCompare(a.date)).map((g) => {
+    const p = toPct(g.value, g.sys);
+    return h('div', { class: 'item' }, h('span', { style: 'width:6.5em' }, fmtDate(g.date)), h('span', { class: 'grow' }, subjDot(g.subject), ' ', (sub(g.subject) || {}).name, ' ', h('span', { class: 'badge' }, g.kind)),
+      h('span', { class: 'hint' }, `Gewicht ${fmtN(g.weight)}`), h('strong', { class: 'badge ' + pctBadge(p) }, showGrade(g)),
+      h('button', { class: 'small', onclick: () => { Object.assign(gf, { id: g.id, date: g.date, subject: g.subject, kind: g.kind, w: fmtN(g.weight), wTouched: true, v: fmtN(g.sys === sys ? g.value : fromPct(p, sys)) }); render(); window.scrollTo(0, 0); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Note löschen', 'aria-label': 'Note löschen', onclick: () => { if (confirm('Note löschen?')) { d.grades = d.grades.filter((x) => x !== g); if (gf.id === g.id) reset(); store.changed(); render(); } } }, '✕'));
+  });
+  return h('div', {}, top, form, h('div', { class: 'grid', style: 'margin-bottom:12px' }, cards),
+    h('div', { class: 'card' }, h('div', { class: 'row', style: 'margin-bottom:6px' }, h('strong', {}, 'Alle Noten'), h('span', { class: 'sp' }), fl), list.length ? list : h('p', { class: 'muted' }, 'Noch keine Noten.')));
+}
+
+// ================= Prüfungen =================
+function cdText(n) { return n === 0 ? 'Heute' : n === 1 ? 'Morgen' : n > 1 ? `in ${n} Tagen` : n === -1 ? 'Gestern' : `vor ${-n} Tagen`; }
+function examsView() {
+  const d = store.data;
+  if (!d.subjects.length) return needSubjects();
+  const dt = h('input', { type: 'date', value: ymd(new Date()), required: true, 'aria-label': 'Datum' });
+  const sj = subjSelect('', 'Fach');
+  const ti = h('input', { type: 'text', placeholder: 'Thema (optional)', 'aria-label': 'Thema', style: 'flex:1;min-width:140px' });
+  const form = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Datum', dt), field('Fach', sj), ti, h('button', { class: 'primary' }, 'Hinzufügen')));
+  form.onsubmit = (e) => { e.preventDefault(); if (!dt.value) return; d.exams.push({ id: uid(), date: dt.value, subject: sj.value, title: ti.value.trim(), done: false }); store.changed(); render(); };
+  const row = (x) => {
+    const n = dayDiff(x.date), cb = h('input', { type: 'checkbox', checked: x.done, 'aria-label': 'Erledigt' }); cb.onchange = () => { x.done = cb.checked; store.changed(); render(); };
+    return h('div', { class: 'item' + (x.done ? ' done' : '') }, cb, h('span', { style: 'width:6.5em' }, fmtDate(x.date)), h('span', { class: 'grow' }, subjDot(x.subject), ' ', (sub(x.subject) || {}).name, x.title ? ' · ' + x.title : ''),
+      x.done ? null : h('span', { class: 'badge ' + (n < 0 ? 'err' : n <= 3 ? 'warn' : 'ok') }, cdText(n)),
+      h('button', { class: 'small', title: 'Prüfung löschen', 'aria-label': 'Prüfung löschen', onclick: () => { if (confirm('Prüfung löschen?')) { d.exams = d.exams.filter((y) => y !== x); store.changed(); render(); } } }, '✕'));
+  };
+  const open = d.exams.filter((x) => !x.done).sort(byDate), done = d.exams.filter((x) => x.done).sort((a, b) => b.date.localeCompare(a.date));
+  return h('div', {}, form, h('div', { class: 'card' }, h('strong', {}, 'Anstehend'), open.length ? open.map(row) : h('p', { class: 'muted' }, 'Keine offenen Prüfungen oder Abgaben.')),
+    done.length ? h('div', { class: 'card' }, h('strong', {}, 'Erledigt'), done.map(row)) : null);
+}
+
+// ================= Hausaufgaben =================
+function homeworkView() {
+  const d = store.data;
+  const tx = h('input', { type: 'text', required: true, placeholder: 'Hausaufgabe, z. B. Aufgaben 3 bis 5', 'aria-label': 'Hausaufgabe', style: 'flex:1;min-width:180px' });
+  const sj = subjSelect('', 'Fach', true), du = h('input', { type: 'date', 'aria-label': 'Fällig am' });
+  const form = h('form', { class: 'card' }, h('div', { class: 'form' }, tx, field('Fach', sj), field('Fällig am', du), h('button', { class: 'primary' }, 'Hinzufügen')));
+  form.onsubmit = (e) => { e.preventDefault(); const t = tx.value.trim(); if (!t) return; d.homework.push({ id: uid(), text: t, subject: sj.value, due: du.value, done: false }); store.changed(); render(); };
+  const row = (x) => {
+    const cb = h('input', { type: 'checkbox', checked: x.done, 'aria-label': 'Erledigt' }); cb.onchange = () => { x.done = cb.checked; store.changed(); render(); };
+    let b = null;
+    if (x.due && !x.done) { const n = dayDiff(x.due); b = h('span', { class: 'badge ' + (n < 0 ? 'err' : n <= 1 ? 'warn' : 'ok') }, n === 0 ? 'Fällig heute' : n === 1 ? 'Fällig morgen' : n > 1 ? `Fällig in ${n} Tagen` : n === -1 ? 'Überfällig seit gestern' : `Überfällig seit ${-n} Tagen`); }
+    return h('div', { class: 'item' + (x.done ? ' done' : '') }, cb, h('span', { class: 'grow' }, x.subject && sub(x.subject) ? [subjDot(x.subject), ' '] : null, x.text), x.due ? h('span', { class: 'hint' }, fmtDate(x.due)) : null, b,
+      h('button', { class: 'small', title: 'Hausaufgabe löschen', 'aria-label': 'Hausaufgabe löschen', onclick: () => { d.homework = d.homework.filter((y) => y !== x); store.changed(); render(); } }, '✕'));
+  };
+  const open = d.homework.filter((x) => !x.done).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999')), done = d.homework.filter((x) => x.done);
+  return h('div', {}, form, h('div', { class: 'card' }, open.length ? open.map(row) : h('p', { class: 'muted' }, 'Keine offenen Hausaufgaben. 🎉')),
+    done.length ? h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', {}, 'Erledigt'), h('span', { class: 'sp' }),
+      h('button', { class: 'small', onclick: () => { if (confirm('Alle erledigten Hausaufgaben entfernen?')) { d.homework = d.homework.filter((x) => !x.done); store.changed(); render(); } } }, 'Erledigte entfernen')), done.map(row)) : null);
+}
+
+// ================= Lernzeit =================
+function chart(days) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 220, L = 40, R = 10, T = 16, B = 26;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Lernzeit pro Tag');
+  const el = (tag, a, t, p) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; (p || svg).append(n); return n; };
+  const max = Math.max(60, ...days.map((x) => x.total)), step = max > 360 ? 120 : max > 180 ? 60 : 30, top = Math.ceil(max / step) * step;
+  const Y = (v) => T + (1 - v / top) * (H - T - B), bw = (W - L - R) / 7;
+  for (let v = 0; v <= top; v += step) { el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, String(v)); }
+  days.forEach((x, i) => {
+    let acc = 0; const cx = L + bw * i + bw / 2;
+    x.parts.forEach((p) => {
+      const r = el('rect', { x: cx - bw * 0.3, width: bw * 0.6, y: Y(acc + p.min), height: Math.max(1, Y(acc) - Y(acc + p.min)), fill: p.color }); acc += p.min;
+      el('title', {}, (p.name || '') + ' – ' + fmtMin(p.min), r);
+    });
+    if (x.total) el('text', { x: cx, y: Y(x.total) - 4, 'text-anchor': 'middle' }, String(x.total));
+    el('text', { x: cx, y: H - 8, 'text-anchor': 'middle' }, x.label);
+  });
+  return svg;
+}
+function studyView() {
+  const d = store.data;
+  if (!d.subjects.length) return needSubjects();
+  const dt = h('input', { type: 'date', value: ymd(new Date()), required: true, 'aria-label': 'Datum' });
+  const sj = subjSelect('', 'Fach');
+  const mi = h('input', { type: 'text', inputMode: 'decimal', required: true, placeholder: 'Minuten', 'aria-label': 'Minuten', style: 'width:6em' });
+  const form = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Datum', dt), field('Fach', sj), field('Minuten', mi), h('button', { class: 'primary' }, 'Eintragen')));
+  form.onsubmit = (e) => {
+    e.preventDefault(); const m = Math.round(num(mi.value));
+    if (!dt.value || !(m > 0)) return;
+    d.study.push({ id: uid(), date: dt.value, subject: sj.value, min: m }); store.changed(); render();
+  };
+  const end = addDays(wStart, 6), wk = d.study.filter((x) => x.date >= wStart && x.date <= end);
+  const days = [0, 1, 2, 3, 4, 5, 6].map((i) => {
+    const ds = addDays(wStart, i), items = wk.filter((x) => x.date === ds), by = {};
+    items.forEach((x) => { by[x.subject] = (by[x.subject] || 0) + x.min; });
+    const parts = Object.keys(by).filter((k) => sub(k)).map((k) => ({ name: sub(k).name, color: sub(k).color, min: by[k] }));
+    return { label: dayName(i), total: parts.reduce((a, p) => a + p.min, 0), parts };
+  });
+  const total = days.reduce((a, x) => a + x.total, 0);
+  const nav = h('div', { class: 'row' }, h('button', { class: 'small', 'aria-label': 'Vorherige Woche', onclick: () => { wStart = addDays(wStart, -7); render(); } }, '←'),
+    h('strong', {}, fmtDate(wStart) + ' – ' + fmtDate(end)),
+    h('button', { class: 'small', 'aria-label': 'Nächste Woche', onclick: () => { wStart = addDays(wStart, 7); render(); } }, '→'),
+    h('button', { class: 'small', onclick: () => { wStart = mondayOf(ymd(new Date())); render(); } }, 'Diese Woche'), h('span', { class: 'sp' }),
+    h('span', { class: 'muted' }, 'Wochensumme'), h('strong', {}, fmtMin(total)));
+  const bySub = d.subjects.map((s) => ({ s, min: wk.filter((x) => x.subject === s.id).reduce((a, x) => a + x.min, 0) })).filter((x) => x.min).sort((a, b) => b.min - a.min);
+  const stats = bySub.length ? h('table', { class: 'pl', style: 'margin-top:10px' }, h('tbody', {}, bySub.map((x) => h('tr', {}, h('td', {}, subjDot(x.s.id), ' ', x.s.name),
+    h('td', { style: 'width:32%' }, h('div', { class: 'bar', style: `--sc:${x.s.color};width:${Math.round(x.min / bySub[0].min * 100)}%` })), h('td', { style: 'text-align:right;white-space:nowrap' }, fmtMin(x.min)))))) : h('p', { class: 'muted' }, 'In dieser Woche noch keine Lernzeit eingetragen.');
+  const entries = wk.slice().sort((a, b) => b.date.localeCompare(a.date)).map((x) => h('div', { class: 'item' }, h('span', { style: 'width:6.5em' }, fmtDate(x.date)), h('span', { class: 'grow' }, subjDot(x.subject), ' ', (sub(x.subject) || {}).name), h('strong', {}, fmtMin(x.min)),
+    h('button', { class: 'small', title: 'Eintrag löschen', 'aria-label': 'Eintrag löschen', onclick: () => { d.study = d.study.filter((y) => y !== x); store.changed(); render(); } }, '✕')));
+  return h('div', {}, form, h('div', { class: 'card' }, nav, chart(days), stats), entries.length ? h('div', { class: 'card' }, entries) : null);
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

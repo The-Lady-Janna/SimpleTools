@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kleiderschrank &amp; Outfits</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  label.f input, label.f select { max-width:100%; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:10px; }
+  .gi { border:1px solid var(--line); border-radius:12px; background:var(--card); overflow:hidden; display:flex; flex-direction:column; min-width:0; }
+  .gi .body { padding:8px 10px 10px; display:flex; flex-direction:column; gap:4px; flex:1; min-width:0; }
+  .gi h3 { margin:0; font-size:1rem; overflow-wrap:anywhere; }
+  .ph { width:100%; aspect-ratio:4/3; object-fit:cover; display:block; background:var(--bg); }
+  .ph.em { display:flex; align-items:center; justify-content:center; font-size:3rem; }
+  .sm { width:44px; height:44px; flex:none; border-radius:8px; object-fit:cover; background:var(--bg); display:flex; align-items:center; justify-content:center; font-size:1.5rem; }
+  .hint { color:var(--muted); font-size:.82rem; overflow-wrap:anywhere; }
+  .acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:auto; padding-top:4px; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line); border-radius:99px; padding:3px 10px; background:var(--bg); cursor:pointer; font-size:.88rem; max-width:100%; }
+  .chip.on { border-color:var(--accent); background:var(--card); box-shadow:0 0 0 1px var(--accent) inset; }
+  .li { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 0; border-bottom:1px solid var(--line); }
+  .li .grow { flex:1; min-width:150px; overflow-wrap:anywhere; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:10px; }
+  .stat { border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:var(--card); }
+  .stat b { display:block; font-size:1.35rem; }
+  .bar { display:flex; align-items:center; gap:8px; margin:5px 0; font-size:.9rem; }
+  .bar .lbl { width:8.5em; flex:none; } .bar .trk { flex:1; background:var(--bg); border-radius:6px; height:14px; border:1px solid var(--line); overflow:hidden; min-width:40px; }
+  .bar .fill { height:100%; background:var(--accent); } .bar .val { width:5.5em; text-align:right; flex:none; font-size:.82rem; color:var(--muted); }
+  .note { padding:8px 12px; border:1px solid var(--ok); color:var(--ok); border-radius:10px; margin:8px 0; }
+  h2.sec { font-size:1.05rem; margin:12px 0 6px; }
+  .filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .filters input[type=search] { flex:1 1 100%; min-width:140px; }
+  @media (min-width:700px) { .filters input[type=search] { flex:1 1 200px; } }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Kleiderschrank &amp; Outfits</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs"><button data-tab="teile">Teile</button><button data-tab="outfits">Outfits</button><button data-tab="wunsch">Wunschliste</button><button data-tab="aus">Ausmisten</button><button data-tab="kapsel">Kapselgarderobe</button><button data-tab="stat">Statistik</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'kleiderschrank',
+  defaults: () => ({ garments: [], outfits: [], wishes: [], capsuleTarget: 33, dueMonths: 6 }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const CATS = ['Oberteil', 'Hose', 'Kleid', 'Schuhe', 'Jacke', 'Accessoire'];
+const ICON = { Oberteil: '👕', Hose: '👖', Kleid: '👗', Schuhe: '👟', Jacke: '🧥', Accessoire: '👜' };
+const SEASONS = ['Ganzjährig', 'Frühling', 'Sommer', 'Herbst', 'Winter'];
+const OCCS = ['Alltag', 'Arbeit', 'Freizeit', 'Sport', 'Festlich', 'Date', 'Reise', 'Sonstiges'];
+const PRIOS = ['hoch', 'mittel', 'niedrig'];
+const PRIO_LABEL = { hoch: 'Hoch', mittel: 'Mittel', niedrig: 'Niedrig' };
+const PRIO_BADGE = { hoch: 'err', mittel: 'warn', niedrig: '' };
+let tab = 'teile', editG = null, editO = null, flash = '';
+let fq = '', fcat = '', fsea = '', fsort = 'name', capSea = '';
+const today = () => ymd(new Date());
+const U = (t, cls) => h('span', { 'data-notranslate': '', class: cls || '' }, t);
+const num = (s) => { const v = parseFloat(String(s).trim().replace(/\s/g, '').replace(',', '.')); return isFinite(v) && v > 0 ? v : 0; };
+const money = (n) => eur(n);
+function normalize() {
+  const d = store.data;
+  for (const k of ['garments', 'outfits', 'wishes']) if (!Array.isArray(d[k])) d[k] = [];
+  if (!(d.capsuleTarget > 0)) d.capsuleTarget = 33;
+  if (![3, 6, 12, 24].includes(d.dueMonths)) d.dueMonths = 6;
+  d.garments.forEach((g) => {
+    if (!g.id) g.id = uid();
+    g.wears = Math.max(0, parseInt(g.wears, 10) || 0); g.price = +g.price > 0 ? +g.price : 0;
+    if (!CATS.includes(g.cat)) g.cat = 'Oberteil';
+    if (!SEASONS.includes(g.season)) g.season = 'Ganzjährig';
+    if (!g.added) g.added = g.bought || today();
+    for (const k of ['name', 'color', 'brand', 'care', 'emoji', 'bought', 'lastWorn', 'reviewed']) if (typeof g[k] !== 'string') g[k] = '';
+    g.capsule = !!g.capsule;
+  });
+  d.outfits.forEach((o) => { if (!o.id) o.id = uid(); if (!Array.isArray(o.items)) o.items = []; o.wears = Math.max(0, parseInt(o.wears, 10) || 0); o.name = o.name || ''; o.occasion = OCCS.includes(o.occasion) ? o.occasion : 'Alltag'; o.lastWorn = o.lastWorn || ''; });
+  d.wishes.forEach((w) => { if (!w.id) w.id = uid(); w.price = +w.price > 0 ? +w.price : 0; if (!PRIOS.includes(w.prio)) w.prio = 'mittel'; if (!CATS.includes(w.cat)) w.cat = 'Oberteil'; w.name = w.name || ''; w.note = w.note || ''; });
+}
+const G = () => store.data.garments;
+const gById = (id) => G().find((g) => g.id === id);
+const icon = (g) => g.emoji || ICON[g.cat] || '👚';
+function thumb(g, small) {
+  if (g.photo) return h('img', { class: small ? 'sm' : 'ph', src: g.photo, role: 'img', 'data-notranslate': '', 'aria-label': g.name });
+  return h('div', { class: small ? 'sm' : 'ph em', 'aria-hidden': 'true' }, icon(g));
+}
+const cpw = (g) => (g.wears > 0 && g.price > 0 ? g.price / g.wears : 0);
+function wearGarment(g) { g.wears++; g.lastWorn = today(); }
+function baseDate(g) { return [g.lastWorn, g.reviewed].filter(Boolean).sort().pop() || g.bought || g.added || today(); }
+const daysSince = (s) => Math.max(0, Math.floor((parseYmd(today()) - parseYmd(s)) / 864e5));
+const monthsTxt = (m) => (m === 1 ? '1 Monat' : `${m} Monate`);
+const teileTxt = (n) => (n === 1 ? '1 Teil' : `${n} Teile`);
+function opt(v, label, sel) { return h('option', { value: v, selected: sel }, label == null ? v : label); }
+function lf(label, ...kids) { return h('label', { class: 'f' }, h('span', {}, label), ...kids); }
+
+/* ---------- Foto: auf kleine JPEG-Data-URL verkleinern ---------- */
+function shrinkPhoto(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error('read'));
+    fr.onload = () => {
+      const img = new Image();
+      img.onerror = () => rej(new Error('img'));
+      img.onload = () => {
+        let max = 420, out = '';
+        for (let t = 0; t < 6; t++) {
+          const sc = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas');
+          c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+          const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height);
+          for (const q of [0.8, 0.65, 0.5, 0.4]) { out = c.toDataURL('image/jpeg', q); if (out.length <= 100000) return res(out); }
+          max = Math.round(max * 0.75);
+        }
+        rej(new Error('big'));
+      };
+      img.src = fr.result;
+    };
+    fr.readAsDataURL(file);
+  });
+}
+
+/* ---------- Teile ---------- */
+function garmentForm(g) {
+  const isNew = !g.id;
+  let photo = g.photo || '';
+  const name = h('input', { type: 'text', required: true, value: g.name || '', placeholder: 'z. B. Blaue Jeans', 'aria-label': 'Name' });
+  const cat = h('select', { 'aria-label': 'Kategorie' }, CATS.map((c) => opt(c, c, c === (g.cat || 'Oberteil'))));
+  const emoji = h('input', { type: 'text', maxLength: 4, value: g.emoji || '', placeholder: '👚', style: 'width:4.5em', 'aria-label': 'Emoji' });
+  const color = h('input', { type: 'text', value: g.color || '', placeholder: 'z. B. Marineblau', 'aria-label': 'Farbe' });
+  const brand = h('input', { type: 'text', value: g.brand || '', placeholder: 'z. B. Levi’s', 'aria-label': 'Marke' });
+  const sea = h('select', { 'aria-label': 'Saison' }, SEASONS.map((s) => opt(s, s, s === (g.season || 'Ganzjährig'))));
+  const price = h('input', { type: 'text', inputMode: 'decimal', value: g.price ? String(g.price).replace('.', SimpleI18n.dec) : '', placeholder: '0' + SimpleI18n.dec + '00', style: 'width:6.5em', 'aria-label': 'Preis in Euro' });
+  const bought = h('input', { type: 'date', value: g.bought || '', 'aria-label': 'Kaufdatum' });
+  const care = h('input', { type: 'text', value: g.care || '', placeholder: 'z. B. 30 °C, nicht in den Trockner', 'aria-label': 'Pflegehinweis', style: 'min-width:220px' });
+  const wears = h('input', { type: 'number', min: 0, step: 1, value: g.wears || 0, style: 'width:5em', 'aria-label': 'Wie oft getragen' });
+  const prev = h('div', { class: 'row' });
+  const showPrev = () => prev.replaceChildren(...[photo ? h('img', { class: 'sm', src: photo, role: 'img', 'data-notranslate': '', 'aria-label': 'Foto' }) : h('span', { class: 'hint' }, 'Kein Foto – es wird das Emoji angezeigt.'),
+    photo ? h('button', { type: 'button', class: 'small', onclick: () => { photo = ''; showPrev(); } }, 'Foto entfernen') : null].filter(Boolean));
+  showPrev();
+  const file = h('input', { type: 'file', accept: 'image/*', 'aria-label': 'Foto auswählen' });
+  file.onchange = async () => {
+    const f = file.files && file.files[0]; if (!f) return;
+    try { photo = await shrinkPhoto(f); showPrev(); } catch (e) { alert('Das Bild konnte nicht gelesen werden.'); }
+    file.value = '';
+  };
+  const f = h('form', { class: 'card' },
+    h('h2', { class: 'sec', style: 'margin-top:0' }, isNew ? 'Neues Teil' : 'Teil bearbeiten'),
+    h('div', { class: 'form' }, lf('Name', name), lf('Kategorie', cat), lf('Emoji', emoji), lf('Farbe', color), lf('Marke', brand), lf('Saison', sea)),
+    h('div', { class: 'form', style: 'margin-top:8px' }, lf('Preis (€)', price), lf('Kaufdatum', bought), lf('Bereits getragen', wears), lf('Pflegehinweis', care)),
+    h('div', { style: 'margin-top:8px' }, lf('Foto (optional)', file), prev),
+    h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { class: 'primary' }, isNew ? 'Hinzufügen' : 'Speichern'), h('button', { type: 'button', onclick: () => { editG = null; render(); } }, 'Abbrechen')));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    const nm = name.value.trim(); if (!nm) { alert('Bitte einen Namen eingeben.'); return; }
+    const t = isNew ? { id: uid(), added: today(), lastWorn: '', reviewed: '', capsule: false } : g;
+    Object.assign(t, { name: nm, cat: cat.value, emoji: emoji.value.trim(), color: color.value.trim(), brand: brand.value.trim(), season: sea.value, price: num(price.value), bought: bought.value, care: care.value.trim(), wears: Math.max(0, parseInt(wears.value, 10) || 0) });
+    if (photo) t.photo = photo; else delete t.photo;
+    if (isNew) G().push(t);
+    editG = null; store.changed(); render();
+  };
+  setTimeout(() => { if (isNew) name.focus(); }, 0);
+  return f;
+}
+function garmentCard(g) {
+  const c = cpw(g);
+  return h('div', { class: 'gi' }, thumb(g),
+    h('div', { class: 'body' },
+      h('h3', {}, U(g.name)),
+      h('div', { class: 'hint' }, h('span', {}, g.cat), g.color ? ' · ' : null, g.color ? U(g.color) : null, g.brand ? ' · ' : null, g.brand ? U(g.brand) : null),
+      h('div', {}, h('span', { class: 'badge' }, g.season), g.capsule ? ' ' : null, g.capsule ? h('span', { class: 'badge ok' }, '★ Kapsel') : null),
+      h('div', {}, g.wears === 0 ? 'Noch nicht getragen' : g.wears === 1 ? '1× getragen' : `${g.wears}× getragen`),
+      g.lastWorn ? h('div', { class: 'hint' }, `Zuletzt getragen: ${fmtDate(g.lastWorn)}`) : null,
+      g.price > 0 ? h('div', { class: 'hint' }, h('span', {}, money(g.price)), c ? ' · ' : null, c ? h('span', {}, `${money(c)} pro Tragen`) : null) : null,
+      g.care ? h('div', { class: 'hint' }, '🧺 ', U(g.care)) : null,
+      h('div', { class: 'acts' },
+        h('button', { class: 'small primary', title: 'Heute getragen', onclick: () => { wearGarment(g); store.changed(); render(); } }, '👕 Getragen'),
+        h('button', { class: 'small', onclick: () => { g.capsule = !g.capsule; store.changed(); render(); } }, g.capsule ? '★' : '☆', ' Kapsel'),
+        h('button', { class: 'small', onclick: () => { editG = g.id; render(); } }, 'Bearbeiten'),
+        h('button', { class: 'small', 'aria-label': 'Löschen', title: 'Löschen', onclick: () => { if (confirm(`Teil „${g.name}“ löschen?`)) { store.data.garments = G().filter((x) => x !== g); store.data.outfits.forEach((o) => { o.items = o.items.filter((i) => i !== g.id); }); store.changed(); render(); } } }, '🗑'))));
+}
+function teileView() {
+  const out = [];
+  if (flash) { out.push(h('div', { class: 'note' }, flash)); flash = ''; }
+  if (editG) { const g = editG === 'new' ? {} : gById(editG); if (g) { out.push(garmentForm(g)); } else editG = null; }
+  const q = h('input', { type: 'search', value: fq, placeholder: 'Suchen: Name, Farbe, Marke…', 'aria-label': 'Suchen' });
+  const cs = h('select', { 'aria-label': 'Kategorie filtern' }, opt('', 'Alle Kategorien', !fcat), CATS.map((c) => opt(c, c, c === fcat)));
+  const ss = h('select', { 'aria-label': 'Saison filtern' }, opt('', 'Alle Saisons', !fsea), SEASONS.map((c) => opt(c, c, c === fsea)));
+  const so = h('select', { 'aria-label': 'Sortierung' }, [['name', 'Name'], ['neu', 'Zuletzt hinzugefügt'], ['oft', 'Am häufigsten getragen'], ['selten', 'Am seltensten getragen'], ['preis', 'Preis'], ['cpw', 'Kosten pro Tragen']].map((x) => opt(x[0], x[1], x[0] === fsort)));
+  const addB = h('button', { class: 'primary', onclick: () => { editG = 'new'; render(); } }, '+ Neues Teil');
+  const list = h('div'), cnt = h('span', { class: 'hint' });
+  const fill = () => {
+    const t = fq.trim().toLowerCase();
+    let a = G().filter((g) => (!fcat || g.cat === fcat) && (!fsea || g.season === fsea || g.season === 'Ganzjährig') && (!t || [g.name, g.color, g.brand, g.care].join(' ').toLowerCase().includes(t)));
+    const cmp = { name: (x, y) => x.name.localeCompare(y.name, 'de'), neu: (x, y) => y.added.localeCompare(x.added), oft: (x, y) => y.wears - x.wears, selten: (x, y) => x.wears - y.wears, preis: (x, y) => y.price - x.price, cpw: (x, y) => (cpw(y) || -1) - (cpw(x) || -1) }[fsort];
+    a = a.slice().sort(cmp);
+    cnt.textContent = teileTxt(a.length);
+    list.replaceChildren(a.length ? h('div', { class: 'grid' }, a.map(garmentCard)) : h('div', { class: 'card muted' }, G().length ? 'Keine Teile gefunden.' : 'Noch keine Teile – lege oben dein erstes Kleidungsstück an.'));
+  };
+  q.oninput = () => { fq = q.value; fill(); };
+  cs.onchange = () => { fcat = cs.value; fill(); }; ss.onchange = () => { fsea = ss.value; fill(); }; so.onchange = () => { fsort = so.value; fill(); };
+  fill();
+  out.push(h('div', { class: 'card filters' }, addB, q, cs, ss, so, cnt), list);
+  return h('div', {}, ...out);
+}
+
+/* ---------- Outfits ---------- */
+function outfitForm(o) {
+  const isNew = !o.id, sel = new Set(o.items || []);
+  const name = h('input', { type: 'text', required: true, value: o.name || '', placeholder: 'z. B. Büro-Look', 'aria-label': 'Name des Outfits' });
+  const occ = h('select', { 'aria-label': 'Anlass' }, OCCS.map((c) => opt(c, c, c === (o.occasion || 'Alltag'))));
+  const picks = CATS.map((c) => {
+    const gs = G().filter((g) => g.cat === c).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    if (!gs.length) return null;
+    return h('div', { style: 'margin-top:8px' }, h('div', { class: 'hint' }, c), h('div', { class: 'chips' }, gs.map((g) => {
+      const cb = h('input', { type: 'checkbox', checked: sel.has(g.id) });
+      const chip = h('label', { class: 'chip' + (cb.checked ? ' on' : '') }, cb, h('span', { 'aria-hidden': 'true' }, icon(g)), U(g.name));
+      cb.onchange = () => { cb.checked ? sel.add(g.id) : sel.delete(g.id); chip.classList.toggle('on', cb.checked); };
+      return chip;
+    })));
+  }).filter(Boolean);
+  const f = h('form', { class: 'card' }, h('h2', { class: 'sec', style: 'margin-top:0' }, isNew ? 'Neues Outfit' : 'Outfit bearbeiten'),
+    h('div', { class: 'form' }, lf('Name', name), lf('Anlass', occ)),
+    picks.length ? h('div', {}, picks) : h('p', { class: 'muted' }, 'Lege zuerst Teile an, um sie zu Outfits zu kombinieren.'),
+    h('div', { class: 'row', style: 'margin-top:10px' }, h('button', { class: 'primary' }, isNew ? 'Hinzufügen' : 'Speichern'), h('button', { type: 'button', onclick: () => { editO = null; render(); } }, 'Abbrechen')));
+  f.onsubmit = (e) => {
+    e.preventDefault();
+    if (!name.value.trim()) { alert('Bitte einen Namen eingeben.'); return; }
+    if (!sel.size) { alert('Wähle mindestens ein Teil aus.'); return; }
+    const t = isNew ? { id: uid(), wears: 0, lastWorn: '' } : o;
+    Object.assign(t, { name: name.value.trim(), occasion: occ.value, items: [...sel] });
+    if (isNew) store.data.outfits.push(t);
+    editO = null; store.changed(); render();
+  };
+  return f;
+}
+function outfitsView() {
+  const out = [];
+  if (flash) { out.push(h('div', { class: 'note' }, flash)); flash = ''; }
+  if (editO) { const o = editO === 'new' ? {} : store.data.outfits.find((x) => x.id === editO); if (o) out.push(outfitForm(o)); else editO = null; }
+  else out.push(h('div', { class: 'card' }, h('button', { class: 'primary', onclick: () => { editO = 'new'; render(); } }, '+ Neues Outfit')));
+  const os = store.data.outfits;
+  if (!os.length) out.push(h('div', { class: 'card muted' }, 'Noch keine Outfits – kombiniere Teile aus deinem Schrank.'));
+  os.slice().sort((a, b) => a.name.localeCompare(b.name, 'de')).forEach((o) => {
+    const gs = o.items.map(gById).filter(Boolean);
+    out.push(h('div', { class: 'card' },
+      h('div', { class: 'row' }, h('strong', {}, U(o.name)), h('span', { class: 'badge' }, o.occasion), h('span', { class: 'sp' }),
+        h('span', { class: 'hint' }, o.wears === 0 ? 'Noch nicht getragen' : o.wears === 1 ? '1× getragen' : `${o.wears}× getragen`), o.lastWorn ? h('span', { class: 'hint' }, `Zuletzt: ${fmtDate(o.lastWorn)}`) : null),
+      h('div', { class: 'chips', style: 'margin:8px 0' }, gs.length ? gs.map((g) => h('span', { class: 'chip', style: 'cursor:default' }, thumb(g, true), U(g.name))) : h('span', { class: 'muted' }, 'Alle Teile dieses Outfits wurden gelöscht.')),
+      h('div', { class: 'acts' },
+        h('button', { class: 'small primary', onclick: () => { gs.forEach(wearGarment); o.wears++; o.lastWorn = today(); store.changed(); flash = 'Eingetragen: Alle Teile des Outfits zählen heute als getragen.'; render(); } }, '👗 Heute getragen'),
+        h('button', { class: 'small', onclick: () => { editO = o.id; render(); } }, 'Bearbeiten'),
+        h('button', { class: 'small', onclick: () => { if (confirm(`Outfit „${o.name}“ löschen?`)) { store.data.outfits = os.filter((x) => x !== o); store.changed(); render(); } } }, 'Löschen'))));
+  });
+  return h('div', {}, ...out);
+}
+
+/* ---------- Wunschliste ---------- */
+function wishView() {
+  const out = [];
+  const name = h('input', { type: 'text', required: true, placeholder: 'z. B. Wintermantel', 'aria-label': 'Name' });
+  const cat = h('select', { 'aria-label': 'Kategorie' }, CATS.map((c) => opt(c)));
+  const price = h('input', { type: 'text', inputMode: 'decimal', placeholder: 'Preis', style: 'width:6.5em', 'aria-label': 'Preis in Euro' });
+  const prio = h('select', { 'aria-label': 'Priorität' }, PRIOS.map((p) => opt(p, PRIO_LABEL[p], p === 'mittel')));
+  const note = h('input', { type: 'text', placeholder: 'Link oder Notiz (Shop, Größe …)', 'aria-label': 'Link oder Notiz', style: 'min-width:220px;flex:1' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'form' }, lf('Name', name), lf('Kategorie', cat), lf('Preis (€)', price), lf('Priorität', prio), lf('Link / Notiz', note), h('button', { class: 'primary' }, '+ Wunsch')));
+  f.onsubmit = (e) => { e.preventDefault(); if (!name.value.trim()) return; store.data.wishes.push({ id: uid(), name: name.value.trim(), cat: cat.value, price: num(price.value), prio: prio.value, note: note.value.trim() }); store.changed(); render(); };
+  out.push(f);
+  const ws = store.data.wishes.slice().sort((a, b) => PRIOS.indexOf(a.prio) - PRIOS.indexOf(b.prio) || a.name.localeCompare(b.name, 'de'));
+  if (!ws.length) out.push(h('div', { class: 'card muted' }, 'Deine Wunschliste ist leer.'));
+  else {
+    const sum = ws.reduce((a, w) => a + w.price, 0);
+    out.push(h('div', { class: 'card' }, h('div', { class: 'hint' }, ws.length === 1 ? '1 Wunsch' : `${ws.length} Wünsche`, ' · ', h('span', {}, `Gesamt: ${money(sum)}`)),
+      ws.map((w) => {
+        const isUrl = /^https?:\/\//i.test(w.note);
+        return h('div', { class: 'li' }, h('span', { class: 'sm', 'aria-hidden': 'true' }, ICON[w.cat]),
+          h('div', { class: 'grow' }, h('strong', {}, U(w.name)), ' ', h('span', { class: 'badge ' + PRIO_BADGE[w.prio] }, PRIO_LABEL[w.prio]),
+            h('div', { class: 'hint' }, h('span', {}, w.cat), w.price ? ' · ' : null, w.price ? h('span', {}, money(w.price)) : null),
+            w.note ? h('div', { class: 'hint' }, isUrl ? h('a', { href: w.note, target: '_blank', rel: 'noopener noreferrer', 'data-notranslate': '' }, w.note) : U(w.note)) : null),
+          h('button', { class: 'small primary', onclick: () => { const g = { id: uid(), name: w.name, cat: w.cat, price: w.price, bought: today(), added: today(), season: 'Ganzjährig', wears: 0, color: '', brand: '', care: '', emoji: '', lastWorn: '', reviewed: '', capsule: false }; G().push(g); store.data.wishes = store.data.wishes.filter((x) => x !== w); tab = 'teile'; editG = g.id; flash = 'Gekauft! Das Teil ist jetzt im Schrank – ergänze gern noch Farbe, Marke und Foto.'; store.changed(); render(); } }, '🛍 Gekauft'),
+          h('button', { class: 'small', 'aria-label': 'Löschen', title: 'Löschen', onclick: () => { if (confirm(`Wunsch „${w.name}“ löschen?`)) { store.data.wishes = store.data.wishes.filter((x) => x !== w); store.changed(); render(); } } }, '🗑'));
+      })));
+  }
+  return h('div', {}, ...out);
+}
+
+/* ---------- Ausmisten ---------- */
+function ausView() {
+  const d = store.data, ms = d.dueMonths;
+  const sel = h('select', { 'aria-label': 'Zeitraum' }, [3, 6, 12, 24].map((m) => opt(String(m), monthsTxt(m), m === ms))); sel.onchange = () => { d.dueMonths = +sel.value; store.changed(); render(); };
+  const due = G().map((g) => ({ g, days: daysSince(baseDate(g)) })).filter((x) => x.days >= ms * 30.4).sort((a, b) => b.days - a.days);
+  const val = due.reduce((a, x) => a + x.g.price, 0);
+  const out = [h('div', { class: 'card' }, h('p', { class: 'muted', style: 'margin-top:0' }, 'Teile, die du lange nicht getragen hast, sind Kandidaten zum Aussortieren oder Verkaufen. Mit Behalten startet die Frist neu.'),
+    h('div', { class: 'row' }, h('span', {}, 'Nicht getragen seit mindestens:'), sel, h('span', { class: 'hint' }, teileTxt(due.length)), val > 0 ? h('span', { class: 'hint' }, `Gebundener Wert: ${money(val)}`) : null))];
+  if (!due.length) out.push(h('div', { class: 'card muted' }, G().length ? 'Nichts zum Ausmisten – du trägst alles regelmäßig. 🎉' : 'Noch keine Teile im Schrank.'));
+  else out.push(h('div', { class: 'card' }, due.map(({ g, days }) => {
+    const m = Math.floor(days / 30.4);
+    return h('div', { class: 'li' }, thumb(g, true),
+      h('div', { class: 'grow' }, h('strong', {}, U(g.name)), ' ', h('span', { class: 'badge warn' }, m === 1 ? '1 Monat ungetragen' : `${m} Monate ungetragen`),
+        h('div', { class: 'hint' }, g.lastWorn ? `Zuletzt getragen: ${fmtDate(g.lastWorn)}` : `Noch nie getragen, im Schrank seit ${fmtDate(baseDate(g))}`, g.price > 0 ? ' · ' : null, g.price > 0 ? h('span', {}, money(g.price)) : null)),
+      h('button', { class: 'small', onclick: () => { g.reviewed = today(); store.changed(); render(); } }, 'Behalten'),
+      h('button', { class: 'small', onclick: () => { if (confirm(`Teil „${g.name}“ aussortieren und aus dem Schrank entfernen?`)) { d.garments = G().filter((x) => x !== g); d.outfits.forEach((o) => { o.items = o.items.filter((i) => i !== g.id); }); store.changed(); render(); } } }, 'Aussortieren'));
+  })));
+  return h('div', {}, ...out);
+}
+
+/* ---------- Kapselgarderobe ---------- */
+function kapselView() {
+  const d = store.data;
+  const sea = h('select', { 'aria-label': 'Saison' }, opt('', 'Alle Saisons', !capSea), SEASONS.slice(1).map((s) => opt(s, s, s === capSea))); sea.onchange = () => { capSea = sea.value; render(); };
+  const fits = (g) => !capSea || g.season === capSea || g.season === 'Ganzjährig';
+  const cap = G().filter((g) => g.capsule && fits(g)), rest = G().filter((g) => !g.capsule && fits(g));
+  const tgt = h('input', { type: 'number', min: 1, max: 200, value: d.capsuleTarget, style: 'width:5em', 'aria-label': 'Zielanzahl Teile' }); tgt.onchange = () => { d.capsuleTarget = Math.max(1, parseInt(tgt.value, 10) || 33); store.changed(); render(); };
+  const n = (c) => cap.filter((g) => g.cat === c).length;
+  const combos = n('Oberteil') * n('Hose') + n('Kleid');
+  const pct = Math.min(100, Math.round(cap.length / d.capsuleTarget * 100));
+  const out = [h('div', { class: 'card' }, h('p', { class: 'muted', style: 'margin-top:0' }, 'Eine Kapselgarderobe ist eine kleine Auswahl gut kombinierbarer Lieblingsteile. Markiere Teile mit ★ Kapsel und behalte die Zahl im Blick.'),
+    h('div', { class: 'row' }, lf('Saison', sea), lf('Zielanzahl', tgt)),
+    h('div', { class: 'bar', style: 'margin-top:10px' }, h('span', { class: 'lbl' }, `${cap.length} von ${d.capsuleTarget} Teilen`), h('div', { class: 'trk' }, h('div', { class: 'fill', style: `width:${pct}%` }))),
+    h('p', { class: 'hint', style: 'margin:4px 0 0' }, `Damit sind rechnerisch ${combos} Kombinationen möglich (Oberteile × Hosen + Kleider).`))];
+  if (!cap.length) out.push(h('div', { class: 'card muted' }, 'Noch keine Teile in der Kapsel. Wähle unten Teile aus.'));
+  CATS.forEach((c) => {
+    const gs = cap.filter((g) => g.cat === c); if (!gs.length) return;
+    out.push(h('h2', { class: 'sec' }, ICON[c] + ' ', c, ' ', h('span', { class: 'hint' }, `(${gs.length})`)),
+      h('div', { class: 'grid' }, gs.map((g) => h('div', { class: 'gi' }, thumb(g), h('div', { class: 'body' }, h('h3', {}, U(g.name)), h('div', { class: 'hint' }, g.wears === 1 ? '1× getragen' : `${g.wears}× getragen`),
+        h('div', { class: 'acts' }, h('button', { class: 'small', onclick: () => { g.capsule = false; store.changed(); render(); } }, 'Aus Kapsel entfernen')))))));
+  });
+  if (rest.length) out.push(h('h2', { class: 'sec' }, 'Weitere Teile aufnehmen'), h('div', { class: 'card' }, rest.sort((a, b) => b.wears - a.wears).map((g) => h('div', { class: 'li' }, thumb(g, true), h('div', { class: 'grow' }, U(g.name), ' ', h('span', { class: 'hint' }, g.wears === 1 ? '1× getragen' : `${g.wears}× getragen`)), h('button', { class: 'small', onclick: () => { g.capsule = true; store.changed(); render(); } }, '☆ In die Kapsel')))));
+  return h('div', {}, ...out);
+}
+
+/* ---------- Statistik ---------- */
+function statView() {
+  const gs = G();
+  if (!gs.length) return h('div', { class: 'card muted' }, 'Sobald du Teile angelegt hast, siehst du hier Wert und Verteilung.');
+  const val = gs.reduce((a, g) => a + g.price, 0), wearsAll = gs.reduce((a, g) => a + g.wears, 0), never = gs.filter((g) => g.wears === 0).length;
+  const stat = (v, l) => h('div', { class: 'stat' }, h('b', {}, v), h('span', { class: 'hint' }, l));
+  const wv = gs.filter((g) => g.price > 0 && g.wears > 0), avg = wv.length ? wv.reduce((a, g) => a + cpw(g), 0) / wv.length : 0;
+  const bars = (title, rows, fmt) => { const mx = Math.max(1, ...rows.map((r) => r.v)); return h('div', { class: 'card' }, h('h2', { class: 'sec', style: 'margin-top:0' }, title), rows.map((r) => h('div', { class: 'bar' }, h('span', { class: 'lbl' }, r.l), h('div', { class: 'trk' }, h('div', { class: 'fill', style: `width:${Math.round(r.v / mx * 100)}%` })), h('span', { class: 'val' }, fmt(r.v))))); };
+  const best = wv.slice().sort((a, b) => cpw(a) - cpw(b)).slice(0, 5), worst = wv.slice().sort((a, b) => cpw(b) - cpw(a)).slice(0, 5);
+  const list = (title, a) => h('div', { class: 'card' }, h('h2', { class: 'sec', style: 'margin-top:0' }, title), a.length ? a.map((g) => h('div', { class: 'li' }, thumb(g, true), h('div', { class: 'grow' }, U(g.name), h('div', { class: 'hint' }, g.wears === 1 ? '1× getragen' : `${g.wears}× getragen`)), h('strong', {}, `${money(cpw(g))} pro Tragen`))) : h('p', { class: 'muted' }, 'Noch keine Daten – trage Teile mit Preis, um Kosten pro Tragen zu sehen.'));
+  return h('div', {},
+    h('div', { class: 'stats' }, stat(String(gs.length), 'Teile'), stat(money(val), 'Gesamtwert'), stat(String(wearsAll), 'Mal getragen'), stat(avg ? money(avg) : '–', 'Ø pro Tragen'), stat(String(never), 'noch nie getragen'), stat(String(store.data.outfits.length), 'Outfits')),
+    bars('Anzahl nach Kategorie', CATS.map((c) => ({ l: h('span', {}, ICON[c] + ' ', c), v: gs.filter((g) => g.cat === c).length })), (v) => String(v)),
+    bars('Wert nach Kategorie', CATS.map((c) => ({ l: h('span', {}, ICON[c] + ' ', c), v: gs.filter((g) => g.cat === c).reduce((a, g) => a + g.price, 0) })), money),
+    h('div', { class: 'grid', style: 'grid-template-columns:repeat(auto-fit,minmax(280px,1fr))' }, list('Beste Kosten pro Tragen', best), list('Teuerste pro Tragen', worst)));
+}
+
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const v = $('view');
+  const el = { teile: teileView, outfits: outfitsView, wunsch: wishView, aus: ausView, kapsel: kapselView, stat: statView }[tab]();
+  v.replaceChildren(el);
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

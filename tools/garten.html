@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Aussaat &amp; Ernte</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1000px; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  input.w { width:6em; } input.n { width:4.5em; }
+  .chip { display:inline-flex; gap:4px; align-items:center; padding:1px 9px; border:1px solid var(--line); border-radius:99px; background:var(--bg); font-size:.9rem; max-width:100%; }
+  .chip span:last-child { overflow-wrap:anywhere; }
+  button.chip { cursor:pointer; color:var(--fg); font:inherit; font-size:.9rem; }
+  button.chip.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 16px; font-size:.85rem; margin:6px 0; }
+  .dot { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:5px; vertical-align:-1px; }
+  .p-pre { background:var(--c3); } .p-sow { background:var(--c1); } .p-plant { background:var(--c2); } .p-harvest { background:var(--ok); }
+  .calwrap { overflow-x:auto; }
+  .cal { display:grid; grid-template-columns:minmax(7.5em,9em) repeat(12,minmax(32px,1fr)); gap:2px; min-width:640px; align-items:stretch; }
+  .cal > div { background:var(--bg); border-radius:4px; padding:2px 3px; font-size:.82rem; }
+  .cal .hd { text-align:center; color:var(--muted); font-weight:600; background:none; }
+  .cal .cur { outline:2px solid var(--accent); outline-offset:-2px; }
+  .cal .nm { display:flex; gap:4px; align-items:center; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+  .cal .c { display:flex; flex-direction:column; gap:1px; justify-content:center; min-height:26px; }
+  .cal .c i { display:block; height:5px; border-radius:2px; }
+  .plant { display:flex; flex-wrap:wrap; gap:6px 14px; align-items:center; }
+  .plant h3 { margin:0; font-size:1.05rem; flex:1; min-width:9em; display:flex; gap:6px; align-items:center; }
+  .phases { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:4px 14px; width:100%; font-size:.88rem; }
+  .mrow { display:flex; flex-wrap:wrap; gap:3px; align-items:center; margin:4px 0; }
+  .mrow > b { width:7.5em; font-weight:600; font-size:.88rem; }
+  .mrow button { min-width:2.7em; padding:2px 4px; font-size:.8rem; }
+  .mrow button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .bedgrid { display:grid; gap:2px; width:max-content; }
+  .bedgrid button { width:34px; height:34px; padding:0; font-size:1.2rem; line-height:1; border-radius:5px; background:var(--bg); border:1px solid var(--line); color:var(--fg); cursor:pointer; }
+  .bedwrap { overflow-x:auto; padding:2px; }
+  .task { display:flex; gap:8px; align-items:center; padding:3px 0; }
+  .task.done .chip { opacity:.55; text-decoration:line-through; }
+  .nav { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:8px; }
+  .nav h2 { margin:0; font-size:1.2rem; min-width:9em; text-align:center; }
+  table.t { border-collapse:collapse; width:100%; font-size:.92rem; } table.t td, table.t th { padding:4px 8px; border-bottom:1px solid var(--line); text-align:left; }
+  table.t td.r, table.t th.r { text-align:right; }
+  .entry { display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap; padding:5px 0; border-bottom:1px solid var(--line); }
+  .entry .sp { min-width:3em; }
+  .note { white-space:pre-wrap; overflow-wrap:anywhere; flex-basis:100%; }
+  .wx { font-size:1.4rem; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Aussaat &amp; Ernte</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Gemüsegarten planen: Aussaat- und Erntezeiten, Beete, Ernte-Log und Tagebuch. Für Gieß- und Pflegeerinnerungen gibt es <a href="pflanzen.html">Pflanzen &amp; Garten</a>.</p>
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'garten',
+  defaults: () => ({ plants: [], beds: [], harvests: [], diary: [], done: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const PH = [['pre', 'Vorziehen', 'Drinnen auf der Fensterbank anziehen'], ['sow', 'Aussaat', 'Direkt ins Beet säen'], ['plant', 'Auspflanzen', 'Jungpflanzen ins Beet setzen'], ['harvest', 'Ernte', 'Reif zum Ernten']];
+const TEMPL = [
+  ['Tomate', '🍅', [2, 3, 4], [], [5], [7, 8, 9, 10]],
+  ['Salat', '🥬', [2, 3], [3, 4, 5, 6, 7, 8], [4, 5, 6, 7, 8, 9], [5, 6, 7, 8, 9, 10]],
+  ['Möhre', '🥕', [], [3, 4, 5, 6, 7], [], [6, 7, 8, 9, 10]],
+  ['Kartoffel', '🥔', [3, 4], [], [4, 5], [7, 8, 9]],
+  ['Zucchini', '🟢', [4, 5], [5], [5, 6], [7, 8, 9, 10]],
+  ['Gurke', '🥒', [4], [5], [5, 6], [7, 8, 9]],
+  ['Paprika', '🫑', [2, 3], [], [5], [7, 8, 9, 10]],
+  ['Radieschen', '🔴', [], [3, 4, 5, 6, 7, 8, 9], [], [4, 5, 6, 7, 8, 9, 10]],
+  ['Erbsen', '🫛', [], [3, 4, 5, 6], [], [6, 7, 8]],
+  ['Buschbohnen', '🫘', [], [5, 6], [], [7, 8, 9]],
+  ['Zwiebeln', '🧅', [], [3, 4], [], [7, 8, 9]],
+  ['Knoblauch', '🧄', [], [], [10, 11], [7, 8]],
+  ['Spinat', '🥬', [], [3, 4, 8, 9], [], [4, 5, 6, 10, 11]],
+  ['Kohlrabi', '🥬', [2, 3], [4, 5, 6, 7], [4, 5, 6, 7, 8], [5, 6, 7, 8, 9, 10]],
+  ['Brokkoli', '🥦', [4, 5], [], [5, 6, 7], [7, 8, 9, 10]],
+  ['Kräuter', '🌿', [3, 4], [4, 5], [5, 6], [6, 7, 8, 9]],
+  ['Petersilie', '🌿', [], [3, 4, 5, 6, 7], [], [5, 6, 7, 8, 9, 10, 11]],
+  ['Schnittlauch', '🌿', [], [3, 4, 5], [], [4, 5, 6, 7, 8, 9, 10]],
+  ['Erdbeeren', '🍓', [], [], [3, 4, 8, 9], [5, 6, 7]],
+  ['Kürbis', '🎃', [4, 5], [], [5], [9, 10]],
+  ['Rote Bete', '🟣', [], [4, 5, 6, 7], [], [7, 8, 9, 10, 11]],
+  ['Feldsalat', '🥬', [], [8, 9], [], [10, 11, 12, 1, 2, 3]],
+];
+const WX = ['☀️ Sonnig', '⛅ Wechselhaft', '☁️ Bewölkt', '🌧️ Regen', '⛈️ Gewitter', '🌬️ Windig', '❄️ Frost / Schnee', '🌡️ Heiß'];
+const UNITS = ['kg', 'g', 'Stück', 'Bund', 'l'];
+const ui = { tab: null, month: new Date().getMonth() + 1, year: new Date().getFullYear(), brush: null, draft: null, editId: null, hEdit: null, dEdit: null, ySel: null, q: '' };
+const mName = (m, st) => new Date(2021, m - 1, 15).toLocaleDateString('de-DE', { month: st }).replace(SimpleI18n.lang === 'de' ? /\.$/ : /^$/, '');
+const dec = (n) => String(Math.round(n * 100) / 100).replace('.', SimpleI18n.dec);
+function parseNum(s) { s = String(s || '').trim().replace(/\s/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? n : NaN; }
+function monthsOf(a) { return Array.isArray(a) ? [...new Set(a.map(Number).filter((m) => m >= 1 && m <= 12))].sort((x, y) => x - y) : []; }
+function normalize() {
+  const d = store.data;
+  ['plants', 'beds', 'harvests', 'diary'].forEach((k) => { if (!Array.isArray(d[k])) d[k] = []; });
+  if (!d.done || typeof d.done !== 'object' || Array.isArray(d.done)) d.done = {};
+  d.plants = d.plants.filter((p) => p && typeof p === 'object');
+  d.plants.forEach((p) => { if (!p.id) p.id = uid(); p.name = String(p.name || ''); p.emoji = String(p.emoji || '🌱'); PH.forEach(([k]) => { p[k] = monthsOf(p[k]); }); });
+  d.beds = d.beds.filter((b) => b && typeof b === 'object');
+  d.beds.forEach((b) => { if (!b.id) b.id = uid(); b.name = String(b.name || ''); b.cols = Math.min(20, Math.max(1, +b.cols || 4)); b.rows = Math.min(20, Math.max(1, +b.rows || 4)); if (!b.cells || typeof b.cells !== 'object' || Array.isArray(b.cells)) b.cells = {}; });
+  d.harvests = d.harvests.filter((x) => x && typeof x === 'object' && typeof x.date === 'string');
+  d.diary = d.diary.filter((x) => x && typeof x === 'object' && typeof x.date === 'string');
+  d.harvests.forEach((x) => { if (!x.id) x.id = uid(); }); d.diary.forEach((x) => { if (!x.id) x.id = uid(); });
+}
+const byId = (id) => store.data.plants.find((p) => p.id === id);
+const chip = (p) => h('span', { class: 'chip' }, h('span', {}, p.emoji || '🌱'), h('span', {}, p.name));
+function ranges(a) {
+  a = monthsOf(a); if (!a.length) return '–';
+  const runs = []; a.forEach((m) => { const l = runs[runs.length - 1]; if (l && m === l[1] + 1) l[1] = m; else runs.push([m, m]); });
+  if (runs.length > 1 && runs[0][0] === 1 && runs[runs.length - 1][1] === 12) { const f = runs.shift(); runs[runs.length - 1][1] = f[1]; }
+  return runs.map(([x, y]) => x === y ? mName(x, 'short') : mName(x, 'short') + '–' + mName(y, 'short')).join(', ');
+}
+const legend = () => h('div', { class: 'legend' }, PH.map(([k, l]) => h('span', {}, h('i', { class: 'dot p-' + k }), l)));
+const setTab = (t) => { ui.tab = t; render(); };
+const TABS = [['catalog', '🌱', 'Katalog'], ['calendar', '📅', 'Kalender'], ['beds', '🟫', 'Beete'], ['tasks', '✅', 'Aufgaben'], ['harvest', '🧺', 'Ernte'], ['diary', '📓', 'Tagebuch']];
+function render() {
+  const d = store.data;
+  if (!ui.tab) ui.tab = d.plants.length ? 'tasks' : 'catalog';
+  if (!$('tabs').children.length) $('tabs').append(...TABS.map(([k, ic, l]) => h('button', { dataset: { k }, role: 'tab', onclick: () => setTab(k) }, ic, ' ', l)));
+  [...$('tabs').children].forEach((b) => { const on = b.dataset.k === ui.tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+  const v = { catalog: viewCatalog, calendar: viewCalendar, beds: viewBeds, tasks: viewTasks, harvest: viewHarvest, diary: viewDiary }[ui.tab]();
+  $('view').replaceChildren(...[].concat(v).filter(Boolean));
+}
+/* ---------- Katalog ---------- */
+function viewCatalog() {
+  const d = store.data, out = [];
+  const sel = h('select', { id: 'tsel', 'aria-label': 'Vorlage wählen' }, TEMPL.map((t, i) => h('option', { value: i }, t[0])));
+  out.push(h('div', { class: 'card form' },
+    h('label', { class: 'f' }, 'Aus Vorlage hinzufügen', sel),
+    h('button', { class: 'primary', onclick: () => addTemplates([TEMPL[+sel.value]]) }, 'Hinzufügen'),
+    h('button', { onclick: () => addTemplates(TEMPL) }, 'Alle Vorlagen hinzufügen'),
+    h('span', { class: 'sp' }),
+    h('button', { onclick: () => { ui.editId = 'new'; ui.draft = { name: '', emoji: '🌱', pre: [], sow: [], plant: [], harvest: [] }; render(); } }, '+ Eigene Pflanze')));
+  if (ui.editId) out.push(editor());
+  if (!d.plants.length && !ui.editId) out.push(h('div', { class: 'card muted' }, 'Noch keine Pflanzen im Katalog. Füge Vorlagen hinzu (Tomate, Salat, Möhre …) oder lege eine eigene Pflanze mit ihren Vorzieh-, Aussaat-, Pflanz- und Erntemonaten an.'));
+  d.plants.forEach((p) => {
+    out.push(h('div', { class: 'card plant' }, h('h3', {}, chip(p)),
+      h('button', { class: 'small', onclick: () => { ui.editId = p.id; ui.draft = JSON.parse(JSON.stringify(p)); render(); window.scrollTo(0, 0); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm('Pflanze „' + p.name + '“ aus dem Katalog löschen?')) { d.plants = d.plants.filter((x) => x !== p); store.changed(); render(); } } }, '✕'),
+      h('div', { class: 'phases' }, PH.map(([k, l]) => h('span', {}, h('i', { class: 'dot p-' + k }), l, ': ', h('b', {}, ranges(p[k])))))));
+  });
+  return out;
+}
+function addTemplates(list) {
+  const d = store.data; let added = 0;
+  list.forEach(([name, emoji, pre, sow, plant, harvest]) => { if (d.plants.some((p) => p.name.toLowerCase() === name.toLowerCase())) return; d.plants.push({ id: uid(), name, emoji, pre: pre.slice(), sow: sow.slice(), plant: plant.slice(), harvest: harvest.slice() }); added++; });
+  if (!added) { alert('Diese Pflanzen sind schon im Katalog.'); return; }
+  store.changed(); render();
+}
+function editor() {
+  const dr = ui.draft;
+  const name = h('input', { type: 'text', required: true, value: dr.name, placeholder: 'z. B. Tomate', 'aria-label': 'Name der Pflanze', style: 'min-width:10em', oninput: () => { dr.name = name.value; } });
+  const emo = h('input', { type: 'text', value: dr.emoji, maxLength: 4, class: 'n', 'aria-label': 'Symbol (Emoji)', oninput: () => { dr.emoji = emo.value; } });
+  const rows = PH.map(([k, l]) => h('div', { class: 'mrow' }, h('b', {}, l), Array.from({ length: 12 }, (_, i) => i + 1).map((m) => {
+    const b = h('button', { type: 'button', class: dr[k].includes(m) ? 'on' : '', 'aria-pressed': String(dr[k].includes(m)), 'aria-label': l + ' ' + mName(m, 'long') }, mName(m, 'short'));
+    b.onclick = () => { const on = !dr[k].includes(m); dr[k] = on ? monthsOf(dr[k].concat(m)) : dr[k].filter((x) => x !== m); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); };
+    return b;
+  })));
+  const f = h('form', { class: 'card' }, h('h3', { style: 'margin:0 0 8px' }, ui.editId === 'new' ? 'Neue Pflanze' : 'Pflanze bearbeiten'),
+    h('div', { class: 'form' }, h('label', { class: 'f' }, 'Name', name), h('label', { class: 'f' }, 'Symbol', emo)),
+    h('p', { class: 'muted', style: 'margin:8px 0 2px;font-size:.85rem' }, 'Monate wählen, in denen die Pflanze vorgezogen, gesät, gepflanzt bzw. geerntet wird:'), rows,
+    h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'primary' }, 'Speichern'), h('button', { type: 'button', onclick: () => { ui.editId = null; ui.draft = null; render(); } }, 'Abbrechen')));
+  f.onsubmit = (e) => {
+    e.preventDefault(); const nm = dr.name.trim(); if (!nm) return;
+    const rec = { name: nm, emoji: dr.emoji.trim() || '🌱' }; PH.forEach(([k]) => { rec[k] = monthsOf(dr[k]); });
+    if (ui.editId === 'new') store.data.plants.push(Object.assign({ id: uid() }, rec)); else { const p = byId(ui.editId); if (p) Object.assign(p, rec); }
+    ui.editId = null; ui.draft = null; store.changed(); render();
+  };
+  return f;
+}
+/* ---------- Kalender ---------- */
+function viewCalendar() {
+  const d = store.data; if (!d.plants.length) return h('div', { class: 'card muted' }, 'Der Kalender entsteht aus deinem Pflanzen-Katalog. Füge zuerst Pflanzen im Katalog hinzu.');
+  const cm = new Date().getMonth() + 1, g = h('div', { class: 'cal' });
+  g.append(h('div', { class: 'hd' }, ''));
+  for (let m = 1; m <= 12; m++) g.append(h('div', { class: 'hd' + (m === cm ? ' cur' : '') }, mName(m, 'short')));
+  d.plants.forEach((p) => {
+    g.append(h('div', { class: 'nm' }, h('span', {}, p.emoji), h('span', {}, p.name)));
+    for (let m = 1; m <= 12; m++) g.append(h('div', { class: 'c' + (m === cm ? ' cur' : '') }, PH.map(([k, l]) => h('i', p[k].includes(m) ? { class: 'p-' + k, title: l } : { style: 'background:transparent' }))));
+  });
+  return h('div', { class: 'card' }, legend(), h('div', { class: 'calwrap' }, g));
+}
+/* ---------- Beete ---------- */
+function viewBeds() {
+  const d = store.data, out = [];
+  const nm = h('input', { type: 'text', required: true, placeholder: 'z. B. Hochbeet Süd', 'aria-label': 'Name des Beets' });
+  const cols = h('input', { type: 'number', min: 1, max: 20, value: 6, class: 'n', 'aria-label': 'Breite in Feldern' });
+  const rows = h('input', { type: 'number', min: 1, max: 20, value: 4, class: 'n', 'aria-label': 'Länge in Feldern' });
+  const f = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:160px' }, 'Name', nm), h('label', { class: 'f' }, 'Breite (Felder)', cols), h('label', { class: 'f' }, 'Länge (Felder)', rows), h('button', { class: 'primary' }, 'Beet anlegen'));
+  f.onsubmit = (e) => { e.preventDefault(); d.beds.push({ id: uid(), name: nm.value.trim(), cols: Math.min(20, Math.max(1, +cols.value || 1)), rows: Math.min(20, Math.max(1, +rows.value || 1)), cells: {} }); store.changed(); render(); };
+  out.push(f);
+  if (d.plants.length) {
+    out.push(h('div', { class: 'card' }, h('div', { class: 'muted', style: 'font-size:.85rem;margin-bottom:6px' }, 'Pflanze wählen und dann Felder im Beet anklicken. Ein Feld entspricht einem Pflanzplatz.'),
+      h('div', { class: 'row' }, d.plants.map((p) => h('button', { class: 'chip' + (ui.brush === p.id ? ' on' : ''), 'aria-pressed': String(ui.brush === p.id), onclick: () => { ui.brush = ui.brush === p.id ? null : p.id; render(); } }, h('span', {}, p.emoji), h('span', {}, p.name))),
+        h('button', { class: 'chip' + (ui.brush === '' ? ' on' : ''), 'aria-pressed': String(ui.brush === ''), onclick: () => { ui.brush = ui.brush === '' ? null : ''; render(); } }, h('span', {}, '🧽'), h('span', {}, 'Radierer')))));
+  } else out.push(h('div', { class: 'card muted' }, 'Füge zuerst Pflanzen im Katalog hinzu, um sie den Beeten zuzuordnen.'));
+  if (!d.beds.length) out.push(h('div', { class: 'card muted' }, 'Noch keine Beete. Lege oben dein erstes Beet an.'));
+  d.beds.forEach((b) => out.push(bedCard(b)));
+  return out;
+}
+function bedCard(b) {
+  const d = store.data, used = {}; let filled = 0;
+  for (const k in b.cells) { const [r, c] = k.split(',').map(Number); if (r < b.rows && c < b.cols && byId(b.cells[k])) { used[b.cells[k]] = (used[b.cells[k]] || 0) + 1; filled++; } }
+  const grid = h('div', { class: 'bedgrid', style: 'grid-template-columns:repeat(' + b.cols + ',34px)' });
+  for (let r = 0; r < b.rows; r++) for (let c = 0; c < b.cols; c++) {
+    const key = r + ',' + c, p = byId(b.cells[key]);
+    grid.append(h('button', { type: 'button', title: p ? p.name : 'Leer', 'aria-label': (p ? p.name : 'Leer') + ' (' + (r + 1) + ', ' + (c + 1) + ')',
+      onclick: () => { if (ui.brush == null) { alert('Wähle oben zuerst eine Pflanze oder den Radierer.'); return; } if (ui.brush === '') delete b.cells[key]; else b.cells[key] = ui.brush; store.changed(); render(); } }, p ? p.emoji : ''));
+  }
+  const size = (key, lab, max) => h('label', { class: 'f' }, lab, h('input', { type: 'number', min: 1, max, value: b[key], class: 'n', onchange: (e) => { b[key] = Math.min(max, Math.max(1, +e.target.value || 1)); store.changed(); render(); } }));
+  return h('div', { class: 'card' },
+    h('div', { class: 'row' }, h('h3', { style: 'margin:0;flex:1' }, '🟫 ', b.name), h('span', { class: 'muted' }, b.cols + ' × ' + b.rows + ' Felder'),
+      h('button', { class: 'small', onclick: () => { const n = prompt('Neuer Name für das Beet:', b.name); if (n && n.trim()) { b.name = n.trim(); store.changed(); render(); } } }, 'Umbenennen'),
+      h('button', { class: 'small', onclick: () => { if (Object.keys(b.cells).length && confirm('Alle Felder dieses Beets leeren?')) { b.cells = {}; store.changed(); render(); } } }, 'Leeren'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm('Beet „' + b.name + '“ löschen?')) { d.beds = d.beds.filter((x) => x !== b); store.changed(); render(); } } }, '✕')),
+    h('div', { class: 'row', style: 'margin:6px 0' }, size('cols', 'Breite', 20), size('rows', 'Länge', 20)),
+    h('div', { class: 'bedwrap' }, grid),
+    h('div', { class: 'row', style: 'margin-top:8px' }, h('span', { class: 'muted' }, 'Belegt: ' + filled + ' von ' + (b.cols * b.rows) + ' Feldern'),
+      Object.keys(used).map((id) => h('span', { class: 'chip' }, h('span', {}, byId(id).emoji), h('span', {}, byId(id).name), h('span', {}, '×' + used[id])))));
+}
+/* ---------- Aufgaben ---------- */
+function viewTasks() {
+  const d = store.data, m = ui.month, y = ui.year, out = [];
+  const mv = (n) => { ui.month += n; if (ui.month < 1) { ui.month = 12; ui.year--; } if (ui.month > 12) { ui.month = 1; ui.year++; } render(); };
+  out.push(h('div', { class: 'nav' }, h('button', { 'aria-label': 'Voriger Monat', onclick: () => mv(-1) }, '‹'), h('h2', {}, new Date(y, m - 1, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })), h('button', { 'aria-label': 'Nächster Monat', onclick: () => mv(1) }, '›'),
+    h('button', { onclick: () => { ui.month = new Date().getMonth() + 1; ui.year = new Date().getFullYear(); render(); } }, 'Heute')));
+  if (!d.plants.length) { out.push(h('div', { class: 'card muted' }, 'Die Aufgaben werden aus deinem Pflanzen-Katalog abgeleitet. Füge zuerst Pflanzen im Katalog hinzu.')); return out; }
+  let total = 0, done = 0; const secs = [];
+  PH.forEach(([k, l, hint]) => {
+    const ps = d.plants.filter((p) => p[k].includes(m)); if (!ps.length) return;
+    const rows = ps.map((p) => {
+      const key = y + '-' + pad(m) + '|' + k + '|' + p.id, on = !!d.done[key]; total++; if (on) done++;
+      const cb = h('input', { type: 'checkbox', checked: on, 'aria-label': 'Erledigt', onchange: () => { if (cb.checked) d.done[key] = true; else delete d.done[key]; store.changed(); render(); } });
+      return h('label', { class: 'task' + (on ? ' done' : '') }, cb, chip(p));
+    });
+    secs.push(h('div', { class: 'card' }, h('div', { style: 'font-weight:600' }, h('i', { class: 'dot p-' + k }), l), h('div', { class: 'muted', style: 'font-size:.85rem;margin-bottom:4px' }, hint), rows));
+  });
+  if (!secs.length) out.push(h('div', { class: 'card muted' }, 'In diesem Monat steht laut Katalog nichts an.'));
+  else out.push(h('p', { class: 'muted', style: 'margin:0 0 8px' }, done + ' von ' + total + ' erledigt'), ...secs);
+  return out;
+}
+/* ---------- Ernte ---------- */
+function viewHarvest() {
+  const d = store.data, out = [], ed = d.harvests.find((x) => x.id === ui.hEdit) || null, today = ymd(new Date());
+  const date = h('input', { type: 'date', required: true, value: ed ? ed.date : today, 'aria-label': 'Datum' });
+  const names = d.plants.map((p) => p.name), cur = ed ? ed.plant : '';
+  const sel = h('select', { 'aria-label': 'Pflanze' }, names.map((n) => h('option', { value: n, selected: n === cur }, n)), h('option', { value: '' }, 'Andere …'));
+  if (ed && !names.includes(cur)) sel.value = '';
+  const other = h('input', { type: 'text', placeholder: 'Name der Pflanze', 'aria-label': 'Name der Pflanze', value: ed && !names.includes(cur) ? cur : '', style: 'width:11em' });
+  const syncO = () => { other.hidden = sel.value !== ''; other.required = sel.value === ''; }; sel.onchange = syncO; syncO();
+  const amt = h('input', { type: 'text', inputMode: 'decimal', required: true, class: 'w', value: ed ? String(ed.amount).replace('.', SimpleI18n.dec) : '', placeholder: 'z. B. 1,5', 'aria-label': 'Menge' });
+  const unit = h('select', { 'aria-label': 'Einheit' }, UNITS.map((u) => h('option', { value: u, selected: ed && ed.unit === u }, u)));
+  const f = h('form', { class: 'card form' }, h('label', { class: 'f' }, 'Datum', date), h('label', { class: 'f' }, 'Pflanze', h('span', { class: 'row' }, sel, other)), h('label', { class: 'f' }, 'Menge', amt), h('label', { class: 'f' }, 'Einheit', unit),
+    h('button', { class: 'primary' }, ed ? 'Speichern' : 'Eintragen'), ed ? h('button', { type: 'button', onclick: () => { ui.hEdit = null; render(); } }, 'Abbrechen') : null);
+  f.onsubmit = (e) => {
+    e.preventDefault(); const a = parseNum(amt.value), pl = (sel.value || other.value).trim();
+    if (!(a > 0)) { alert('Bitte eine Menge größer 0 eingeben.'); return; } if (!pl) return;
+    const rec = { date: date.value, plant: pl, amount: Math.round(a * 1000) / 1000, unit: unit.value };
+    if (ed) Object.assign(ed, rec); else d.harvests.push(Object.assign({ id: uid() }, rec));
+    ui.hEdit = null; ui.ySel = +date.value.slice(0, 4) || ui.ySel; store.changed(); render();
+  };
+  out.push(f);
+  const years = [...new Set(d.harvests.map((x) => +x.date.slice(0, 4)).concat(new Date().getFullYear()))].filter(Boolean).sort((a, b) => b - a);
+  if (!years.includes(ui.ySel)) ui.ySel = years.includes(new Date().getFullYear()) ? new Date().getFullYear() : years[0];
+  out.push(h('div', { class: 'row', style: 'margin-bottom:8px' }, years.map((yr) => h('button', { class: 'chip' + (yr === ui.ySel ? ' on' : ''), 'aria-pressed': String(yr === ui.ySel), onclick: () => { ui.ySel = yr; render(); } }, String(yr)))));
+  const list = d.harvests.filter((x) => +x.date.slice(0, 4) === ui.ySel).sort((a, b) => b.date.localeCompare(a.date));
+  if (!list.length) { out.push(h('div', { class: 'card muted' }, 'Noch keine Ernte in diesem Jahr eingetragen.')); return out; }
+  const sums = {}; list.forEach((x) => { const k = x.plant + '\u0000' + x.unit; sums[k] = (sums[k] || 0) + x.amount; });
+  const keys = Object.keys(sums).sort();
+  out.push(h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 6px' }, 'Jahres-Summen'),
+    h('table', { class: 't' }, h('thead', {}, h('tr', {}, h('th', {}, 'Pflanze'), h('th', { class: 'r' }, 'Summe'))),
+      h('tbody', {}, keys.map((k) => { const [pl, u] = k.split('\u0000'), p = d.plants.find((x) => x.name === pl); return h('tr', {}, h('td', {}, p ? chip(p) : h('span', {}, pl)), h('td', { class: 'r' }, h('b', {}, dec(sums[k])), ' ', h('span', {}, u))); })))));
+  out.push(h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 4px' }, 'Einträge'), list.map((x) => {
+    const p = d.plants.find((q) => q.name === x.plant);
+    return h('div', { class: 'entry' }, h('span', { class: 'muted' }, fmtDate(x.date)), p ? chip(p) : h('span', { class: 'chip' }, h('span', {}, '🌱'), h('span', {}, x.plant)), h('b', {}, dec(x.amount)), h('span', {}, x.unit), h('span', { class: 'sp', style: 'flex:1' }),
+      h('button', { class: 'small', onclick: () => { ui.hEdit = x.id; render(); window.scrollTo(0, 0); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm('Diesen Ernte-Eintrag löschen?')) { d.harvests = d.harvests.filter((q) => q !== x); store.changed(); render(); } } }, '✕'));
+  })));
+  return out;
+}
+/* ---------- Tagebuch ---------- */
+function viewDiary() {
+  const d = store.data, out = [], ed = d.diary.find((x) => x.id === ui.dEdit) || null;
+  const date = h('input', { type: 'date', required: true, value: ed ? ed.date : ymd(new Date()), 'aria-label': 'Datum' });
+  const wx = h('select', { 'aria-label': 'Wetter' }, h('option', { value: '' }, '– Wetter –'), WX.map((w) => h('option', { value: w.split(' ')[0], selected: ed && ed.weather === w.split(' ')[0] }, w)));
+  const note = h('textarea', { rows: 3, required: true, placeholder: 'Was war heute im Garten los?', 'aria-label': 'Notiz', value: ed ? ed.note : '', style: 'width:100%' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'form' }, h('label', { class: 'f' }, 'Datum', date), h('label', { class: 'f' }, 'Wetter', wx)), h('label', { class: 'f', style: 'margin-top:8px' }, 'Notiz', note),
+    h('div', { class: 'row', style: 'margin-top:8px' }, h('button', { class: 'primary' }, ed ? 'Speichern' : 'Eintragen'), ed ? h('button', { type: 'button', onclick: () => { ui.dEdit = null; render(); } }, 'Abbrechen') : null));
+  f.onsubmit = (e) => {
+    e.preventDefault(); const t = note.value.trim(); if (!t) return;
+    const rec = { date: date.value, note: t, weather: wx.value };
+    if (ed) Object.assign(ed, rec); else d.diary.push(Object.assign({ id: uid() }, rec));
+    ui.dEdit = null; store.changed(); render();
+  };
+  out.push(f);
+  const q = h('input', { type: 'search', placeholder: 'Suchen …', 'aria-label': 'Tagebuch durchsuchen', value: ui.q, style: 'max-width:16em', oninput: () => { ui.q = q.value; fill(); } });
+  const box = h('div', {});
+  const fill = () => {
+    const s = ui.q.trim().toLowerCase();
+    const list = d.diary.filter((x) => !s || x.note.toLowerCase().includes(s)).sort((a, b) => b.date.localeCompare(a.date));
+    box.replaceChildren(...(list.length ? list.map((x) => h('div', { class: 'card entry' }, h('span', { class: 'wx', title: 'Wetter' }, x.weather || '·'), h('b', {}, fmtDate(x.date)), h('span', { style: 'flex:1' }),
+      h('button', { class: 'small', onclick: () => { ui.dEdit = x.id; render(); window.scrollTo(0, 0); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm('Diesen Tagebuch-Eintrag löschen?')) { d.diary = d.diary.filter((q) => q !== x); store.changed(); render(); } } }, '✕'),
+      h('div', { class: 'note' }, x.note))) : [h('div', { class: 'card muted' }, d.diary.length ? 'Keine Einträge gefunden.' : 'Noch keine Einträge. Halte fest, was du gesät, gepflanzt oder beobachtet hast.')]));
+  };
+  if (d.diary.length) out.push(q); out.push(box); fill();
+  return out;
+}
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

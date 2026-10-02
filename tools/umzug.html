@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Umzugsplaner</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1000px; }
+  .hero { display:flex; flex-wrap:wrap; gap:12px 24px; align-items:flex-end; }
+  .hero .cd { flex:1; min-width:200px; } .hero .cd b { font-size:1.35rem; display:block; } .hero .cd span { color:var(--muted); font-size:.9rem; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; } input.w { width:7em; } input.nr { width:5em; }
+  .bar { height:14px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:6px 0 2px; } .bar > i { display:block; height:100%; background:var(--accent); } .bar.ok > i { background:var(--ok); }
+  .grp { margin:12px 0 4px; display:flex; flex-wrap:wrap; gap:4px 10px; align-items:baseline; } .grp h3 { margin:0; font-size:1.02rem; } .grp .muted { font-size:.82rem; }
+  .it { display:flex; gap:8px; align-items:center; padding:6px 4px; border-bottom:1px solid var(--line); min-width:0; }
+  .it label { flex:1; display:flex; gap:8px; align-items:center; min-width:0; cursor:pointer; overflow-wrap:break-word; hyphens:auto; } .it.done label span { text-decoration:line-through; color:var(--muted); }
+  .it .grow { flex:1; min-width:0; overflow-wrap:anywhere; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin:10px 0; } .sum div { text-align:center; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--card); } .sum b { display:block; font-size:1.15rem; }
+  .box { display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 4px; border-bottom:1px solid var(--line); }
+  .box .n { font-size:1.2rem; font-weight:700; min-width:2.6em; text-align:center; border:2px solid var(--fg); border-radius:8px; padding:0 6px; }
+  .box .body { flex:1; min-width:180px; overflow-wrap:anywhere; } .box .body small { color:var(--muted); display:block; }
+  .box select { max-width:100%; }
+  .filters { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; align-items:center; } .filters input[type=search] { flex:1; min-width:150px; }
+  .labels { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:10px; }
+  .lab { border:2px dashed var(--fg); border-radius:10px; padding:10px 12px; background:var(--card); display:flex; flex-direction:column; gap:4px; min-width:0; break-inside:avoid; }
+  .lab .ln { font-size:2.4rem; font-weight:800; line-height:1; } .lab .lr { font-size:1.25rem; font-weight:700; overflow-wrap:anywhere; } .lab .lc { overflow-wrap:anywhere; font-size:.95rem; }
+  .lab .lf { font-weight:700; border:2px solid var(--err); color:var(--err); border-radius:6px; padding:1px 6px; align-self:flex-start; }
+  .nm { flex:1; min-width:140px; } .money { width:6.5em; flex:none; text-align:right; }
+  .pos { color:var(--ok); } .neg { color:var(--err); }
+  #printarea { display:none; }
+  @media print {
+    @page { margin:14mm 12mm; }
+    html, html body { background:#fff !important; background-image:none !important; color:#000 !important; }
+    html::before { display:none !important; }
+    .ui-fab, .ui-panel { display:none !important; }
+    main > *:not(#printarea) { display:none !important; }
+    html body main { max-width:none !important; padding:0 !important; }
+    main > #printarea { display:block !important; font:11pt/1.4 system-ui, sans-serif; color:#000 !important; }
+    #printarea * { color:#000 !important; background:transparent !important; box-shadow:none !important; }
+    #printarea .labels { grid-template-columns:1fr 1fr; gap:8mm; }
+    #printarea .lab { border:2px dashed #000; padding:6mm; }
+    #printarea .lab .lf { border-color:#000; }
+    #printarea h2 { margin:0 0 8px; } #printarea .pg { margin:12px 0 4px; font-weight:700; } #printarea .pi { padding:3px 0; border-bottom:1px solid #999; }
+  }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Umzugsplaner</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="card hero">
+    <label class="f">Umzugsdatum<input type="date" id="mdate"></label>
+    <label class="f" style="flex:1;min-width:120px">Von (alter Ort)<input type="text" id="mfrom" placeholder="z. B. Hamburg"></label>
+    <label class="f" style="flex:1;min-width:120px">Nach (neuer Ort)<input type="text" id="mto" placeholder="z. B. Berlin"></label>
+    <div class="cd" id="cd" aria-live="polite"></div>
+  </div>
+  <div class="tabs" id="toptabs" role="tablist"><button data-tab="check">✅ Checkliste</button><button data-tab="boxes">📦 Kartons</button><button data-tab="addr">📮 Adressänderungen</button><button data-tab="cost">💶 Kosten</button><button data-tab="help">🚚 Helfer &amp; Fahrzeug</button></div>
+  <div id="view"></div>
+  <section id="printarea" aria-hidden="true"></section>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'umzug',
+  defaults: () => ({ umzug: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const PERIODS = [['8 Wochen vorher', 56], ['4 Wochen vorher', 28], ['2 Wochen vorher', 14], ['1 Woche vorher', 7], ['Umzugstag', 0], ['Nach dem Umzug', null]];
+const TEMPLATE = {
+  '8 Wochen vorher': ['Mietvertrag der alten Wohnung kündigen (Kündigungsfrist prüfen)', 'Umzugstermin festlegen', 'Budget für den Umzug planen', 'Angebote von Umzugsfirmen einholen oder Transporter reservieren', 'Urlaub für den Umzugstag beantragen', 'Aussortieren: verkaufen, verschenken, spenden, entsorgen'],
+  '4 Wochen vorher': ['Helfer für den Umzugstag fragen', 'Verpackungsmaterial besorgen', 'Halteverbotszone beantragen', 'Nachsendeauftrag einrichten', 'Internet- und Telefonanschluss am neuen Ort bestellen', 'Renovierung der alten Wohnung planen'],
+  '2 Wochen vorher': ['Mit dem Packen beginnen (selten Genutztes zuerst)', 'Kartons beschriften und nummerieren', 'Strom, Gas und Wasser ummelden', 'Nachbarn über den Umzug informieren', 'Wegweiser und Parkplatz für das Umzugsfahrzeug klären'],
+  '1 Woche vorher': ['Kühlschrank und Gefrierschrank leeren und abtauen', 'Wertsachen und wichtige Dokumente separat packen', 'Erste-Nacht-Karton packen (Bettzeug, Hygieneartikel, Ladekabel)', 'Möbel abbauen und Schrauben beschriften', 'Bargeld für Trinkgeld und Verpflegung besorgen'],
+  'Umzugstag': ['Zählerstände in der alten Wohnung ablesen und fotografieren', 'Fahrzeug abholen', 'Helfer einweisen und Verpflegung bereitstellen', 'Alte Wohnung besenrein übergeben und Übergabeprotokoll unterschreiben', 'Zählerstände in der neuen Wohnung ablesen', 'Schäden in der neuen Wohnung dokumentieren'],
+  'Nach dem Umzug': ['Beim Einwohnermeldeamt ummelden (innerhalb von 2 Wochen)', 'Kartons auspacken', 'Kaution der alten Wohnung zurückfordern', 'Umzugskosten und Belege für die Steuer sammeln', 'Neue Nachbarn begrüßen'],
+};
+const KINDS = ['Behörde', 'Bank', 'Versicherung', 'Arbeit & Schule', 'Verträge', 'Post & Abos', 'Sonstiges'];
+const ADDR_TPL = [
+  ['Einwohnermeldeamt', 'Behörde', 'Ummeldung innerhalb von 2 Wochen nach dem Einzug'], ['Kfz-Zulassungsstelle', 'Behörde', 'Fahrzeugschein und Kennzeichen anpassen'], ['Finanzamt', 'Behörde', ''], ['Familienkasse (Kindergeld)', 'Behörde', ''], ['Rentenversicherung', 'Behörde', ''], ['Rundfunkbeitrag (Beitragsservice)', 'Behörde', ''],
+  ['Hausbank', 'Bank', 'Neue Adresse für Karten und Kontoauszüge'], ['Kreditkarte', 'Bank', ''],
+  ['Krankenversicherung', 'Versicherung', ''], ['Hausratversicherung', 'Versicherung', 'Neue Adresse und Wohnfläche melden'], ['Haftpflichtversicherung', 'Versicherung', ''], ['Kfz-Versicherung', 'Versicherung', ''],
+  ['Arbeitgeber', 'Arbeit & Schule', ''], ['Schule oder Kita', 'Arbeit & Schule', ''],
+  ['Strom und Gas', 'Verträge', 'Zählerstand melden, Anbieter ummelden'], ['Internet und Telefon', 'Verträge', 'Umzug oder Sonderkündigung'], ['Handyvertrag', 'Verträge', ''],
+  ['Post-Nachsendeauftrag', 'Post & Abos', ''], ['Zeitungen und Zeitschriften', 'Post & Abos', ''], ['Online-Shops und Paketdienste', 'Post & Abos', ''],
+  ['Freunde und Familie', 'Sonstiges', 'Neue Adresse mitteilen'],
+];
+const COST_TPL = ['Transporter oder Umzugsfirma', 'Verpackungsmaterial', 'Halteverbotszone', 'Renovierung der alten Wohnung', 'Renovierung der neuen Wohnung', 'Kaution der neuen Wohnung', 'Doppelte Miete', 'Verpflegung der Helfer', 'Nachsendeauftrag', 'Möbel und Neuanschaffungen', 'Endreinigung'];
+const ROOMS = ['Küche', 'Wohnzimmer', 'Schlafzimmer', 'Kinderzimmer', 'Arbeitszimmer', 'Bad', 'Flur', 'Keller', 'Dachboden'];
+const STATES = ['Offen', 'Gepackt', 'Verladen', 'Ausgepackt'];
+let tab = 'check', boxMode = 'list', editBox = null;
+const filt = { q: '', room: '', state: '' };
+const U = () => store.data.umzug;
+function normalize() {
+  const d = store.data;
+  if (!d.umzug || typeof d.umzug !== 'object' || Array.isArray(d.umzug)) d.umzug = {};
+  const u = d.umzug;
+  if (typeof u.date !== 'string') u.date = ''; if (typeof u.from !== 'string') u.from = ''; if (typeof u.to !== 'string') u.to = '';
+  ['tasks', 'boxes', 'addr', 'costs', 'helpers'].forEach((k) => { if (!Array.isArray(u[k])) u[k] = []; });
+  if (!u.vehicle || typeof u.vehicle !== 'object') u.vehicle = {};
+  ['name', 'pickup', 'ret', 'note'].forEach((k) => { if (typeof u.vehicle[k] !== 'string') u.vehicle[k] = ''; });
+}
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
+const today0 = () => parseYmd(ymd(new Date()));
+const daysTo = () => U().date ? Math.round((parseYmd(U().date) - today0()) / 86400000) : null;
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() - n); return ymd(d); };
+const chg = () => { store.changed(); render(); };
+function printNodes(nodes) { $('printarea').replaceChildren(...nodes.flat(Infinity).filter(Boolean)); SimpleI18n.apply(); window.print(); }
+
+function header() {
+  const u = U();
+  if (document.activeElement !== $('mdate')) $('mdate').value = u.date;
+  if (document.activeElement !== $('mfrom')) $('mfrom').value = u.from;
+  if (document.activeElement !== $('mto')) $('mto').value = u.to;
+  const n = daysTo(), cd = $('cd');
+  if (n == null) { cd.replaceChildren(h('span', {}, 'Lege das Umzugsdatum fest, dann startet der Countdown.')); return; }
+  const big = n > 1 ? `Noch ${n} Tage bis zum Umzug` : n === 1 ? 'Morgen ist Umzugstag! 🚚' : n === 0 ? 'Heute ist Umzugstag! 🚚' : n === -1 ? 'Der Umzug war gestern 🏠' : `Der Umzug war vor ${-n} Tagen 🏠`;
+  cd.replaceChildren(h('b', {}, big), h('span', {}, parseYmd(u.date).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })));
+}
+function render() {
+  const u = U();
+  header();
+  document.querySelectorAll('#toptabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const v = { check: checkView, boxes: boxView, addr: addrView, cost: costView, help: helpView }[tab]();
+  $('view').replaceChildren(v);
+}
+['mdate', 'mfrom', 'mto'].forEach((id) => { $(id).onchange = () => { U()[{ mdate: 'date', mfrom: 'from', mto: 'to' }[id]] = $(id).value.trim(); store.changed(); header(); updateWhen(); }; });
+function whenText(off) { const u = U(); return u.date && off != null ? (off > 0 ? `ab ${fmtDate(addDays(u.date, off))}` : `am ${fmtDate(u.date)}`) : ''; }
+function updateWhen() { document.querySelectorAll('#view .when').forEach((e) => { e.textContent = whenText(+e.dataset.off); }); }
+document.querySelectorAll('#toptabs button').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; render(); }; });
+
+function progress(done, total) {
+  const pct = total ? Math.round(done / total * 100) : 0;
+  return h('div', {}, h('div', { class: 'bar' + (total && done === total ? ' ok' : '') }, h('i', { style: 'width:' + pct + '%' })), h('div', { class: 'muted', style: 'font-size:.85rem' }, total ? `${done} von ${total} erledigt · ${pct} %` : 'Noch nichts angelegt.'));
+}
+function delBtn(label, fn) { return h('button', { class: 'small', title: 'Löschen', 'aria-label': label, onclick: () => { if (confirm(label + '?')) fn(); } }, '✕'); }
+
+/* ---------- Checkliste ---------- */
+function checkView() {
+  const u = U(), done = u.tasks.filter((t) => t.done).length;
+  const text = h('input', { type: 'text', class: 'nm', required: true, placeholder: 'Neue Aufgabe, z. B. Umzugswagen reservieren', 'aria-label': 'Aufgabe' });
+  const per = h('select', { 'aria-label': 'Zeitraum' }, PERIODS.map((p) => h('option', { value: p[0], selected: p[0] === tabPer }, p[0])));
+  per.onchange = () => { tabPer = per.value; };
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:200px' }, 'Aufgabe', text), h('label', { class: 'f' }, 'Zeitraum', per), h('button', { class: 'primary' }, 'Hinzufügen'),
+    h('button', { type: 'button', title: 'Typische Aufgaben für jeden Zeitraum ergänzen', onclick: addTemplate }, '📋 Vorlage laden'),
+    h('button', { type: 'button', onclick: printChecklist }, '🖨 Drucken'));
+  form.onsubmit = (e) => { e.preventDefault(); if (!text.value.trim()) return; u.tasks.push({ id: uid(), text: text.value.trim(), period: per.value, done: false }); chg(); };
+  const groups = PERIODS.map(([p, off]) => {
+    const ts = u.tasks.filter((t) => (t.period || 'Nach dem Umzug') === p);
+    if (!ts.length) return null;
+    const d = ts.filter((t) => t.done).length;
+    return h('div', {}, h('div', { class: 'grp' }, h('h3', {}, p), h('span', { class: 'badge' + (d === ts.length ? ' ok' : '') }, `${d}/${ts.length}`), off != null ? h('span', { class: 'muted when', dataset: { off } }, whenText(off)) : null),
+      h('div', { class: 'card', style: 'padding:2px 10px' }, ts.map((t) => h('div', { class: 'it' + (t.done ? ' done' : '') },
+        h('label', {}, h('input', { type: 'checkbox', checked: t.done, 'aria-label': 'Erledigt', onchange: (e) => { t.done = e.target.checked; chg(); } }), h('span', {}, t.text)),
+        delBtn('Aufgabe löschen', () => { u.tasks = u.tasks.filter((x) => x !== t); chg(); })))));
+  }).filter(Boolean);
+  return h('div', {}, h('div', { class: 'card' }, progress(done, u.tasks.length)), form,
+    groups.length ? groups : h('div', { class: 'card muted' }, 'Noch keine Aufgaben. Lade die Vorlage und du erhältst eine Checkliste von acht Wochen vorher bis nach dem Umzug.'));
+}
+let tabPer = '8 Wochen vorher';
+function addTemplate() {
+  const u = U(); let n = 0;
+  PERIODS.forEach(([p]) => TEMPLATE[p].forEach((t) => { if (!u.tasks.some((x) => x.text === t && x.period === p)) { u.tasks.push({ id: uid(), text: t, period: p, done: false }); n++; } }));
+  if (!n) { alert('Die Vorlage ist bereits vollständig enthalten.'); return; }
+  chg();
+}
+function printChecklist() {
+  const u = U();
+  printNodes([h('h2', {}, 'Umzugs-Checkliste'), u.date ? h('div', {}, fmtDate(u.date)) : null, PERIODS.map(([p]) => { const ts = u.tasks.filter((t) => (t.period || 'Nach dem Umzug') === p); return ts.length ? h('div', {}, h('div', { class: 'pg' }, p), ts.map((t) => h('div', { class: 'pi' }, h('span', {}, t.done ? '☑ ' : '☐ '), t.text))) : null; })]);
+}
+
+/* ---------- Kartons ---------- */
+function visBoxes() {
+  const q = filt.q.toLowerCase();
+  return U().boxes.filter((b) => (!filt.room || b.room === filt.room) && (!filt.state || b.state === filt.state) && (!q || [b.nr, b.room, b.content].join(' ').toLowerCase().includes(q)));
+}
+function nextNr() { const m = U().boxes.reduce((a, b) => Math.max(a, parseInt(b.nr, 10) || 0), 0); return String(m + 1); }
+function labelNode(b) { return h('div', { class: 'lab' }, h('div', { class: 'ln' }, '#' + b.nr), h('div', { class: 'lr' }, b.room || '–'), h('div', { class: 'lc' }, b.content), b.fragile ? h('div', { class: 'lf' }, '⚠ Zerbrechlich – Vorsicht!') : null);
+}
+function boxView() {
+  const u = U(), eb = editBox && u.boxes.find((b) => b.id === editBox);
+  const nr = h('input', { type: 'text', class: 'nr', value: eb ? eb.nr : nextNr(), 'aria-label': 'Kartonnummer', required: true });
+  const room = h('input', { type: 'text', list: 'roomlist', value: eb ? eb.room : '', placeholder: 'z. B. Küche', 'aria-label': 'Zielraum' });
+  const content = h('input', { type: 'text', class: 'nm', value: eb ? eb.content : '', placeholder: 'z. B. Geschirr, Gläser, Besteck', 'aria-label': 'Inhalt', required: true });
+  const frag = h('input', { type: 'checkbox', checked: eb ? eb.fragile : false });
+  const dl = h('datalist', { id: 'roomlist' }, ROOMS.map((r) => h('option', { value: r })));
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f' }, 'Nr.', nr), h('label', { class: 'f' }, 'Zielraum', room), h('label', { class: 'f', style: 'flex:1;min-width:160px' }, 'Inhalt', content),
+    h('label', { style: 'display:flex;gap:6px;align-items:center;padding-bottom:6px' }, frag, '⚠ Zerbrechlich'), h('button', { class: 'primary' }, eb ? 'Übernehmen' : 'Hinzufügen'),
+    eb ? h('button', { type: 'button', onclick: () => { editBox = null; render(); } }, 'Abbrechen') : null, dl);
+  form.onsubmit = (e) => {
+    e.preventDefault(); if (!nr.value.trim() || !content.value.trim()) return;
+    if (eb) Object.assign(eb, { nr: nr.value.trim(), room: room.value.trim(), content: content.value.trim(), fragile: frag.checked });
+    else u.boxes.push({ id: uid(), nr: nr.value.trim(), room: room.value.trim(), content: content.value.trim(), fragile: frag.checked, state: 'Offen' });
+    editBox = null; chg();
+  };
+  const rooms = [...new Set(u.boxes.map((b) => b.room).filter(Boolean))].sort();
+  const q = h('input', { type: 'search', value: filt.q, placeholder: '🔍 Inhalt, Raum oder Nummer suchen …', 'aria-label': 'Kartons durchsuchen' });
+  const fr = h('select', { 'aria-label': 'Nach Raum filtern' }, h('option', { value: '' }, 'Alle Räume'), rooms.map((r) => h('option', { value: r, selected: r === filt.room }, r)));
+  const fs = h('select', { 'aria-label': 'Nach Status filtern' }, h('option', { value: '' }, 'Alle Status'), STATES.map((s) => h('option', { value: s, selected: s === filt.state }, s)));
+  const modeBtn = (m, t) => h('button', { class: boxMode === m ? 'on' : '', onclick: () => { boxMode = m; render(); } }, t);
+  const list = h('div', {}), info = h('div', { class: 'muted', style: 'font-size:.85rem;margin-bottom:4px' }), actions = h('div', { class: 'row', style: 'margin:8px 0' });
+  function fill() {
+    const vis = visBoxes().slice().sort((a, b) => a.nr.localeCompare(b.nr, 'de', { numeric: true }));
+    info.textContent = `${vis.length} von ${u.boxes.length} Kartons`;
+    actions.replaceChildren(...(boxMode === 'labels' && vis.length ? [h('button', { class: 'primary', onclick: () => { printNodes([h('div', { class: 'labels' }, vis.map(labelNode))]); } }, '🖨 Etiketten drucken')] : []));
+    if (!u.boxes.length) { list.replaceChildren(h('div', { class: 'card muted' }, 'Noch keine Kartons. Nummeriere jeden Karton, notiere den Zielraum und den Inhalt – später findest du alles über die Suche wieder.')); return; }
+    if (!vis.length) { list.replaceChildren(h('div', { class: 'card muted' }, 'Keine Kartons gefunden.')); return; }
+    if (boxMode === 'labels') { list.replaceChildren(h('div', { class: 'labels' }, vis.map(labelNode))); return; }
+    list.replaceChildren(h('div', { class: 'card', style: 'padding:2px 10px' }, vis.map((b) => {
+      const sel = h('select', { 'aria-label': 'Status' }, STATES.map((s) => h('option', { value: s, selected: s === b.state }, s)));
+      sel.onchange = () => { b.state = sel.value; store.changed(); render(); };
+      return h('div', { class: 'box' }, h('div', { class: 'n' }, b.nr), h('div', { class: 'body' }, h('b', {}, b.content), h('small', {}, b.room || '–')),
+        b.fragile ? h('span', { class: 'badge err' }, '⚠ Zerbrechlich') : null, sel,
+        h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Karton bearbeiten', onclick: () => { editBox = b.id; render(); } }, '✎'),
+        delBtn('Karton löschen', () => { u.boxes = u.boxes.filter((x) => x !== b); chg(); }));
+    })));
+  }
+  q.oninput = () => { filt.q = q.value; fill(); };
+  fr.onchange = () => { filt.room = fr.value; fill(); }; fs.onchange = () => { filt.state = fs.value; fill(); };
+  const cnt = (s) => u.boxes.filter((b) => b.state === s).length;
+  fill();
+  return h('div', {}, form,
+    u.boxes.length ? h('div', { class: 'sum' }, STATES.map((s) => h('div', {}, h('b', {}, cnt(s)), s)), h('div', {}, h('b', {}, u.boxes.filter((b) => b.fragile).length), 'Zerbrechlich')) : null,
+    h('div', { class: 'filters' }, q, fr, fs), h('div', { class: 'tabs', style: 'margin:0 0 8px' }, modeBtn('list', '☰ Liste'), modeBtn('labels', '🏷 Etiketten')), info, actions, list);
+}
+
+/* ---------- Adressänderungen ---------- */
+function addrView() {
+  const u = U(), done = u.addr.filter((a) => a.done).length;
+  const who = h('input', { type: 'text', class: 'nm', required: true, placeholder: 'z. B. Krankenkasse', 'aria-label': 'Wer oder was' });
+  const kind = h('select', { 'aria-label': 'Art' }, KINDS.map((k) => h('option', { value: k }, k)));
+  const note = h('input', { type: 'text', class: 'nm', placeholder: 'optional, z. B. Kundennummer', 'aria-label': 'Notiz' });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:160px' }, 'Stelle', who), h('label', { class: 'f' }, 'Art', kind), h('label', { class: 'f', style: 'flex:1;min-width:140px' }, 'Notiz', note), h('button', { class: 'primary' }, 'Hinzufügen'),
+    h('button', { type: 'button', onclick: () => { let n = 0; ADDR_TPL.forEach(([w, k, t]) => { if (!u.addr.some((a) => a.who === w)) { u.addr.push({ id: uid(), who: w, kind: k, note: t, done: false }); n++; } }); if (!n) alert('Die Vorlage ist bereits vollständig enthalten.'); else chg(); } }, '📋 Vorlage laden'));
+  form.onsubmit = (e) => { e.preventDefault(); if (!who.value.trim()) return; u.addr.push({ id: uid(), who: who.value.trim(), kind: kind.value, note: note.value.trim(), done: false }); chg(); };
+  const kinds = KINDS.concat(u.addr.map((a) => a.kind).filter((k) => !KINDS.includes(k))).filter((k, i, a) => a.indexOf(k) === i);
+  const groups = kinds.map((k) => {
+    const as = u.addr.filter((a) => a.kind === k); if (!as.length) return null;
+    return h('div', {}, h('div', { class: 'grp' }, h('h3', {}, k), h('span', { class: 'badge' + (as.every((a) => a.done) ? ' ok' : '') }, `${as.filter((a) => a.done).length}/${as.length}`)),
+      h('div', { class: 'card', style: 'padding:2px 10px' }, as.map((a) => h('div', { class: 'it' + (a.done ? ' done' : '') },
+        h('label', {}, h('input', { type: 'checkbox', checked: a.done, 'aria-label': 'Erledigt', onchange: (e) => { a.done = e.target.checked; chg(); } }), h('span', {}, a.who, a.note ? h('small', { class: 'muted', style: 'display:block' }, a.note) : null)),
+        delBtn('Eintrag löschen', () => { u.addr = u.addr.filter((x) => x !== a); chg(); })))));
+  }).filter(Boolean);
+  return h('div', {}, h('div', { class: 'card' }, progress(done, u.addr.length)), form,
+    groups.length ? groups : h('div', { class: 'card muted' }, 'Noch keine Einträge. Die Vorlage listet Behörden, Banken, Versicherungen und Verträge, bei denen du deine neue Adresse melden musst.'));
+}
+
+/* ---------- Kosten ---------- */
+let sumEl = null;
+function sums() {
+  const u = U(), tot = u.costs.reduce((a, c) => a + c.amount, 0), paid = u.costs.filter((c) => c.paid).reduce((a, c) => a + c.amount, 0);
+  const n = h('div', { class: 'sum' }, h('div', {}, h('b', {}, eur(tot)), 'Summe'), h('div', {}, h('b', { class: 'pos' }, eur(paid)), 'Bezahlt'), h('div', {}, h('b', { class: tot - paid > 0 ? 'neg' : '' }, eur(tot - paid)), 'Noch offen'));
+  if (sumEl && sumEl.isConnected) sumEl.replaceWith(n); sumEl = n; return n;
+}
+function costView() {
+  const u = U();
+  const item = h('input', { type: 'text', class: 'nm', required: true, placeholder: 'z. B. Transporter mieten', 'aria-label': 'Posten' });
+  const amt = h('input', { type: 'text', class: 'w', inputMode: 'decimal', placeholder: '0,00', 'aria-label': 'Betrag in Euro' });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:180px' }, 'Posten', item), h('label', { class: 'f' }, 'Betrag (€)', amt), h('button', { class: 'primary' }, 'Hinzufügen'),
+    h('button', { type: 'button', onclick: () => { let n = 0; COST_TPL.forEach((t) => { if (!u.costs.some((c) => c.item === t)) { u.costs.push({ id: uid(), item: t, amount: 0, paid: false }); n++; } }); if (!n) alert('Die Vorlage ist bereits vollständig enthalten.'); else chg(); } }, '📋 Vorlage laden'));
+  form.onsubmit = (e) => { e.preventDefault(); const a = amt.value.trim() ? parseAmount(amt.value) : 0; if (!item.value.trim() || isNaN(a)) { alert('Bitte einen gültigen Betrag eingeben.'); return; } u.costs.push({ id: uid(), item: item.value.trim(), amount: Math.round(a * 100) / 100, paid: false }); chg(); };
+  const rows = u.costs.map((c) => {
+    const a = h('input', { type: 'text', class: 'money', inputMode: 'decimal', value: c.amount.toFixed(2).replace('.', SimpleI18n.dec), 'aria-label': 'Betrag in Euro' });
+    a.onchange = () => { const n = parseAmount(a.value); if (isNaN(n)) { alert('Bitte einen gültigen Betrag eingeben.'); render(); return; } c.amount = Math.round(n * 100) / 100; store.changed(); sums(); };
+    return h('div', { class: 'it' + (c.paid ? ' done' : '') }, h('label', {}, h('input', { type: 'checkbox', checked: c.paid, 'aria-label': 'Bezahlt', onchange: (e) => { c.paid = e.target.checked; store.changed(); sums(); e.target.closest('.it').classList.toggle('done', c.paid); } }), h('span', {}, c.item)), a, delBtn('Posten löschen', () => { u.costs = u.costs.filter((x) => x !== c); chg(); }));
+  });
+  return h('div', {}, sums(), form,
+    rows.length ? h('div', { class: 'card', style: 'padding:2px 10px' }, rows) : h('div', { class: 'card muted' }, 'Noch keine Kosten. Trage Posten wie Transporter, Kaution oder Verpackung ein – die Summe wird automatisch berechnet.'));
+}
+
+/* ---------- Helfer & Fahrzeug ---------- */
+function helpView() {
+  const u = U(), v = u.vehicle;
+  const vf = (key, label, type, ph) => { const i = h('input', { type, value: v[key], placeholder: ph || '', 'aria-label': label }); i.onchange = () => { v[key] = i.value.trim(); store.changed(); }; return h('label', { class: 'f', style: key === 'name' || key === 'note' ? 'flex:1;min-width:160px' : '' }, label, i); };
+  const veh = h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 8px' }, '🚚 Fahrzeug'), h('div', { class: 'form' }, vf('name', 'Fahrzeug', 'text', 'z. B. Transporter 3,5 t'), vf('pickup', 'Abholung', 'time'), vf('ret', 'Rückgabe', 'time'), vf('note', 'Notiz', 'text', 'z. B. Reservierungsnummer')));
+  const name = h('input', { type: 'text', required: true, placeholder: 'Name', 'aria-label': 'Name' });
+  const task = h('input', { type: 'text', class: 'nm', placeholder: 'z. B. Kartons schleppen', 'aria-label': 'Aufgabe' });
+  const time = h('input', { type: 'time', 'aria-label': 'Zeit' });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f' }, 'Name', name), h('label', { class: 'f', style: 'flex:1;min-width:160px' }, 'Aufgabe', task), h('label', { class: 'f' }, 'Zeit', time), h('button', { class: 'primary' }, 'Hinzufügen'));
+  form.onsubmit = (e) => { e.preventDefault(); if (!name.value.trim()) return; u.helpers.push({ id: uid(), name: name.value.trim(), task: task.value.trim(), time: time.value }); chg(); };
+  const hs = u.helpers.slice().sort((a, b) => (a.time || '99').localeCompare(b.time || '99'));
+  return h('div', {}, veh, h('h3', { style: 'margin:14px 0 4px' }, '🙋 Helfer'), form,
+    hs.length ? h('div', { class: 'card', style: 'padding:2px 10px' }, hs.map((x) => h('div', { class: 'it' }, h('b', { style: 'min-width:5em' }, x.time || '–'), h('div', { class: 'grow' }, h('b', {}, x.name), x.task ? h('small', { class: 'muted', style: 'display:block' }, x.task) : null), delBtn('Helfer löschen', () => { u.helpers = u.helpers.filter((y) => y !== x); chg(); }))))
+      : h('div', { class: 'card muted' }, 'Noch keine Helfer. Trage ein, wer wann kommt und was übernimmt.'));
+}
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

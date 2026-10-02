@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stimmung &amp; Dankbarkeit</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  :root { --m1:#e5736b; --m2:#f0a35e; --m3:#f2d45c; --m4:#a6d46f; --m5:#52b788; --m0:var(--bg); }
+  main { max-width: 960px; }
+  .seg { display:flex; flex-wrap:wrap; gap:6px; }
+  .seg button { min-width:44px; min-height:40px; }
+  .seg button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .moods button { flex:1 1 90px; display:flex; flex-direction:column; align-items:center; line-height:1.2; padding:8px 4px; }
+  .moods button span.e { font-size:1.7rem; } .moods button small { font-size:.75rem; }
+  .moods button.on { color:#1d2330; border-color:var(--fg); box-shadow:0 0 0 2px var(--fg); }
+  .moods button.m1.on { background:var(--m1); } .moods button.m2.on { background:var(--m2); } .moods button.m3.on { background:var(--m3); } .moods button.m4.on { background:var(--m4); } .moods button.m5.on { background:var(--m5); }
+  .two { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
+  .lbl { font-size:.85rem; color:var(--muted); margin:10px 0 4px; display:block; }
+  .scale { display:flex; justify-content:space-between; font-size:.75rem; color:var(--muted); }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chips button { border-radius:99px; padding:3px 12px; font-size:.9rem; }
+  .chips button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .daynav { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .daynav h2 { margin:0; font-size:1.1rem; flex:1; min-width:12em; }
+  textarea.note { width:100%; min-height:5em; resize:vertical; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:6px 10px; }
+  .grat input { width:100%; margin:3px 0; }
+  .cal { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px; }
+  .cal .wd { text-align:center; font-size:.78rem; color:var(--muted); }
+  .cal button { aspect-ratio:1/1; min-height:44px; padding:2px; display:flex; flex-direction:column; align-items:center; justify-content:center; font-size:.8rem; line-height:1.1; background:var(--bg); color:var(--fg); }
+  .cal button i { font-style:normal; font-size:1.05rem; }
+  .cal button.mm1 { background:var(--m1); color:#1d2330; } .cal button.mm2 { background:var(--m2); color:#1d2330; } .cal button.mm3 { background:var(--m3); color:#1d2330; } .cal button.mm4 { background:var(--m4); color:#1d2330; } .cal button.mm5 { background:var(--m5); color:#1d2330; }
+  .cal button.today { outline:2px solid var(--accent); outline-offset:1px; }
+  .cal .empty { visibility:hidden; }
+  .legend { display:flex; flex-wrap:wrap; gap:6px 14px; font-size:.8rem; color:var(--muted); margin-top:10px; align-items:center; }
+  .legend i { display:inline-block; width:14px; height:14px; border-radius:3px; vertical-align:-2px; margin-right:4px; border:1px solid var(--line); }
+  .yscroll { overflow-x:auto; padding-bottom:6px; }
+  .heat { display:grid; grid-template-rows:repeat(7,14px); grid-auto-flow:column; grid-auto-columns:14px; gap:3px; width:max-content; }
+  .heat button { width:14px; height:14px; padding:0; border-radius:3px; background:var(--line); border:0; }
+  .heat button.hid { visibility:hidden; }
+  .heat button.mm1 { background:var(--m1); } .heat button.mm2 { background:var(--m2); } .heat button.mm3 { background:var(--m3); } .heat button.mm4 { background:var(--m4); } .heat button.mm5 { background:var(--m5); }
+  .heat button.today { outline:2px solid var(--accent); }
+  .mlab { display:grid; grid-auto-columns:14px; grid-template-rows:14px; gap:3px; width:max-content; font-size:.72rem; color:var(--muted); margin-bottom:3px; }
+  .mlab span { white-space:nowrap; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.3rem; }
+  .trow { display:grid; grid-template-columns:minmax(6em,1fr) 3.5em minmax(40px,2fr) 6.5em; gap:8px; align-items:center; padding:4px 0; font-size:.92rem; border-bottom:1px solid var(--line); }
+  .trow .bar { height:12px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; } .trow .bar i { display:block; height:100%; }
+  .trow .d { text-align:right; font-weight:600; min-width:0; overflow-wrap:anywhere; } .trow.head .d { font-weight:400; } .pos { color:var(--ok); } .neg { color:var(--err); }
+  .quote { font-size:1.05rem; } .quote li { margin:6px 0; }
+  .trow.head { color:var(--muted); font-size:.8rem; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Stimmung &amp; Dankbarkeit</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="schlaf.html">Schlaf-Tracker</a> – beide speichern ihre Daten getrennt in derselben Datei. Dieses Tool ersetzt keine medizinische oder psychologische Beratung.</p>
+  <div class="tabs" role="tablist">
+    <button data-tab="day" class="on">Eintrag</button><button data-tab="month">Monat</button><button data-tab="year">Jahr</button><button data-tab="stats">Statistik</button><button data-tab="back">Rückblick</button>
+  </div>
+  <section id="v-day"></section>
+  <section id="v-month" hidden></section>
+  <section id="v-year" hidden></section>
+  <section id="v-stats" hidden></section>
+  <section id="v-back" hidden></section>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'wohlbefinden',
+  defaults: () => ({ stimmung: { days: {}, customTags: [] } }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const MOODS = [['😣', 'sehr schlecht'], ['🙁', 'schlecht'], ['😐', 'neutral'], ['🙂', 'gut'], ['😄', 'sehr gut']];
+const DEFAULT_TAGS = ['Arbeit', 'Familie', 'Sport', 'Freunde', 'Schlaf', 'Natur', 'Gesundheit', 'Hobby', 'Stress', 'Reisen'];
+const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+const KEY = /^\d{4}-\d{2}-\d{2}$/;
+const T0 = () => ymd(new Date());
+const addDays = (k, n) => { const d = parseYmd(k); return ymd(new Date(d.getFullYear(), d.getMonth(), d.getDate() + n)); };
+const diffDays = (a, b) => Math.round((parseYmd(b) - parseYmd(a)) / 86400000);
+const fmt1 = (n) => (Math.round(n * 10) / 10).toFixed(1).replace('.', SimpleI18n.dec);
+const fmtS = (n) => { const r = Math.round(n * 10) / 10; return (r > 0 ? '+' : r < 0 ? '−' : '') + fmt1(Math.abs(r)); };
+let tab = 'day', sel = T0(), view = { y: new Date().getFullYear(), m: new Date().getMonth() }, yearV = new Date().getFullYear(), range = 'all', backKey = null;
+
+function normalize() {
+  let s = store.data.stimmung;
+  if (!s || typeof s !== 'object' || Array.isArray(s)) s = store.data.stimmung = {};
+  if (!s.days || typeof s.days !== 'object' || Array.isArray(s.days)) s.days = {};
+  if (!Array.isArray(s.customTags)) s.customTags = [];
+  for (const k of Object.keys(s.days)) {
+    const d = s.days[k];
+    if (!KEY.test(k) || !d || typeof d !== 'object') { delete s.days[k]; continue; }
+    ['mood', 'energy', 'stress'].forEach((f) => { const n = Number(d[f]); d[f] = n >= 1 && n <= 5 ? Math.round(n) : 0; });
+    if (!Array.isArray(d.tags)) d.tags = [];
+    d.tags = d.tags.filter((t) => typeof t === 'string' && t);
+    d.note = typeof d.note === 'string' ? d.note : '';
+    if (!Array.isArray(d.grat)) d.grat = [];
+    d.grat = [0, 1, 2].map((i) => (typeof d.grat[i] === 'string' ? d.grat[i] : ''));
+  }
+}
+const days = () => store.data.stimmung.days;
+const isEmpty = (d) => !d.mood && !d.energy && !d.stress && !d.tags.length && !d.note.trim() && !d.grat.some((g) => g.trim());
+function touch(k) { const D = days(); if (!D[k]) D[k] = { mood: 0, energy: 0, stress: 0, tags: [], note: '', grat: ['', '', ''] }; return D[k]; }
+function edit(k, fn) { const d = touch(k); fn(d); if (isEmpty(d)) delete days()[k]; store.changed(); }
+function allTags() { const set = new Set(DEFAULT_TAGS); store.data.stimmung.customTags.forEach((t) => set.add(t)); Object.values(days()).forEach((d) => d.tags.forEach((t) => set.add(t))); return [...set]; }
+const longDate = (k) => parseYmd(k).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+const monthName = (y, m) => new Date(y, m, 1).toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  ['day', 'month', 'year', 'stats', 'back'].forEach((t) => { $('v-' + t).hidden = t !== tab; });
+  if (tab === 'day') renderDay(); else if (tab === 'month') renderMonth(); else if (tab === 'year') renderYear(); else if (tab === 'stats') renderStats(); else renderBack();
+}
+document.querySelectorAll('.tabs button').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; render(); }; });
+function openDay(k) { sel = k; tab = 'day'; render(); window.scrollTo(0, 0); }
+
+/* ---------- Eintrag ---------- */
+function renderDay() {
+  const k = sel, d = days()[k] || { mood: 0, energy: 0, stress: 0, tags: [], note: '', grat: ['', '', ''] };
+  const redo = () => renderDay();
+  const num = [1, 2, 3, 4, 5];
+  const date = h('input', { type: 'date', value: k, 'aria-label': 'Datum', onchange: (e) => { if (KEY.test(e.target.value)) { sel = e.target.value; render(); } } });
+  const nav = h('div', { class: 'card daynav' }, h('button', { type: 'button', 'aria-label': 'Vorheriger Tag', onclick: () => { sel = addDays(sel, -1); render(); } }, '◀'), h('h2', {}, longDate(k)), date,
+    h('button', { type: 'button', 'aria-label': 'Nächster Tag', onclick: () => { sel = addDays(sel, 1); render(); } }, '▶'), h('button', { type: 'button', onclick: () => { sel = T0(); render(); } }, 'Heute'));
+  const moodCard = h('div', { class: 'card' }, h('strong', {}, 'Wie fühlst du dich?'),
+    h('div', { class: 'seg moods', style: 'margin-top:8px' }, MOODS.map((m, i) => h('button', { type: 'button', class: 'm' + (i + 1) + (d.mood === i + 1 ? ' on' : ''), 'aria-pressed': String(d.mood === i + 1), onclick: () => { edit(k, (x) => { x.mood = x.mood === i + 1 ? 0 : i + 1; }); redo(); } }, h('span', { class: 'e' }, m[0]), h('small', {}, m[1])))),
+    h('div', { class: 'two' },
+      h('div', {}, h('span', { class: 'lbl' }, 'Energie'), h('div', { class: 'seg' }, num.map((n) => h('button', { type: 'button', class: d.energy === n ? 'on' : '', 'aria-pressed': String(d.energy === n), onclick: () => { edit(k, (x) => { x.energy = x.energy === n ? 0 : n; }); redo(); } }, String(n)))), h('div', { class: 'scale' }, h('span', {}, 'erschöpft'), h('span', {}, 'voller Energie'))),
+      h('div', {}, h('span', { class: 'lbl' }, 'Stress'), h('div', { class: 'seg' }, num.map((n) => h('button', { type: 'button', class: d.stress === n ? 'on' : '', 'aria-pressed': String(d.stress === n), onclick: () => { edit(k, (x) => { x.stress = x.stress === n ? 0 : n; }); redo(); } }, String(n)))), h('div', { class: 'scale' }, h('span', {}, 'entspannt'), h('span', {}, 'sehr gestresst')))));
+  const tagIn = h('input', { type: 'text', placeholder: 'Eigener Tag …', 'aria-label': 'Eigener Tag', maxLength: 30, style: 'width:11em' });
+  const addTag = () => { const t = tagIn.value.trim(); if (!t) return; if (!allTags().includes(t)) store.data.stimmung.customTags.push(t); edit(k, (x) => { if (!x.tags.includes(t)) x.tags.push(t); }); redo(); };
+  tagIn.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } };
+  const tagCard = h('div', { class: 'card' }, h('strong', {}, 'Was hat den Tag geprägt?'),
+    h('div', { class: 'chips', style: 'margin:8px 0' }, allTags().map((t) => h('button', { type: 'button', class: d.tags.includes(t) ? 'on' : '', 'aria-pressed': String(d.tags.includes(t)), onclick: () => { edit(k, (x) => { x.tags = x.tags.includes(t) ? x.tags.filter((y) => y !== t) : x.tags.concat(t); }); redo(); } }, t))),
+    h('div', { class: 'row' }, tagIn, h('button', { type: 'button', class: 'small', onclick: addTag }, 'Tag hinzufügen')));
+  const note = h('textarea', { class: 'note', placeholder: 'Was war heute los? Was beschäftigt dich?', 'aria-label': 'Notiz', value: d.note, oninput: (e) => edit(k, (x) => { x.note = e.target.value; }) });
+  const noteCard = h('div', { class: 'card' }, h('strong', {}, 'Notiz'), h('div', { style: 'margin-top:8px' }, note));
+  const gh = ['Wofür bist du heute dankbar?', 'Was ist dir heute gelungen?', 'Wer oder was hat dir heute gutgetan?'];
+  const gratCard = h('div', { class: 'card grat' }, h('strong', {}, '🙏 Dankbarkeit – drei Dinge'),
+    [0, 1, 2].map((i) => h('input', { type: 'text', placeholder: gh[i], 'aria-label': 'Dankbarkeit ' + (i + 1), value: d.grat[i], oninput: (e) => edit(k, (x) => { x.grat[i] = e.target.value; }) })));
+  const row = h('div', { class: 'row' }, h('button', { type: 'button', class: 'small', onclick: () => { if (days()[k] && confirm('Eintrag für diesen Tag löschen?')) { delete days()[k]; store.changed(); render(); } } }, 'Eintrag löschen'));
+  $('v-day').replaceChildren(nav, moodCard, tagCard, noteCard, gratCard, row);
+}
+
+/* ---------- Monat ---------- */
+function legend() {
+  return h('div', { class: 'legend' }, MOODS.map((m, i) => h('span', {}, h('i', { style: 'background:var(--m' + (i + 1) + ')' }), m[0] + ' ' + m[1])), h('span', {}, h('i', { style: 'background:var(--line)' }), 'kein Eintrag'));
+}
+function renderMonth() {
+  const { y, m } = view, first = new Date(y, m, 1), n = new Date(y, m + 1, 0).getDate(), lead = (first.getDay() + 6) % 7, t0 = T0();
+  const cells = WD.map((w) => h('div', { class: 'wd' }, w));
+  for (let i = 0; i < lead; i++) cells.push(h('button', { class: 'empty', tabIndex: -1, 'aria-hidden': 'true' }));
+  let sum = 0, cnt = 0;
+  for (let dd = 1; dd <= n; dd++) {
+    const k = ymd(new Date(y, m, dd)), d = days()[k];
+    if (d && d.mood) { sum += d.mood; cnt++; }
+    cells.push(h('button', { type: 'button', class: (d && d.mood ? 'mm' + d.mood : '') + (k === t0 ? ' today' : ''), title: fmtDate(k) + (d && d.mood ? ' · ' + MOODS[d.mood - 1][1] : ''), 'aria-label': longDate(k) + (d && d.mood ? ': ' + MOODS[d.mood - 1][1] : ''), onclick: () => openDay(k) }, String(dd), d && d.mood ? h('i', {}, MOODS[d.mood - 1][0]) : null));
+  }
+  const go = (dm) => { const x = new Date(y, m + dm, 1); view = { y: x.getFullYear(), m: x.getMonth() }; render(); };
+  $('v-month').replaceChildren(
+    h('div', { class: 'card daynav' }, h('button', { type: 'button', 'aria-label': 'Vorheriger Monat', onclick: () => go(-1) }, '◀'), h('h2', { style: 'text-align:center' }, monthName(y, m)), h('button', { type: 'button', 'aria-label': 'Nächster Monat', onclick: () => go(1) }, '▶'), h('button', { type: 'button', onclick: () => { const d = new Date(); view = { y: d.getFullYear(), m: d.getMonth() }; render(); } }, 'Heute')),
+    h('div', { class: 'card' }, h('div', { class: 'cal' }, cells), legend(), h('p', { class: 'muted', style: 'margin:10px 0 0' }, cnt ? 'Ø Stimmung im Monat: ' + fmt1(sum / cnt) + ' von 5' : 'Noch keine Einträge in diesem Monat.')));
+}
+
+/* ---------- Jahr ---------- */
+function renderYear() {
+  const y = yearV, jan1 = new Date(y, 0, 1), lead = (jan1.getDay() + 6) % 7, t0 = T0(), nd = Math.round((new Date(y + 1, 0, 1) - jan1) / 86400000);
+  const cells = [], labels = [];
+  for (let i = 0; i < lead; i++) cells.push(h('button', { class: 'hid', tabIndex: -1, 'aria-hidden': 'true' }));
+  let cnt = 0;
+  for (let i = 0; i < nd; i++) {
+    const dt = new Date(y, 0, 1 + i), k = ymd(dt), d = days()[k];
+    if (d && d.mood) cnt++;
+    if (dt.getDate() === 1) labels.push(h('span', { style: 'grid-column:' + (Math.floor((lead + i) / 7) + 1) }, dt.toLocaleDateString('de-DE', { month: 'short' })));
+    cells.push(h('button', { type: 'button', class: (d && d.mood ? 'mm' + d.mood : '') + (k === t0 ? ' today' : ''), title: fmtDate(k) + (d && d.mood ? ' · ' + MOODS[d.mood - 1][1] : ''), 'aria-label': longDate(k) + (d && d.mood ? ': ' + MOODS[d.mood - 1][1] : ''), onclick: () => openDay(k) }));
+  }
+  const go = (n) => { yearV += n; render(); };
+  $('v-year').replaceChildren(
+    h('div', { class: 'card daynav' }, h('button', { type: 'button', 'aria-label': 'Vorheriges Jahr', onclick: () => go(-1) }, '◀'), h('h2', { style: 'text-align:center' }, String(y)), h('button', { type: 'button', 'aria-label': 'Nächstes Jahr', onclick: () => go(1) }, '▶'), h('button', { type: 'button', onclick: () => { yearV = new Date().getFullYear(); render(); } }, 'Dieses Jahr')),
+    h('div', { class: 'card' }, h('div', { class: 'yscroll' }, h('div', { class: 'mlab', style: 'grid-template-columns:repeat(' + Math.ceil((lead + nd) / 7) + ',14px)' }, labels), h('div', { class: 'heat', role: 'group', 'aria-label': 'Jahresübersicht' }, cells)), legend(),
+      h('p', { class: 'muted', style: 'margin:10px 0 0' }, cnt + ' von ' + nd + ' Tagen mit Stimmung eingetragen.')));
+}
+
+/* ---------- Statistik ---------- */
+function stats() {
+  const cut = range === 'all' ? '0000-00-00' : addDays(T0(), -Number(range) + 1);
+  return Object.entries(days()).filter(([k]) => k >= cut).sort((a, b) => a[0].localeCompare(b[0]));
+}
+const avg = (a) => a.length ? a.reduce((s, x) => s + x, 0) / a.length : 0;
+function renderStats() {
+  const es = stats(), withMood = es.filter(([, d]) => d.mood), ms = withMood.map(([, d]) => d.mood);
+  const sel2 = h('select', { 'aria-label': 'Zeitraum', onchange: (e) => { range = e.target.value; render(); } }, [['30', 'Letzte 30 Tage'], ['90', 'Letzte 90 Tage'], ['365', 'Letztes Jahr'], ['all', 'Alle Einträge']].map(([v, l]) => h('option', { value: v, selected: v === range }, l)));
+  const sc = (label, big, sub) => h('div', { class: 'card' }, h('span', { class: 'muted' }, label), h('b', {}, big), h('span', { class: 'muted', style: 'font-size:.8rem' }, sub || ''));
+  const en = es.filter(([, d]) => d.energy).map(([, d]) => d.energy), st = es.filter(([, d]) => d.stress).map(([, d]) => d.stress);
+  const nG = es.reduce((s, [, d]) => s + d.grat.filter((g) => g.trim()).length, 0);
+  let streak = 0; { let k = days()[T0()] && !isEmpty(days()[T0()]) ? T0() : addDays(T0(), -1); while (days()[k] && !isEmpty(days()[k])) { streak++; k = addDays(k, -1); } }
+  const top = {}; es.forEach(([, d]) => d.tags.forEach((t) => { (top[t] = top[t] || []).push(d.mood); }));
+  const overall = avg(ms);
+  const rows = Object.entries(top).map(([t, a]) => { const mm = a.filter(Boolean); return { t, n: a.length, avg: mm.length ? avg(mm) : null, nm: mm.length }; }).sort((a, b) => b.n - a.n || a.t.localeCompare(b.t, 'de'));
+  const maxN = rows.length ? rows[0].n : 1;
+  const tagRows = rows.slice(0, 12).map((r) => {
+    const dlt = r.avg != null && r.nm >= 3 ? r.avg - overall : null;
+    return h('div', { class: 'trow' }, h('span', {}, r.t), h('span', { class: 'muted' }, r.n + '×'), h('div', { class: 'bar', title: r.avg != null ? 'Ø Stimmung ' + fmt1(r.avg) : '' }, h('i', { style: 'width:' + (r.n / maxN * 100) + '%;background:' + (r.avg != null ? 'var(--m' + Math.min(5, Math.max(1, Math.round(r.avg))) + ')' : 'var(--line)') })),
+      h('span', { class: 'd ' + (dlt == null ? 'muted' : dlt > 0.05 ? 'pos' : dlt < -0.05 ? 'neg' : 'muted') }, dlt == null ? '–' : fmtS(dlt)));
+  });
+  $('v-stats').replaceChildren(
+    h('div', { class: 'card row' }, h('strong', { class: 'sp' }, 'Zeitraum'), sel2),
+    h('div', { class: 'sum' }, sc('Ø Stimmung', ms.length ? fmt1(overall) + ' / 5' : '–', ms.length ? ms.length + ' Tage' : ''), sc('Ø Energie', en.length ? fmt1(avg(en)) + ' / 5' : '–'), sc('Ø Stress', st.length ? fmt1(avg(st)) + ' / 5' : '–'), sc('Dankbarkeits-Einträge', String(nG)), sc('Tage in Folge', String(streak))),
+    h('div', { class: 'card' }, h('strong', {}, 'Stimmungsverteilung'), MOODS.map((m, i) => { const c = ms.filter((x) => x === i + 1).length; return h('div', { class: 'trow', style: 'grid-template-columns:10em 3.5em 1fr' }, h('span', {}, m[0] + ' ' + m[1]), h('span', { class: 'muted' }, c + '×'), h('div', { class: 'bar' }, h('i', { style: 'width:' + (ms.length ? c / ms.length * 100 : 0) + '%;background:var(--m' + (i + 1) + ')' }))); })),
+    h('div', { class: 'card' }, h('strong', {}, 'Häufigste Tags und ihr Zusammenhang mit der Stimmung'),
+      rows.length ? [h('div', { class: 'trow head' }, h('span', {}, 'Tag'), h('span', {}, 'Tage'), h('span', {}, 'Ø Stimmung'), h('span', { class: 'd' }, 'Abweichung')), tagRows,
+        h('p', { class: 'muted', style: 'font-size:.85rem' }, 'Abweichung = Ø Stimmung an Tagen mit diesem Tag minus Gesamt-Ø (erst ab 3 Tagen mit Stimmung). Das ist nur eine Auffälligkeit in deinen Daten, kein Beweis für Ursache und Wirkung.')]
+        : h('p', { class: 'muted' }, 'Noch keine Tags im Zeitraum. Wähle beim Eintrag ein paar Tags, dann siehst du hier Zusammenhänge.')));
+}
+
+/* ---------- Rückblick ---------- */
+function renderBack() {
+  const t0 = T0(), cand = Object.entries(days()).filter(([, d]) => d.grat.some((g) => g.trim())).map(([k]) => k);
+  const old = cand.filter((k) => k < t0);
+  const pool = old.length ? old : cand;
+  if (!backKey || !pool.includes(backKey)) backKey = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+  if (!backKey) { $('v-back').replaceChildren(h('div', { class: 'card muted' }, 'Noch keine Dankbarkeits-Einträge. Trage beim Tageseintrag bis zu drei Dinge ein – hier siehst du später zufällige Erinnerungen daran.')); return; }
+  const d = days()[backKey], ago = diffDays(backKey, t0);
+  const when = ago === 0 ? 'Heute' : ago === 1 ? 'Gestern' : ago > 1 ? 'Vor ' + ago + ' Tagen' : 'In ' + (-ago) + ' Tagen';
+  const next = () => { const o = pool.filter((k) => k !== backKey); if (o.length) backKey = o[Math.floor(Math.random() * o.length)]; render(); };
+  $('v-back').replaceChildren(h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', { class: 'sp' }, '🙏 Erinnerung'), h('span', { class: 'badge' }, when), d.mood ? h('span', { title: MOODS[d.mood - 1][1] }, MOODS[d.mood - 1][0]) : null),
+    h('p', { class: 'muted', style: 'margin:4px 0' }, longDate(backKey)),
+    h('ul', { class: 'quote' }, d.grat.filter((g) => g.trim()).map((g) => h('li', {}, g))),
+    d.note.trim() ? h('p', { class: 'muted', style: 'white-space:pre-wrap' }, d.note) : null,
+    h('div', { class: 'row' }, h('button', { type: 'button', class: 'primary', onclick: next, disabled: pool.length < 2 }, 'Anderer Eintrag'), h('button', { type: 'button', onclick: () => openDay(backKey) }, 'Tag öffnen')),
+    pool.length < 2 ? h('p', { class: 'muted', style: 'font-size:.85rem' }, 'Es gibt erst einen Dankbarkeits-Eintrag.') : null));
+}
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

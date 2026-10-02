@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abos &amp; Fixkosten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1000px; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-bottom:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.25rem; }
+  .form { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; align-items:end; }
+  .form .wide { grid-column:1/-1; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  label.f input, label.f select { width:100%; box-sizing:border-box; min-width:0; }
+  .form .actions { display:flex; flex-wrap:wrap; gap:8px; }
+  h2.t { margin:0 0 8px; font-size:1.05rem; }
+  .brow { display:grid; grid-template-columns:minmax(80px,28%) 1fr auto; gap:8px; align-items:center; padding:3px 0; font-size:.92rem; }
+  .brow .nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .bar { height:12px; background:var(--bg); border:1px solid var(--line); border-radius:7px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--accent); }
+  .bar.c2 > i { background:var(--c2, var(--accent)); }
+  .brow .v { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+  .abo .head { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+  .abo h3 { margin:0; font-size:1.05rem; flex:1; min-width:120px; overflow-wrap:anywhere; }
+  .abo .facts { display:flex; flex-wrap:wrap; gap:4px 16px; font-size:.9rem; margin:6px 0; }
+  .abo .acts { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .abo.off { opacity:.7; }
+  .soon { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:5px 0; border-top:1px solid var(--line); }
+  .soon:first-of-type { border-top:0; } .soon b { flex:1; min-width:100px; overflow-wrap:anywhere; }
+  .cal { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:10px; }
+  .cal .card { margin:0; } .cal .day { display:flex; gap:8px; padding:3px 0; font-size:.92rem; border-top:1px solid var(--line); }
+  .cal .day span.d { width:6.6em; color:var(--muted); flex:none; } .cal .day span.n { flex:1; overflow-wrap:anywhere; }
+  .cal .day span.a { white-space:nowrap; }
+  .pos { color:var(--ok); } .neg { color:var(--err); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Abos &amp; Fixkosten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit dem <a href="haushaltsbuch.html">Haushaltsbuch</a> – fällige Abbuchungen lassen sich dort als Ausgabe buchen.</p>
+  <div class="sum">
+    <div class="card"><span class="muted">Pro Monat</span><b id="smon"></b></div>
+    <div class="card"><span class="muted">Pro Jahr</span><b id="syear"></b></div>
+    <div class="card"><span class="muted">Aktive Abos</span><b id="scnt"></b></div>
+    <div class="card"><span class="muted">Abbuchungen in 30 Tagen</span><b id="s30"></b></div>
+  </div>
+  <form id="form" class="card form">
+    <label class="f wide">Vorlage<select id="tpl"></select></label>
+    <label class="f">Name<input type="text" id="name" required></label>
+    <label class="f">Kategorie<input type="text" id="cat" list="catlist" required></label>
+    <datalist id="catlist"></datalist>
+    <label class="f">Betrag (€)<input type="text" id="amount" inputmode="decimal" required placeholder="9,99"></label>
+    <label class="f">Intervall<select id="interval"><option value="monatlich">monatlich</option><option value="vierteljährlich">vierteljährlich</option><option value="jährlich">jährlich</option></select></label>
+    <label class="f">Nächste Abbuchung<input type="date" id="next" required></label>
+    <label class="f">Kündigungsfrist (Tage)<input type="number" id="notice" min="0" max="999" step="1" placeholder="0"></label>
+    <label class="f">Laufzeit bis (optional)<input type="date" id="until"></label>
+    <label class="f">Status<select id="fstatus"><option value="aktiv">aktiv</option><option value="pausiert">pausiert</option><option value="gekündigt">gekündigt</option></select></label>
+    <label class="f wide">Notiz<input type="text" id="note" placeholder="z. B. Familienkonto, Kundennummer …"></label>
+    <div class="actions wide"><button class="primary" id="fsubmit">Anlegen</button><button type="button" id="fcancel" hidden>Abbrechen</button><span class="sp"></span><button type="button" id="csv">CSV-Export</button></div>
+  </form>
+  <div class="tabs" id="tabs"><button data-tab="ov" class="on">Übersicht</button><button data-tab="list">Alle Abos</button><button data-tab="cal">Kalender</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'haushaltsbuch',
+  defaults: () => ({ entries: [], budgets: {}, abos: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const STEP = { 'monatlich': 1, 'vierteljährlich': 3, 'jährlich': 12 };
+const TPL = [
+  { n: 'Netflix', c: 'Streaming', a: 13.99, i: 'monatlich', k: 0 },
+  { n: 'Spotify', c: 'Streaming', a: 10.99, i: 'monatlich', k: 0 },
+  { n: 'Amazon Prime', c: 'Streaming', a: 8.99, i: 'monatlich', k: 0 },
+  { n: 'Fitnessstudio', c: 'Sport', a: 29.9, i: 'monatlich', k: 30 },
+  { n: 'Handyvertrag', c: 'Telekommunikation', a: 19.99, i: 'monatlich', k: 30 },
+  { n: 'Internet & Telefon', c: 'Telekommunikation', a: 34.99, i: 'monatlich', k: 30 },
+  { n: 'Haftpflichtversicherung', c: 'Versicherung', a: 75, i: 'jährlich', k: 90 },
+  { n: 'Hausratversicherung', c: 'Versicherung', a: 90, i: 'jährlich', k: 90 },
+  { n: 'Kfz-Versicherung', c: 'Versicherung', a: 480, i: 'jährlich', k: 30 },
+  { n: 'Cloud-Speicher', c: 'Software', a: 2.99, i: 'monatlich', k: 0 },
+  { n: 'Zeitung / Zeitschrift', c: 'Medien', a: 24.9, i: 'monatlich', k: 30 },
+  { n: 'Rundfunkbeitrag', c: 'Wohnen', a: 55.08, i: 'vierteljährlich', k: 0 },
+  { n: 'Vereinsbeitrag', c: 'Sport', a: 60, i: 'jährlich', k: 90 },
+];
+const DEFCATS = ['Streaming', 'Sport', 'Telekommunikation', 'Versicherung', 'Software', 'Medien', 'Wohnen', 'Mobilität', 'Sonstiges'];
+let tab = 'ov', filter = 'alle', editId = null;
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.abos)) d.abos = [];
+  d.abos = d.abos.filter((a) => a && typeof a === 'object');
+  d.abos.forEach((a) => {
+    if (!a.id) a.id = uid();
+    a.name = String(a.name || ''); a.cat = String(a.cat || ''); a.note = String(a.note || '');
+    a.amount = Number.isFinite(+a.amount) ? Math.abs(+a.amount) : 0;
+    if (!(a.interval in STEP)) a.interval = 'monatlich';
+    if (!['aktiv', 'pausiert', 'gekündigt'].includes(a.status)) a.status = 'aktiv';
+    a.notice = Math.max(0, Math.round(+a.notice || 0));
+    a.next = /^\d{4}-\d{2}-\d{2}$/.test(a.next || '') ? a.next : '';
+    a.until = /^\d{4}-\d{2}-\d{2}$/.test(a.until || '') ? a.until : '';
+  });
+}
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.round(Math.abs(n) * 100) / 100 : NaN; }
+const today0 = () => parseYmd(ymd(new Date()));
+function addM(d, m) { const x = new Date(d.getFullYear(), d.getMonth(), 1); x.setMonth(x.getMonth() + m); x.setDate(Math.min(d.getDate(), new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate())); return x; }
+const addD = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+const days = (a, b) => Math.round((a - b) / 86400000);
+const monthly = (a) => a.amount / STEP[a.interval];
+function occ(a, from, to) {
+  const out = []; if (!a.next) return out;
+  const base = parseYmd(a.next), st = STEP[a.interval], end = a.until ? parseYmd(a.until) : null;
+  for (let k = 0; k < 800; k++) { const d = addM(base, k * st); if (d > to || (end && d > end)) break; if (d >= from) out.push(d); }
+  return out;
+}
+const nextCharge = (a) => a.status === 'aktiv' ? occ(a, today0(), addM(today0(), 60))[0] || null : null;
+// Kündigungsfrist: bei fester Laufzeit bis zum Laufzeitende, sonst zur nächsten möglichen Verlängerung
+function deadline(a) {
+  if (a.status !== 'aktiv') return null;
+  const t = today0();
+  if (a.until) { const end = parseYmd(a.until); if (end < t) return { ended: true, end }; return { date: addD(end, -a.notice), base: end, fixed: true }; }
+  if (!a.notice) return null;
+  const list = occ(a, t, addM(t, 60));
+  for (const d of list) if (addD(d, -a.notice) >= t) return { date: addD(d, -a.notice), base: d, fixed: false };
+  return null;
+}
+const soonList = () => store.data.abos.map((a) => ({ a, dl: deadline(a) })).filter((x) => x.dl && !x.dl.ended && days(x.dl.date, today0()) <= 30 && (x.dl.fixed || days(x.dl.date, today0()) >= 0))
+  .sort((x, y) => x.dl.date - y.dl.date);
+function dlText(dl) {
+  const n = days(dl.date, today0());
+  if (n < 0) return 'Frist am ' + fmtDate(ymd(dl.date)) + ' verpasst – Laufzeit endet am ' + fmtDate(ymd(dl.base));
+  if (n === 0) return 'Kündigen bis ' + fmtDate(ymd(dl.date)) + ' (heute!)';
+  if (n === 1) return 'Kündigen bis ' + fmtDate(ymd(dl.date)) + ' (in 1 Tag)';
+  return 'Kündigen bis ' + fmtDate(ymd(dl.date)) + ' (in ' + n + ' Tagen)';
+}
+const dlClass = (dl) => { const n = days(dl.date, today0()); return n < 0 ? 'err' : n <= 7 ? 'warn' : ''; };
+const active = () => store.data.abos.filter((a) => a.status === 'aktiv');
+const per = { 'monatlich': 'Monat', 'vierteljährlich': 'Quartal', 'jährlich': 'Jahr' };
+
+function csvCell(v) { v = String(v ?? ''); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function exportCsv() {
+  const num = (n) => (Math.round(n * 100) / 100).toFixed(2).replace('.', ',');
+  const rows = [['Name', 'Kategorie', 'Betrag', 'Intervall', 'Nächste Abbuchung', 'Kündigungsfrist (Tage)', 'Laufzeit bis', 'Status', 'Pro Monat', 'Pro Jahr', 'Notiz']]
+    .concat(store.data.abos.map((a) => [a.name, a.cat, num(a.amount), a.interval, a.next, a.notice, a.until, a.status, num(monthly(a)), num(monthly(a) * 12), a.note]));
+  download('abos-fixkosten.csv', '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+function resetForm() {
+  editId = null; $('form').reset(); $('next').value = ymd(new Date()); $('tpl').value = '';
+  $('fsubmit').textContent = 'Anlegen'; $('fcancel').hidden = true;
+}
+function bars(items, fmt) {
+  const max = Math.max(...items.map((i) => i.v), 0.01);
+  return items.map((i) => h('div', { class: 'brow' }, h('span', { class: 'nm', title: i.name }, i.name),
+    h('div', { class: 'bar' + (i.alt ? ' c2' : '') }, h('i', { style: 'width:' + Math.max(2, i.v / max * 100) + '%' })), h('span', { class: 'v' }, fmt(i))));
+}
+function aboCard(a) {
+  const nc = nextCharge(a), dl = deadline(a), due = a.status === 'aktiv' && a.next && parseYmd(a.next) <= today0();
+  const facts = [h('span', {}, h('b', {}, eur(a.amount)), ' / ' + per[a.interval]), h('span', { class: 'muted' }, '≈ ' + eur(monthly(a)) + ' / Monat')];
+  if (a.cat) facts.push(h('span', { class: 'muted' }, a.cat));
+  if (due) facts.push(h('span', { class: 'badge warn' }, 'Fällig seit ' + fmtDate(a.next)));
+  else if (nc) facts.push(h('span', {}, 'Nächste Abbuchung: ', h('b', {}, fmtDate(ymd(nc)))));
+  if (a.until) facts.push(h('span', {}, 'Laufzeit bis: ', h('b', {}, fmtDate(a.until))));
+  if (a.notice) facts.push(h('span', { class: 'muted' }, 'Kündigungsfrist: ' + a.notice + ' Tage'));
+  const acts = [];
+  if (due) acts.push(h('button', { class: 'small primary', title: 'Als Buchung ins Haushaltsbuch übernehmen', onclick: () => book(a) }, 'Als Buchung übernehmen'));
+  if (a.status === 'aktiv') acts.push(h('button', { class: 'small', onclick: () => setStatus(a, 'pausiert') }, 'Pausieren'));
+  if (a.status === 'pausiert') acts.push(h('button', { class: 'small', onclick: () => setStatus(a, 'aktiv') }, 'Fortsetzen'));
+  if (a.status !== 'gekündigt') acts.push(h('button', { class: 'small', onclick: () => setStatus(a, 'gekündigt') }, 'Gekündigt'));
+  else acts.push(h('button', { class: 'small', onclick: () => setStatus(a, 'aktiv') }, 'Reaktivieren'));
+  acts.push(h('button', { class: 'small', onclick: () => edit(a) }, 'Bearbeiten'));
+  acts.push(h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm('„' + a.name + '“ löschen?')) { store.data.abos = store.data.abos.filter((x) => x !== a); store.changed(); render(); } } }, '✕'));
+  return h('div', { class: 'card abo' + (a.status === 'aktiv' ? '' : ' off') },
+    h('div', { class: 'head' }, h('h3', {}, a.name), h('span', { class: 'badge ' + (a.status === 'aktiv' ? 'ok' : a.status === 'pausiert' ? 'warn' : 'err') }, a.status)),
+    h('div', { class: 'facts' }, facts),
+    dl ? h('div', { class: 'facts' }, dl.ended ? h('span', { class: 'badge' }, 'Laufzeit beendet am ' + fmtDate(ymd(dl.end))) : h('span', { class: 'badge ' + dlClass(dl) }, dlText(dl))) : null,
+    a.note ? h('div', { class: 'muted', style: 'font-size:.88rem' }, a.note) : null,
+    h('div', { class: 'acts' }, acts));
+}
+function book(a) {
+  const d = parseYmd(a.next);
+  if (!confirm('Abbuchung vom ' + fmtDate(a.next) + ' (' + eur(a.amount) + ') als Ausgabe ins Haushaltsbuch übernehmen?')) return;
+  store.data.entries.push({ id: uid(), date: a.next, type: 'out', amount: a.amount, category: a.cat || 'Abos', note: a.name });
+  a.next = ymd(addM(d, STEP[a.interval]));
+  store.changed(); render();
+}
+function setStatus(a, s) { a.status = s; store.changed(); render(); }
+function edit(a) {
+  editId = a.id; $('name').value = a.name; $('cat').value = a.cat; $('amount').value = String(a.amount).replace('.', SimpleI18n.dec);
+  $('interval').value = a.interval; $('next').value = a.next; $('notice').value = a.notice || ''; $('until').value = a.until; $('fstatus').value = a.status; $('note').value = a.note;
+  $('fsubmit').textContent = 'Speichern'; $('fcancel').hidden = false; $('form').scrollIntoView({ behavior: 'smooth', block: 'start' }); $('name').focus();
+}
+function viewOverview() {
+  const act = active(), out = [];
+  const soon = soonList();
+  out.push(h('div', { class: 'card' }, h('h2', { class: 't' }, '⏰ Bald kündigen'),
+    soon.length ? soon.map(({ a, dl }) => h('div', { class: 'soon' }, h('b', {}, a.name), h('span', { class: 'badge ' + dlClass(dl) }, dlText(dl)), h('span', { class: 'muted' }, eur(a.amount) + ' / ' + per[a.interval])))
+      : h('div', { class: 'muted' }, 'Keine Kündigungsfrist in den nächsten 30 Tagen.')));
+  if (!act.length) { out.push(h('div', { class: 'card muted' }, 'Noch keine aktiven Abos. Lege oben ein Abo an oder wähle eine Vorlage.')); return out; }
+  const top = act.slice().sort((x, y) => monthly(y) - monthly(x)).slice(0, 8).map((a) => ({ name: a.name, v: monthly(a) }));
+  out.push(h('div', { class: 'card' }, h('h2', { class: 't' }, 'Top-Kosten (pro Monat)'), bars(top, (i) => eur(i.v) + ' / Monat')));
+  const byCat = {}; act.forEach((a) => { const c = a.cat || 'Ohne Kategorie'; byCat[c] = (byCat[c] || 0) + monthly(a); });
+  const tot = Object.values(byCat).reduce((x, y) => x + y, 0);
+  const cats = Object.entries(byCat).sort((x, y) => y[1] - x[1]).map(([name, v]) => ({ name, v, alt: true }));
+  out.push(h('div', { class: 'card' }, h('h2', { class: 't' }, 'Kategorien'), bars(cats, (i) => eur(i.v) + ' / Monat · ' + Math.round(i.v / tot * 100) + ' %'),
+    h('div', { class: 'muted', style: 'font-size:.85rem;margin-top:6px' }, 'Nur aktive Abos; pausierte und gekündigte zählen nicht.')));
+  return out;
+}
+function viewList() {
+  const all = store.data.abos;
+  const sel = h('select', { 'aria-label': 'Status', onchange: () => { filter = sel.value; render(); } },
+    h('option', { value: 'alle' }, 'Alle'), h('option', { value: 'aktiv' }, 'aktiv'), h('option', { value: 'pausiert' }, 'pausiert'), h('option', { value: 'gekündigt' }, 'gekündigt'));
+  sel.value = filter;
+  const list = all.filter((a) => filter === 'alle' || a.status === filter).sort((x, y) => (nextCharge(x) || new Date(8e15)) - (nextCharge(y) || new Date(8e15)) || x.name.localeCompare(y.name));
+  return [h('div', { class: 'row', style: 'margin-bottom:8px' }, h('span', { class: 'muted' }, 'Status:'), sel),
+    ...(list.length ? list.map(aboCard) : [h('div', { class: 'card muted' }, all.length ? 'Keine Abos mit diesem Status.' : 'Noch keine Abos. Lege oben ein Abo an oder wähle eine Vorlage.')])];
+}
+function viewCal() {
+  const t = today0(), cards = [];
+  for (let k = 0; k < 3; k++) {
+    const m0 = new Date(t.getFullYear(), t.getMonth() + k, 1), m1 = new Date(t.getFullYear(), t.getMonth() + k + 1, 0);
+    const items = [];
+    active().forEach((a) => occ(a, k ? m0 : t, m1).forEach((d) => items.push({ d, a })));
+    items.sort((x, y) => x.d - y.d || x.a.name.localeCompare(y.a.name));
+    const sum = items.reduce((s, i) => s + i.a.amount, 0);
+    cards.push(h('div', { class: 'card' }, h('h2', { class: 't' }, m0.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })),
+      items.length ? [...items.map((i) => h('div', { class: 'day' }, h('span', { class: 'd' }, fmtDate(ymd(i.d))), h('span', { class: 'n' }, i.a.name), h('span', { class: 'a' }, eur(i.a.amount)))),
+        h('div', { class: 'day' }, h('span', { class: 'd' }), h('span', { class: 'n' }, h('b', {}, 'Summe')), h('span', { class: 'a' }, h('b', {}, eur(sum))))]
+        : h('div', { class: 'muted' }, 'Keine Abbuchungen.')));
+  }
+  return [h('div', { class: 'cal' }, cards)];
+}
+function render() {
+  const act = active();
+  $('smon').textContent = eur(act.reduce((s, a) => s + monthly(a), 0));
+  $('syear').textContent = eur(act.reduce((s, a) => s + monthly(a) * 12, 0));
+  $('scnt').textContent = String(act.length);
+  const t = today0(), lim = addD(t, 30);
+  $('s30').textContent = eur(act.reduce((s, a) => s + occ(a, t, lim).length * a.amount, 0));
+  const cats = new Set(DEFCATS); store.data.abos.forEach((a) => a.cat && cats.add(a.cat));
+  (store.data.entries || []).forEach((e) => { if (e && e.category) cats.add(e.category); });
+  $('catlist').replaceChildren(...[...cats].sort().map((c) => h('option', { value: c })));
+  if (!$('tpl').options.length) $('tpl').replaceChildren(h('option', { value: '' }, 'Vorlage wählen …'), ...TPL.map((x, i) => h('option', { value: String(i) }, x.n)));
+  if (!$('next').value) $('next').value = ymd(new Date());
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('view').replaceChildren(...(tab === 'ov' ? viewOverview() : tab === 'list' ? viewList() : viewCal()));
+}
+document.querySelectorAll('#tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+$('tpl').onchange = () => {
+  const x = TPL[+$('tpl').value]; if (!x) return;
+  $('name').value = x.n; $('cat').value = x.c; $('amount').value = String(x.a).replace('.', SimpleI18n.dec); $('interval').value = x.i; $('notice').value = x.k || '';
+};
+$('fcancel').onclick = resetForm;
+$('csv').onclick = exportCsv;
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const amount = parseAmount($('amount').value);
+  if (!(amount > 0)) { alert('Bitte einen Betrag größer 0 eingeben.'); return; }
+  const rec = { name: $('name').value.trim(), cat: $('cat').value.trim(), amount, interval: $('interval').value, next: $('next').value, notice: Math.max(0, Math.round(+$('notice').value || 0)), until: $('until').value, status: $('fstatus').value, note: $('note').value.trim() };
+  if (rec.until && rec.next && rec.until < rec.next && rec.status === 'aktiv') { alert('Die Laufzeit endet vor der nächsten Abbuchung.'); return; }
+  if (editId) Object.assign(store.data.abos.find((a) => a.id === editId) || {}, rec); else store.data.abos.push({ id: uid(), ...rec });
+  store.changed(); resetForm(); render();
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

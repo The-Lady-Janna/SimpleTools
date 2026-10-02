@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Haus &amp; Wartung</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 980px; }
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.25rem; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  label.f.grow { flex:1; min-width:150px; }
+  input.w { width:7em; } input.wd { width:10em; max-width:100%; }
+  .item { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:center; }
+  .item .main { flex:1; min-width:200px; }
+  .item h3 { margin:0; font-size:1.05rem; overflow-wrap:anywhere; }
+  .item .meta { font-size:.88rem; color:var(--muted); display:flex; flex-wrap:wrap; gap:2px 14px; margin-top:2px; overflow-wrap:anywhere; }
+  .item .acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .card.over { border-left:4px solid var(--err); } .card.soon { border-left:4px solid var(--warn); } .card.fine { border-left:4px solid var(--ok); }
+  .hist { margin:8px 0 0; padding:6px 10px; background:var(--bg); border:1px solid var(--line); border-radius:8px; font-size:.88rem; }
+  .hist div { display:flex; gap:8px; align-items:center; padding:2px 0; } .hist span { flex:1; }
+  .tpl { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  details.card > summary { cursor:pointer; font-weight:600; }
+  .chart { width:100%; height:auto; max-height:240px; } .chart text { fill:var(--muted); font-size:15px; }
+  .seg { display:flex; gap:6px; margin:4px 0 10px; flex-wrap:wrap; }
+  .seg button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  textarea.rn { width:100%; min-height:70px; box-sizing:border-box; font:inherit; }
+  .rd { font-size:.92rem; } .rd .rr { display:flex; flex-wrap:wrap; gap:2px 12px; align-items:center; padding:5px 0; border-top:1px solid var(--line); } .rd .rr:first-child { border-top:0; }
+  .rd .rr > span:first-child { min-width:6.5em; } .rd .rr > .sp { flex:1; min-width:0; }
+  .neg { color:var(--err); }
+  a.ct { color:var(--accent); overflow-wrap:anywhere; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Haus &amp; Wartung</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="sum">
+    <div class="card"><span class="muted">Überfällig</span><b id="s1"></b></div>
+    <div class="card"><span class="muted">Bald fällig</span><b id="s2"></b></div>
+    <div class="card"><span class="muted">Garantie-Warnungen</span><b id="s3"></b></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-tab="tasks">🛠️ Wartung</button>
+    <button data-tab="devices">📦 Geräte &amp; Garantien</button>
+    <button data-tab="contacts">👷 Handwerker</button>
+    <button data-tab="meters">⚡ Zählerstände</button>
+    <button data-tab="rooms">🚪 Räume</button>
+  </div>
+
+  <section id="p-tasks">
+    <form id="tform" class="card form">
+      <label class="f grow">Aufgabe<input type="text" id="tname" required placeholder="z. B. Heizung warten lassen"></label>
+      <label class="f">Intervall (Monate)<input type="number" id="tint" class="w" min="1" max="240" step="1" value="12" required></label>
+      <label class="f">Zuletzt erledigt<input type="date" id="tlast" class="wd"></label>
+      <label class="f">Raum / Bereich<input type="text" id="troom" class="wd" list="roomlist" placeholder="optional"></label>
+      <label class="f grow">Notiz<input type="text" id="tnote" placeholder="optional"></label>
+      <button class="primary" id="tsubmit">Hinzufügen</button><button type="button" id="tcancel" hidden>Abbrechen</button>
+    </form>
+    <details class="card"><summary>Vorlagen für typische Aufgaben</summary>
+      <p class="muted" style="margin:6px 0 0">Ein Klick legt die Aufgabe mit empfohlenem Intervall an. Danach kannst du sie anpassen.</p>
+      <div class="tpl" id="tpls"></div>
+    </details>
+    <div id="tlist"></div>
+  </section>
+
+  <section id="p-devices" hidden>
+    <form id="dform" class="card form">
+      <label class="f grow">Gerät<input type="text" id="dname" required placeholder="z. B. Waschmaschine"></label>
+      <label class="f">Kaufdatum<input type="date" id="dbuy" class="wd"></label>
+      <label class="f">Garantie bis<input type="date" id="dwar" class="wd"></label>
+      <label class="f">oder Garantie (Monate)<input type="number" id="dmon" class="w" min="1" max="240" placeholder="24"></label>
+      <label class="f">Preis (€)<input type="text" id="dprice" class="w" inputmode="decimal" placeholder="optional"></label>
+      <label class="f grow">Beleg-Notiz<input type="text" id="dnote" placeholder="z. B. Ordner Garantie, Seite 4"></label>
+      <button class="primary" id="dsubmit">Hinzufügen</button><button type="button" id="dcancel" hidden>Abbrechen</button>
+    </form>
+    <div id="dlist"></div>
+  </section>
+
+  <section id="p-contacts" hidden>
+    <form id="cform" class="card form">
+      <label class="f grow">Name / Firma<input type="text" id="cname" required placeholder="z. B. Elektro Müller"></label>
+      <label class="f">Gewerk<input type="text" id="ctrade" class="wd" placeholder="z. B. Elektriker"></label>
+      <label class="f">Telefon<input type="tel" id="cphone" class="wd"></label>
+      <label class="f">E-Mail<input type="email" id="cmail" class="wd"></label>
+      <label class="f grow">Notiz<input type="text" id="cnote" placeholder="optional"></label>
+      <button class="primary" id="csubmit">Hinzufügen</button><button type="button" id="ccancel" hidden>Abbrechen</button>
+    </form>
+    <div id="clist"></div>
+  </section>
+
+  <section id="p-meters" hidden>
+    <div class="seg" id="mseg">
+      <button data-m="strom">⚡ Strom</button><button data-m="gas">🔥 Gas</button><button data-m="wasser">💧 Wasser</button>
+    </div>
+    <form id="mform" class="card form">
+      <label class="f">Datum<input type="date" id="mdate" class="wd" required></label>
+      <label class="f">Zählerstand<input type="text" id="mval" class="w" inputmode="decimal" required placeholder="z. B. 12345,6"></label>
+      <label class="f grow">Notiz<input type="text" id="mnote" placeholder="optional"></label>
+      <button class="primary">Eintragen</button>
+    </form>
+    <div id="mout"></div>
+  </section>
+
+  <section id="p-rooms" hidden>
+    <form id="rform" class="card form">
+      <label class="f grow">Raum<input type="text" id="rname" required placeholder="z. B. Keller"></label>
+      <button class="primary">Raum anlegen</button>
+    </form>
+    <div id="rlist"></div>
+  </section>
+  <datalist id="roomlist"></datalist>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'haus',
+  defaults: () => ({ tasks: [], devices: [], contacts: [], readings: [], rooms: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const TEMPLATES = [
+  ['Rauchmelder testen', 1], ['Rauchmelder-Batterien wechseln', 12], ['Heizung warten lassen', 12], ['Heizkörper entlüften', 12],
+  ['Dunstabzugs-Filter reinigen', 3], ['Spülmaschinen-Filter reinigen', 3], ['Waschmaschine auslüften und Flusensieb reinigen', 3], ['Kaffeemaschine entkalken', 3],
+  ['Lüftungs- und Klimafilter wechseln', 6], ['Dachrinne reinigen', 6], ['Kühlschrank abtauen und reinigen', 6], ['Silikonfugen prüfen', 12],
+  ['Außenwasserhahn winterfest machen', 12], ['Schornsteinfeger beauftragen', 12], ['Feuerlöscher prüfen', 24], ['Warmwasserspeicher entkalken', 24]
+];
+const METERS = { strom: ['⚡', 'kWh'], gas: ['🔥', 'm³'], wasser: ['💧', 'm³'] };
+let tab = 'tasks', meter = 'strom', editT = null, editD = null, editC = null;
+function normalize() {
+  const d = store.data;
+  ['tasks', 'devices', 'contacts', 'readings', 'rooms'].forEach((k) => { if (!Array.isArray(d[k])) d[k] = []; });
+  d.tasks.forEach((t) => { if (!Array.isArray(t.history)) t.history = []; if (!(t.interval >= 1)) t.interval = 12; if (!t.created) t.created = ymd(new Date()); });
+}
+const today0 = () => parseYmd(ymd(new Date()));
+function addMonths(d, m) { const x = new Date(d.getFullYear(), d.getMonth(), 1); x.setMonth(x.getMonth() + m); x.setDate(Math.min(d.getDate(), new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate())); return x; }
+const dayDiff = (a, b) => Math.round((a - b) / 86400000);
+const num = (s) => { s = String(s == null ? '' : s).trim().replace(/\s|€/g, ''); if (!s) return NaN; if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ''); return Number(s); };
+const fmtNum = (n, dg) => n.toLocaleString('de-DE', { maximumFractionDigits: dg == null ? 1 : dg });
+function rel(days) { return days === 0 ? 'heute' : days === 1 ? 'morgen' : days === -1 ? 'gestern' : days > 0 ? `in ${days} Tagen` : `vor ${-days} Tagen`; }
+function dueOf(t) { return ymd(addMonths(parseYmd(t.last || t.created), t.interval)); }
+function status(t) { const dd = dayDiff(parseYmd(dueOf(t)), today0()); return { days: dd, st: dd < 0 ? 'over' : dd <= 30 ? 'soon' : 'fine' }; }
+function warr(d) { if (!d.warranty) return null; const dd = dayDiff(parseYmd(d.warranty), today0()); return { days: dd, st: dd < 0 ? 'gone' : dd <= 90 ? 'soon' : 'fine' }; }
+const intervalText = (n) => n === 1 ? 'jeden Monat' : n === 12 ? 'jedes Jahr' : `alle ${n} Monate`;
+const hint = (txt) => h('div', { class: 'card muted' }, txt);
+function field(id) { return $(id); }
+function resetForm(id) { $(id).reset(); }
+
+function render() {
+  const d = store.data;
+  const ts = d.tasks.map((t) => status(t));
+  $('s1').textContent = ts.filter((s) => s.st === 'over').length;
+  $('s2').textContent = ts.filter((s) => s.st === 'soon').length;
+  $('s3').textContent = d.devices.filter((x) => { const w = warr(x); return w && w.st === 'soon'; }).length;
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  ['tasks', 'devices', 'contacts', 'meters', 'rooms'].forEach((k) => { $('p-' + k).hidden = k !== tab; });
+  const names = [...new Set(d.rooms.map((r) => r.name).concat(d.tasks.map((t) => t.room).filter(Boolean)))];
+  $('roomlist').replaceChildren(...names.map((n) => h('option', { value: n })));
+  if (tab === 'tasks') renderTasks(); else if (tab === 'devices') renderDevices(); else if (tab === 'contacts') renderContacts(); else if (tab === 'meters') renderMeters(); else renderRooms();
+}
+$('tabs').onclick = (e) => { const b = e.target.closest('button[data-tab]'); if (b) { tab = b.dataset.tab; render(); } };
+
+/* ---------- Wartung ---------- */
+const tplBox = $('tpls');
+TEMPLATES.forEach(([n, m]) => tplBox.append(h('button', { type: 'button', class: 'small', title: intervalText(m), onclick: () => {
+  if (store.data.tasks.some((t) => t.name === n)) { alert('Diese Aufgabe gibt es schon.'); return; }
+  store.data.tasks.push({ id: uid(), name: n, interval: m, last: '', room: '', note: '', created: ymd(new Date()), history: [] }); store.changed(); render();
+} }, '+ ', n)));
+function renderTasks() {
+  const list = store.data.tasks.slice().sort((a, b) => dueOf(a).localeCompare(dueOf(b)));
+  $('tlist').replaceChildren(...(list.length ? list.map(taskCard) : [hint('Noch keine Wartungsaufgaben. Lege eine an oder nimm eine Vorlage (z. B. Rauchmelder, Heizung, Filter, Dachrinne).')]));
+}
+function taskCard(t) {
+  const s = status(t), due = dueOf(t);
+  const badge = s.st === 'over' ? h('span', { class: 'badge err' }, 'Überfällig') : s.st === 'soon' ? h('span', { class: 'badge warn' }, 'Bald fällig') : h('span', { class: 'badge ok' }, 'OK');
+  const hist = t.history.slice().sort((a, b) => b.localeCompare(a));
+  const box = h('div', { class: 'card item ' + s.st });
+  const histEl = h('div', { class: 'hist', hidden: true }, hist.length ? hist.slice(0, 20).map((x) => h('div', {}, h('span', {}, fmtDate(x)), h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Eintrag löschen', onclick: () => {
+    t.history = t.history.filter((y) => y !== x); if (t.last === x) t.last = t.history.slice().sort().pop() || ''; store.changed(); render(); } }, '✕'))) : h('span', { class: 'muted' }, 'Noch nichts erledigt.'));
+  box.append(h('div', { class: 'main' }, h('h3', {}, t.name),
+    h('div', { class: 'meta' }, h('span', {}, intervalText(t.interval)), t.last ? h('span', {}, `Zuletzt: ${fmtDate(t.last)}`) : h('span', {}, 'Noch nie erledigt'),
+      h('span', {}, `Fällig: ${fmtDate(due)} (${rel(s.days)})`), t.room ? h('span', {}, '🚪 ' + t.room) : null),
+    t.note ? h('div', { class: 'meta' }, h('span', {}, t.note)) : null),
+    badge,
+    h('div', { class: 'acts' },
+      h('button', { class: 'small primary', onclick: () => { const td = ymd(new Date()); t.last = td; t.history = t.history.filter((x) => x !== td); t.history.push(td); store.changed(); render(); } }, 'Erledigt ✓'),
+      h('button', { class: 'small', onclick: () => { histEl.hidden = !histEl.hidden; } }, 'Verlauf'),
+      h('button', { class: 'small', onclick: () => { editT = t.id; $('tname').value = t.name; $('tint').value = t.interval; $('tlast').value = t.last || ''; $('troom').value = t.room || ''; $('tnote').value = t.note || ''; $('tsubmit').textContent = 'Speichern'; $('tcancel').hidden = false; $('tname').focus(); $('tform').scrollIntoView({ block: 'nearest' }); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Aufgabe löschen', onclick: () => { if (confirm('„' + t.name + '“ löschen?')) { store.data.tasks = store.data.tasks.filter((x) => x !== t); store.changed(); render(); } } }, '✕')),
+    histEl);
+  return box;
+}
+function endEditT() { editT = null; $('tform').reset(); $('tint').value = 12; $('tsubmit').textContent = 'Hinzufügen'; $('tcancel').hidden = true; }
+$('tcancel').onclick = endEditT;
+$('tform').onsubmit = (e) => {
+  e.preventDefault();
+  const n = Math.round(Number($('tint').value));
+  if (!$('tname').value.trim() || !(n >= 1)) { alert('Bitte Name und ein Intervall von mindestens einem Monat angeben.'); return; }
+  const v = { name: $('tname').value.trim(), interval: n, last: $('tlast').value, room: $('troom').value.trim(), note: $('tnote').value.trim() };
+  const ex = editT && store.data.tasks.find((x) => x.id === editT);
+  if (ex) { if (v.last && v.last !== ex.last && !ex.history.includes(v.last)) ex.history.push(v.last); Object.assign(ex, v); }
+  else store.data.tasks.push(Object.assign({ id: uid(), created: ymd(new Date()), history: v.last ? [v.last] : [] }, v));
+  endEditT(); store.changed(); render();
+};
+
+/* ---------- Geräte & Garantien ---------- */
+function renderDevices() {
+  const list = store.data.devices.slice().sort((a, b) => (a.warranty || '9999').localeCompare(b.warranty || '9999'));
+  $('dlist').replaceChildren(...(list.length ? list.map(devCard) : [hint('Noch keine Geräte. Trage Kaufdatum und Garantie ein, damit du rechtzeitig gewarnt wirst.')]));
+}
+function devCard(x) {
+  const w = warr(x);
+  const badge = !w ? null : w.st === 'gone' ? h('span', { class: 'badge err' }, 'Garantie abgelaufen') : w.st === 'soon' ? h('span', { class: 'badge warn' }, 'Läuft bald ab') : h('span', { class: 'badge ok' }, 'Garantie aktiv');
+  return h('div', { class: 'card item ' + (!w ? '' : w.st === 'gone' ? 'over' : w.st) },
+    h('div', { class: 'main' }, h('h3', {}, x.name),
+      h('div', { class: 'meta' }, x.purchase ? h('span', {}, `Gekauft: ${fmtDate(x.purchase)}`) : null, x.warranty ? h('span', {}, `Garantie bis: ${fmtDate(x.warranty)}`) : null,
+        w && w.st !== 'gone' ? h('span', {}, rel(w.days)) : null, x.price > 0 ? h('span', {}, eur(x.price)) : null),
+      x.note ? h('div', { class: 'meta' }, h('span', {}, '🧾 ' + x.note)) : null),
+    badge,
+    h('div', { class: 'acts' },
+      h('button', { class: 'small', onclick: () => { editD = x.id; $('dname').value = x.name; $('dbuy').value = x.purchase || ''; $('dwar').value = x.warranty || ''; $('dmon').value = ''; $('dprice').value = x.price ? String(x.price).replace('.', SimpleI18n.dec) : ''; $('dnote').value = x.note || ''; $('dsubmit').textContent = 'Speichern'; $('dcancel').hidden = false; $('dname').focus(); $('dform').scrollIntoView({ block: 'nearest' }); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Gerät löschen', onclick: () => { if (confirm('„' + x.name + '“ löschen?')) { store.data.devices = store.data.devices.filter((y) => y !== x); store.changed(); render(); } } }, '✕')));
+}
+function endEditD() { editD = null; $('dform').reset(); $('dsubmit').textContent = 'Hinzufügen'; $('dcancel').hidden = true; }
+$('dcancel').onclick = endEditD;
+$('dform').onsubmit = (e) => {
+  e.preventDefault();
+  let war = $('dwar').value; const buy = $('dbuy').value, mon = Math.round(Number($('dmon').value));
+  if (!war && buy && mon >= 1) war = ymd(addMonths(parseYmd(buy), mon));
+  const p = num($('dprice').value);
+  const v = { name: $('dname').value.trim(), purchase: buy, warranty: war, price: p > 0 ? p : 0, note: $('dnote').value.trim() };
+  if (!v.name) return;
+  if (v.purchase && v.warranty && v.warranty < v.purchase) { alert('Das Garantie-Ende liegt vor dem Kaufdatum.'); return; }
+  const ex = editD && store.data.devices.find((y) => y.id === editD);
+  if (ex) Object.assign(ex, v); else store.data.devices.push(Object.assign({ id: uid() }, v));
+  endEditD(); store.changed(); render();
+};
+
+/* ---------- Handwerker ---------- */
+function renderContacts() {
+  const list = store.data.contacts.slice().sort((a, b) => (a.trade || '').localeCompare(b.trade || '', 'de') || a.name.localeCompare(b.name, 'de'));
+  $('clist').replaceChildren(...(list.length ? list.map(conCard) : [hint('Noch keine Kontakte. Sammle hier Handwerker, Hausverwaltung und Notdienste.')]));
+}
+function conCard(c) {
+  return h('div', { class: 'card item' },
+    h('div', { class: 'main' }, h('h3', {}, c.name, c.trade ? h('span', { class: 'badge', style: 'margin-left:8px;font-weight:400' }, c.trade) : null),
+      h('div', { class: 'meta' }, c.phone ? h('a', { class: 'ct', href: 'tel:' + c.phone.replace(/[^\d+]/g, '') }, '📞 ' + c.phone) : null, c.email ? h('a', { class: 'ct', href: 'mailto:' + c.email }, '✉️ ' + c.email) : null),
+      c.note ? h('div', { class: 'meta' }, h('span', {}, c.note)) : null),
+    h('div', { class: 'acts' },
+      h('button', { class: 'small', onclick: () => { editC = c.id; $('cname').value = c.name; $('ctrade').value = c.trade || ''; $('cphone').value = c.phone || ''; $('cmail').value = c.email || ''; $('cnote').value = c.note || ''; $('csubmit').textContent = 'Speichern'; $('ccancel').hidden = false; $('cname').focus(); $('cform').scrollIntoView({ block: 'nearest' }); } }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Kontakt löschen', onclick: () => { if (confirm('„' + c.name + '“ löschen?')) { store.data.contacts = store.data.contacts.filter((y) => y !== c); store.changed(); render(); } } }, '✕')));
+}
+function endEditC() { editC = null; $('cform').reset(); $('csubmit').textContent = 'Hinzufügen'; $('ccancel').hidden = true; }
+$('ccancel').onclick = endEditC;
+$('cform').onsubmit = (e) => {
+  e.preventDefault();
+  const v = { name: $('cname').value.trim(), trade: $('ctrade').value.trim(), phone: $('cphone').value.trim(), email: $('cmail').value.trim(), note: $('cnote').value.trim() };
+  if (!v.name) return;
+  const ex = editC && store.data.contacts.find((y) => y.id === editC);
+  if (ex) Object.assign(ex, v); else store.data.contacts.push(Object.assign({ id: uid() }, v));
+  endEditC(); store.changed(); render();
+};
+
+/* ---------- Zählerstände ---------- */
+$('mseg').onclick = (e) => { const b = e.target.closest('button[data-m]'); if (b) { meter = b.dataset.m; render(); } };
+function barChart(items) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 200, L = 46, R = 10, T = 10, B = 26;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Verbrauch je Zeitraum');
+  const el = (tag, a, t) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; svg.append(n); return n; };
+  const hi = Math.max(...items.map((i) => i.v)) || 1, bw = (W - L - R) / items.length;
+  for (let i = 0; i <= 3; i++) { const v = hi * i / 3, y = T + (1 - i / 3) * (H - T - B); el('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: 'var(--line)' }); el('text', { x: L - 6, y: y + 4, 'text-anchor': 'end' }, fmtNum(v, 0)); }
+  items.forEach((it, i) => {
+    const bh = it.v / hi * (H - T - B), r = el('rect', { x: L + i * bw + bw * 0.15, y: H - B - bh, width: bw * 0.7, height: Math.max(bh, 1), fill: 'var(--accent)', rx: 2 });
+    r.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: `${fmtDate(it.from)} – ${fmtDate(it.to)}: ${fmtNum(it.v)} ${it.unit}` }));
+    if (items.length <= 8 || i % Math.ceil(items.length / 8) === 0) el('text', { x: L + i * bw + bw / 2, y: H - 8, 'text-anchor': 'middle' }, parseYmd(it.to).toLocaleDateString('de-DE', { month: '2-digit', year: '2-digit' }));
+  });
+  return svg;
+}
+function renderMeters() {
+  document.querySelectorAll('#mseg button').forEach((b) => b.classList.toggle('on', b.dataset.m === meter));
+  if (!$('mdate').value) $('mdate').value = ymd(new Date());
+  const unit = METERS[meter][1];
+  const rs = store.data.readings.filter((r) => r.type === meter).sort((a, b) => a.date.localeCompare(b.date) || a.value - b.value);
+  const out = [];
+  if (!rs.length) { $('mout').replaceChildren(hint('Noch keine Zählerstände. Trage regelmäßig den Stand ab (z. B. am Monatsersten), dann siehst du Verbrauch und Verlauf.')); return; }
+  const iv = rs.slice(1).map((r, i) => ({ from: rs[i].date, to: r.date, days: Math.max(1, dayDiff(parseYmd(r.date), parseYmd(rs[i].date))), v: r.value - rs[i].value, unit })).filter((x) => x.v >= 0);
+  const totalV = iv.reduce((a, x) => a + x.v, 0), totalD = iv.reduce((a, x) => a + x.days, 0);
+  const cards = [h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Letzter Stand'), h('b', {}, `${fmtNum(rs[rs.length - 1].value, 2)} ${unit}`), h('span', { class: 'muted' }, fmtDate(rs[rs.length - 1].date)))];
+  if (totalD > 0) cards.push(h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Ø pro Monat'), h('b', {}, `${fmtNum(totalV / totalD * 30.4375)} ${unit}`)), h('div', { class: 'card' }, h('span', { class: 'muted' }, 'Hochrechnung pro Jahr'), h('b', {}, `${fmtNum(totalV / totalD * 365, 0)} ${unit}`)));
+  out.push(h('div', { class: 'sum', style: 'margin-bottom:10px' }, cards));
+  if (iv.length) out.push(h('div', { class: 'card' }, h('strong', {}, 'Verbrauch je Zeitraum'), barChart(iv.slice(-12))));
+  out.push(h('div', { class: 'card' }, h('div', { class: 'rd' }, rs.slice().reverse().map((r) => {
+    const i = rs.indexOf(r), diff = i > 0 ? r.value - rs[i - 1].value : null, days = i > 0 ? Math.max(1, dayDiff(parseYmd(r.date), parseYmd(rs[i - 1].date))) : 0;
+    return h('div', { class: 'rr' }, h('span', {}, fmtDate(r.date)), h('b', {}, `${fmtNum(r.value, 2)} ${unit}`),
+      diff == null ? null : h('span', { class: diff < 0 ? 'neg' : '' }, (diff >= 0 ? '+' : '−') + fmtNum(Math.abs(diff)) + ' ' + unit),
+      diff == null ? null : h('span', { class: 'muted' }, days === 1 ? 'in 1 Tag' : `in ${days} Tagen`), h('span', { class: 'muted sp' }, r.note || ''),
+      h('span', {}, h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Eintrag löschen', onclick: () => { store.data.readings = store.data.readings.filter((y) => y !== r); store.changed(); render(); } }, '✕')));
+  }))));
+  $('mout').replaceChildren(...out);
+}
+$('mform').onsubmit = (e) => {
+  e.preventDefault();
+  const v = num($('mval').value);
+  if (!(v >= 0) || !$('mdate').value) { alert('Bitte Datum und einen gültigen Zählerstand eingeben.'); return; }
+  const prev = store.data.readings.filter((r) => r.type === meter && r.date <= $('mdate').value).sort((a, b) => a.date.localeCompare(b.date)).pop();
+  if (prev && v < prev.value && !confirm('Der Stand ist niedriger als der vorherige. Trotzdem speichern (z. B. nach einem Zählertausch)?')) return;
+  store.data.readings.push({ id: uid(), type: meter, date: $('mdate').value, value: v, note: $('mnote').value.trim() });
+  $('mval').value = ''; $('mnote').value = ''; store.changed(); render();
+};
+
+/* ---------- Räume ---------- */
+function renderRooms() {
+  const rs = store.data.rooms;
+  $('rlist').replaceChildren(...(rs.length ? rs.map((r) => {
+    const ta = h('textarea', { class: 'rn', value: r.note || '', placeholder: 'Notizen zu diesem Raum (Maße, Farbe, Material, Schäden …)', 'aria-label': 'Notiz' });
+    ta.onchange = () => { r.note = ta.value; store.changed(); };
+    const nt = store.data.tasks.filter((t) => t.room === r.name).length;
+    return h('div', { class: 'card' }, h('div', { class: 'item' }, h('h3', { class: 'main' }, '🚪 ' + r.name), nt ? h('span', { class: 'badge' }, nt === 1 ? '1 Aufgabe' : `${nt} Aufgaben`) : null,
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Raum löschen', onclick: () => { if (confirm('„' + r.name + '“ löschen?')) { store.data.rooms = store.data.rooms.filter((y) => y !== r); store.changed(); render(); } } }, '✕')), ta);
+  }) : [hint('Noch keine Räume. Lege Räume an, um Notizen dazu zu sammeln und Wartungsaufgaben zuzuordnen.')]));
+}
+$('rform').onsubmit = (e) => {
+  e.preventDefault();
+  const n = $('rname').value.trim(); if (!n) return;
+  if (store.data.rooms.some((r) => r.name.toLowerCase() === n.toLowerCase())) { alert('Diesen Raum gibt es schon.'); return; }
+  store.data.rooms.push({ id: uid(), name: n, note: '' }); $('rname').value = ''; store.changed(); render();
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
