@@ -62,7 +62,7 @@ html[data-bgimg] .card { background:color-mix(in srgb, var(--card) 90%, transpar
 .ui-themes button[aria-pressed=true] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
 .ui-sw { flex:none; width:22px; height:22px; border-radius:6px; border:1px solid rgba(0,0,0,.2); }
 .ui-row { display:flex; flex-wrap:wrap; gap:6px; }
-.ui-width button[aria-pressed=true] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.ui-lang button[aria-pressed=true], .ui-width button[aria-pressed=true] { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
 .ui-hint { font-size:.8rem; color:var(--muted); margin:6px 0 0; }
 
 /* ---------- Kacheln (Startseite) ---------- */
