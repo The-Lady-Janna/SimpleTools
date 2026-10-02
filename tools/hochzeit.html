@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hochzeitsplaner</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:10px 0; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.2rem; }
+  .big { font-size:2.6rem; font-weight:700; line-height:1.1; color:var(--accent); }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; }
+  input.w { width:7em; } input.t { width:6.5em; }
+  .bar { height:14px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:8px 0; }
+  .bar > i { display:block; height:100%; background:var(--accent); } .bar.over > i { background:var(--err); }
+  .pos { color:var(--ok); } .neg { color:var(--err); }
+  .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:6px 0; border-top:1px solid var(--line); }
+  .item:first-of-type { border-top:0; }
+  .item .nm { flex:1; min-width:140px; overflow-wrap:anywhere; }
+  .item input[type=text] { width:6.5em; } .item select { max-width:100%; }
+  .ch { display:flex; gap:4px; align-items:center; font-size:.85rem; color:var(--muted); }
+  .cat { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; } .cat h3 { margin:0; font-size:1.05rem; flex:1; }
+  .seats { display:flex; flex-wrap:wrap; gap:4px; margin:6px 0; }
+  .seats i { width:16px; height:16px; border-radius:50%; border:2px solid var(--accent); box-sizing:border-box; }
+  .seats i.on { background:var(--accent); } .seats i.x { border-color:var(--err); background:var(--err); }
+  .tgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; } .tgrid .card { margin:0; }
+  .tl { display:flex; gap:12px; align-items:baseline; flex-wrap:wrap; padding:7px 0; border-top:1px solid var(--line); }
+  .tl:first-of-type { border-top:0; } .tl .tm { font-weight:700; font-variant-numeric:tabular-nums; min-width:3.5em; color:var(--accent); }
+  .tabs button { white-space:nowrap; }
+  .hint { font-size:.85rem; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Hochzeitsplaner</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs" id="tabs">
+    <button data-tab="ov">📊 Überblick</button><button data-tab="bu">💶 Budget</button><button data-tab="gu">👥 Gäste</button><button data-tab="ti">🪑 Sitzplan</button>
+    <button data-tab="ab">🕑 Tagesablauf</button><button data-tab="dl">🤝 Dienstleister</button><button data-tab="ck">✅ Checkliste</button>
+  </div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'hochzeit',
+  defaults: () => ({ wedding: { date: '', names: '', budget: 0 }, budgetItems: [], guests: [], tables: [], schedule: [], vendors: [], tasks: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const CATS = ['Location', 'Catering & Getränke', 'Kleidung & Styling', 'Fotos & Video', 'Musik & Unterhaltung', 'Blumen & Deko', 'Trauung & Papeterie', 'Ringe', 'Transport', 'Flitterwochen', 'Sonstiges'];
+const SIDES = ['Braut', 'Bräutigam', 'Beide'];
+const RSVPS = ['Offen', 'Zusage', 'Absage'];
+const MENUS = ['–', 'Fleisch', 'Fisch', 'Vegetarisch', 'Vegan', 'Kindermenü'];
+const TRADES = ['Location', 'Catering', 'Fotograf', 'Video', 'Musik / DJ', 'Floristik', 'Torte & Konditorei', 'Friseur & Make-up', 'Trauredner', 'Transport', 'Papeterie', 'Sonstiges'];
+const STATUS = ['Anfrage', 'Angebot', 'Gebucht', 'Anzahlung geleistet', 'Bezahlt', 'Abgesagt'];
+const PERIODS = ['12 Monate vorher', '9 Monate vorher', '6 Monate vorher', '3 Monate vorher', '1 Monat vorher', '1 Woche vorher', 'Am Hochzeitstag', 'Nach der Hochzeit'];
+const TPL_TASKS = [
+  ['12 Monate vorher', 'Budget festlegen'], ['12 Monate vorher', 'Hochzeitsdatum wählen'], ['12 Monate vorher', 'Erste Gästeliste erstellen'], ['12 Monate vorher', 'Location besichtigen und reservieren'], ['12 Monate vorher', 'Standesamt-Termin anfragen'],
+  ['9 Monate vorher', 'Fotograf und Videograf buchen'], ['9 Monate vorher', 'Catering oder Restaurant auswählen'], ['9 Monate vorher', 'Musik oder DJ buchen'], ['9 Monate vorher', 'Brautkleid und Anzug aussuchen'], ['9 Monate vorher', 'Save-the-Date-Karten verschicken'],
+  ['6 Monate vorher', 'Einladungen gestalten und drucken'], ['6 Monate vorher', 'Trauringe aussuchen'], ['6 Monate vorher', 'Hotelzimmer für Gäste reservieren'], ['6 Monate vorher', 'Flitterwochen planen und buchen'], ['6 Monate vorher', 'Trauzeugen und Ablauf besprechen'],
+  ['3 Monate vorher', 'Einladungen verschicken'], ['3 Monate vorher', 'Menü und Torte festlegen'], ['3 Monate vorher', 'Blumen und Dekoration bestellen'], ['3 Monate vorher', 'Friseur und Make-up-Probe vereinbaren'], ['3 Monate vorher', 'Transport für Brautpaar und Gäste organisieren'],
+  ['1 Monat vorher', 'Zu- und Absagen nachfassen'], ['1 Monat vorher', 'Sitzplan erstellen'], ['1 Monat vorher', 'Ablaufplan an Dienstleister schicken'], ['1 Monat vorher', 'Dokumente für das Standesamt zusammenstellen'], ['1 Monat vorher', 'Letzte Anprobe von Kleid und Anzug'],
+  ['1 Woche vorher', 'Endgültige Gästezahl an Catering melden'], ['1 Woche vorher', 'Tischkarten und Gastgeschenke vorbereiten'], ['1 Woche vorher', 'Ringe und Dokumente bereitlegen'], ['1 Woche vorher', 'Zahlungen an Dienstleister vorbereiten'], ['1 Woche vorher', 'Notfall-Set packen'],
+  ['Am Hochzeitstag', 'Frühstück und Ruhe genießen'], ['Am Hochzeitstag', 'Brautstrauß und Ringe abholen'], ['Am Hochzeitstag', 'Dienstleister begrüßen und einweisen'], ['Am Hochzeitstag', 'Feiern und genießen'],
+  ['Nach der Hochzeit', 'Dankeskarten verschicken'], ['Nach der Hochzeit', 'Namensänderung beantragen'], ['Nach der Hochzeit', 'Restzahlungen begleichen'], ['Nach der Hochzeit', 'Fotos sichern und Album erstellen']];
+const TPL_DAY = [['10:00', 'Styling und Fertigmachen'], ['13:30', 'Gäste treffen ein'], ['14:00', 'Trauung'], ['15:00', 'Sektempfang und Gratulation'], ['16:00', 'Gruppenfoto und Brautpaar-Shooting'], ['17:30', 'Kaffee und Kuchen'], ['18:30', 'Hochzeitsessen'], ['20:30', 'Eröffnungstanz'], ['21:00', 'Party und Tanz'], ['23:30', 'Mitternachtssnack'], ['01:00', 'Ende der Feier']];
+
+function normalize() {
+  const d = store.data;
+  if (!d.wedding || typeof d.wedding !== 'object') d.wedding = {};
+  const w = d.wedding; if (typeof w.date !== 'string') w.date = ''; if (typeof w.names !== 'string') w.names = ''; if (typeof w.budget !== 'number' || !(w.budget >= 0)) w.budget = 0;
+  ['budgetItems', 'guests', 'tables', 'schedule', 'vendors', 'tasks'].forEach((k) => { if (!Array.isArray(d[k])) d[k] = []; });
+  d.guests.forEach((g) => { if (typeof g.table !== 'string') g.table = ''; g.plusOne = !!g.plusOne; if (!RSVPS.includes(g.rsvp)) g.rsvp = 'Offen'; if (typeof g.group !== 'string') g.group = ''; });
+}
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
+const num = (n) => String(Math.round((n || 0) * 100) / 100).replace('.', SimpleI18n.dec);
+const D = () => store.data;
+let tab = 'ov', editGuest = null, editVendor = null;
+const gf = { q: '', side: '', rsvp: '', group: '' };
+const today0 = () => parseYmd(ymd(new Date()));
+const cost = (b) => (b.actual != null ? b.actual : b.planned) || 0;
+const seatsOf = (g) => 1 + (g.plusOne ? 1 : 0);
+const sel = (opts, val, onch, label, extra) => { const s = h('select', { 'aria-label': label, onchange: () => onch(s.value) }, (extra || []).map((o) => h('option', { value: o[0] }, o[1])), opts.map((o) => h('option', { value: o }, o))); s.value = val; return s; };
+function amtInput(val, label, set) {
+  const i = h('input', { type: 'text', inputMode: 'decimal', value: val == null ? '' : num(val), placeholder: '–', 'aria-label': label });
+  i.onchange = () => { const t = i.value.trim(); if (t === '') set(null); else { const n = parseAmount(t); if (isNaN(n)) { render(); return; } set(Math.round(n * 100) / 100); } store.changed(); render(); };
+  return i;
+}
+function confirmDel(msg, fn) { if (confirm(msg)) { fn(); store.changed(); render(); } }
+const delBtn = (fn) => h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: fn }, '✕');
+const empty = (t) => h('div', { class: 'card muted' }, t);
+const stat = (label, val, cls) => h('div', { class: 'card' }, h('span', { class: 'muted' }, label), h('b', { class: cls || '' }, val));
+
+/* ---------- Überblick ---------- */
+function vOverview() {
+  const d = D(), w = d.wedding;
+  const date = h('input', { type: 'date', value: w.date, onchange: () => { w.date = date.value; store.changed(); render(); } });
+  const names = h('input', { type: 'text', value: w.names, placeholder: 'z. B. Anna & Ben', onchange: () => { w.names = names.value.trim(); store.changed(); render(); } });
+  const budget = amtInput(w.budget || null, 'Gesamtbudget', (n) => { w.budget = n || 0; });
+  let cd;
+  if (w.date) {
+    const days = Math.round((parseYmd(w.date) - today0()) / 86400000);
+    cd = days > 0 ? [h('div', { class: 'big' }, days), h('div', {}, days === 1 ? 'Tag bis zur Hochzeit' : 'Tage bis zur Hochzeit'), h('div', { class: 'muted' }, new Date(parseYmd(w.date)).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }))]
+      : days === 0 ? [h('div', { class: 'big' }, '🎉'), h('div', {}, 'Heute ist euer großer Tag!')]
+      : [h('div', { class: 'big' }, Math.abs(days)), h('div', {}, days === -1 ? 'Tag seit der Hochzeit' : 'Tage seit der Hochzeit')];
+  } else cd = [h('div', { class: 'muted' }, 'Trage das Hochzeitsdatum ein, um den Countdown zu starten.')];
+  const planned = d.budgetItems.reduce((a, b) => a + (b.planned || 0), 0), exp = d.budgetItems.reduce((a, b) => a + cost(b), 0), paid = d.budgetItems.filter((b) => b.paid).reduce((a, b) => a + cost(b), 0);
+  const people = d.guests.filter((g) => g.rsvp !== 'Absage').reduce((a, g) => a + seatsOf(g), 0);
+  const yes = d.guests.filter((g) => g.rsvp === 'Zusage').reduce((a, g) => a + seatsOf(g), 0);
+  const tdone = d.tasks.filter((t) => t.done).length;
+  const next = PERIODS.flatMap((p) => d.tasks.filter((t) => t.period === p && !t.done)).slice(0, 5);
+  return [
+    h('div', { class: 'card form' }, h('label', { class: 'f' }, 'Hochzeitsdatum', date), h('label', { class: 'f', style: 'flex:1;min-width:160px' }, 'Brautpaar', names), h('label', { class: 'f' }, 'Gesamtbudget (€)', budget)),
+    h('div', { class: 'card', style: 'text-align:center' }, w.names ? h('div', { style: 'font-size:1.2rem;font-weight:600' }, '💍 ' + w.names) : null, cd),
+    h('div', { class: 'sum' }, stat('Gesamtbudget', eur(w.budget)), stat('Geplant', eur(planned)), stat('Voraussichtliche Kosten', eur(exp), w.budget && exp > w.budget ? 'neg' : ''), stat('Bereits bezahlt', eur(paid), 'pos'), stat('Noch zu zahlen', eur(Math.max(0, exp - paid)))),
+    h('div', { class: 'sum' }, stat('Gäste mit Zusage', yes), stat('Personen ohne Absagen', people), stat('Checkliste erledigt', tdone + ' / ' + d.tasks.length), stat('Dienstleister gebucht', d.vendors.filter((v) => ['Gebucht', 'Anzahlung geleistet', 'Bezahlt'].includes(v.status)).length + ' / ' + d.vendors.filter((v) => v.status !== 'Abgesagt').length)),
+    h('div', { class: 'card' }, h('h3', { style: 'margin:0 0 6px' }, 'Nächste Aufgaben'),
+      next.length ? next.map((t) => h('div', { class: 'item' }, h('label', { class: 'nm' }, h('input', { type: 'checkbox', onchange: () => { t.done = true; store.changed(); render(); } }), ' ', t.text), h('span', { class: 'badge' }, t.period)))
+        : h('div', { class: 'muted' }, d.tasks.length ? 'Alles erledigt – super! 🎉' : 'Noch keine Aufgaben. Die Checkliste hat Vorlagen für jeden Zeitraum.'))
+  ];
+}
+
+/* ---------- Budget ---------- */
+function vBudget() {
+  const d = D(), w = d.wedding;
+  const name = h('input', { type: 'text', required: true, placeholder: 'z. B. Saalmiete', 'aria-label': 'Bezeichnung' }), cat = sel(CATS, CATS[0], () => {}, 'Kategorie'), pl = h('input', { type: 'text', class: 'w', inputMode: 'decimal', placeholder: '0', 'aria-label': 'Geplant' }), ac = h('input', { type: 'text', class: 'w', inputMode: 'decimal', placeholder: 'optional', 'aria-label': 'Tatsächlich' });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Posten', name), h('label', { class: 'f' }, 'Kategorie', cat), h('label', { class: 'f' }, 'Geplant (€)', pl), h('label', { class: 'f' }, 'Tatsächlich (€)', ac), h('button', { class: 'primary' }, 'Hinzufügen'));
+  form.onsubmit = (e) => {
+    e.preventDefault(); const p = parseAmount(pl.value || '0'), a = ac.value.trim() === '' ? null : parseAmount(ac.value);
+    if (isNaN(p) || (a !== null && isNaN(a))) { alert('Bitte gültige Beträge eingeben.'); return; }
+    d.budgetItems.push({ id: uid(), cat: cat.value, name: name.value.trim(), planned: p, actual: a, paid: false }); store.changed(); render();
+  };
+  const planned = d.budgetItems.reduce((a, b) => a + (b.planned || 0), 0), exp = d.budgetItems.reduce((a, b) => a + cost(b), 0), paid = d.budgetItems.filter((b) => b.paid).reduce((a, b) => a + cost(b), 0);
+  const pct = w.budget > 0 ? Math.min(100, exp / w.budget * 100) : 0;
+  const groups = CATS.concat(d.budgetItems.map((b) => b.cat).filter((c) => !CATS.includes(c)).filter((c, i, a) => a.indexOf(c) === i));
+  const cards = groups.map((c) => {
+    const its = d.budgetItems.filter((b) => b.cat === c); if (!its.length) return null;
+    return h('div', { class: 'card' }, h('div', { class: 'cat' }, h('h3', {}, c), h('span', { class: 'muted' }, 'Geplant ', h('b', {}, eur(its.reduce((a, b) => a + (b.planned || 0), 0)))), h('span', { class: 'muted' }, 'Kosten ', h('b', {}, eur(its.reduce((a, b) => a + cost(b), 0))))),
+      its.map((b) => h('div', { class: 'item' }, h('span', { class: 'nm' }, b.name, ' ', h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Bezeichnung bearbeiten', onclick: () => { const n = prompt('Bezeichnung', b.name); if (n && n.trim()) { b.name = n.trim(); store.changed(); render(); } } }, '✎')),
+        h('label', { class: 'ch' }, 'Geplant', amtInput(b.planned, 'Geplant', (n) => { b.planned = n || 0; })), h('label', { class: 'ch' }, 'Tatsächlich', amtInput(b.actual, 'Tatsächlich', (n) => { b.actual = n; })),
+        h('label', { class: 'ch' }, h('input', { type: 'checkbox', checked: b.paid, onchange: (e) => { b.paid = e.target.checked; store.changed(); render(); } }), 'Bezahlt'),
+        delBtn(() => confirmDel('„' + b.name + '“ löschen?', () => { d.budgetItems = d.budgetItems.filter((x) => x !== b); })))));
+  }).filter(Boolean);
+  return [form,
+    h('div', { class: 'sum' }, stat('Gesamtbudget', eur(w.budget)), stat('Geplant', eur(planned)), stat('Voraussichtliche Kosten', eur(exp), w.budget && exp > w.budget ? 'neg' : ''), stat('Bereits bezahlt', eur(paid), 'pos'), (w.budget ? stat(exp > w.budget ? 'Budget überschritten um' : 'Noch im Budget', eur(Math.abs(w.budget - exp)), exp > w.budget ? 'neg' : 'pos') : null)),
+    w.budget > 0 ? h('div', { class: 'bar' + (exp > w.budget ? ' over' : '') }, h('i', { style: 'width:' + pct + '%' })) : h('div', { class: 'muted hint' }, 'Tipp: Das Gesamtbudget stellst du im Überblick ein.'),
+    cards.length ? cards : empty('Noch keine Budgetposten. Lege oben den ersten Posten an – ohne „Tatsächlich“ wird mit dem geplanten Betrag gerechnet.')];
+}
+
+/* ---------- Gäste ---------- */
+function guestVisible(g) {
+  return (!gf.q || (g.name + ' ' + g.group).toLowerCase().includes(gf.q.toLowerCase())) && (!gf.side || g.side === gf.side) && (!gf.rsvp || g.rsvp === gf.rsvp) && (!gf.group || g.group === gf.group);
+}
+const tableName = (id) => { const t = D().tables.find((x) => x.id === id); return t ? t.name : ''; };
+function vGuests() {
+  const d = D(), eg = d.guests.find((g) => g.id === editGuest);
+  const name = h('input', { type: 'text', required: true, value: eg ? eg.name : '', placeholder: 'Vor- und Nachname', 'aria-label': 'Name' });
+  const side = sel(SIDES, eg ? eg.side : SIDES[0], () => {}, 'Seite'), group = h('input', { type: 'text', value: eg ? eg.group : '', list: 'groups', placeholder: 'z. B. Familie', 'aria-label': 'Gruppe' });
+  const dl = h('datalist', { id: 'groups' }, [...new Set(['Familie', 'Freunde', 'Kollegen', 'Nachbarn'].concat(d.guests.map((g) => g.group).filter(Boolean)))].map((g) => h('option', { value: g })));
+  const rsvp = sel(RSVPS, eg ? eg.rsvp : 'Offen', () => {}, 'Antwort'), menu = sel(MENUS, eg ? eg.menu || '–' : '–', () => {}, 'Menü'), plus = h('input', { type: 'checkbox', checked: eg ? eg.plusOne : false });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Name', name), h('label', { class: 'f' }, 'Seite', side), h('label', { class: 'f' }, 'Gruppe', group, dl), h('label', { class: 'f' }, 'Antwort', rsvp), h('label', { class: 'f' }, 'Menü', menu),
+    h('label', { class: 'ch', style: 'padding-bottom:8px' }, plus, 'Plus-Eins'), h('button', { class: 'primary' }, eg ? 'Speichern' : 'Hinzufügen'), eg ? h('button', { type: 'button', onclick: () => { editGuest = null; render(); } }, 'Abbrechen') : null);
+  form.onsubmit = (e) => {
+    e.preventDefault(); const v = { name: name.value.trim(), side: side.value, group: group.value.trim(), rsvp: rsvp.value, menu: menu.value, plusOne: plus.checked };
+    if (eg) Object.assign(eg, v); else d.guests.push(Object.assign({ id: uid(), table: '' }, v));
+    editGuest = null; store.changed(); render();
+  };
+  const groups = [...new Set(d.guests.map((g) => g.group).filter(Boolean))];
+  const q = h('input', { type: 'search', value: gf.q, placeholder: 'Suchen …', 'aria-label': 'Suchen', oninput: () => { gf.q = q.value; renderList(); } });
+  const fs = h('div', { class: 'row', style: 'margin:10px 0' }, q, sel(SIDES, gf.side, (v) => { gf.side = v; render(); }, 'Seite filtern', [['', 'Alle Seiten']]), sel(RSVPS, gf.rsvp, (v) => { gf.rsvp = v; render(); }, 'Antwort filtern', [['', 'Alle Antworten']]),
+    sel(groups, gf.group, (v) => { gf.group = v; render(); }, 'Gruppe filtern', [['', 'Alle Gruppen']]), h('span', { class: 'sp' }), h('button', { onclick: exportCsv }, '⬇ CSV-Export'));
+  const list = h('div', { class: 'card' }), sums = h('div', { class: 'sum' });
+  function renderList() {
+    const vis = d.guests.filter(guestVisible).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    list.replaceChildren(...(vis.length ? vis.map(row) : [h('div', { class: 'muted' }, d.guests.length ? 'Keine Gäste für diesen Filter.' : 'Noch keine Gäste. Füge oben den ersten Gast hinzu.')]));
+    const cnt = (f) => vis.filter(f).reduce((a, g) => a + seatsOf(g), 0);
+    const act = vis.filter((g) => g.rsvp !== 'Absage');
+    sums.replaceChildren(stat('Gäste angezeigt', vis.length), stat('Zusagen', cnt((g) => g.rsvp === 'Zusage'), 'pos'), stat('Offen', cnt((g) => g.rsvp === 'Offen')), stat('Absagen', cnt((g) => g.rsvp === 'Absage'), 'neg'), stat('Plus-Eins', vis.filter((g) => g.plusOne).length), stat('Personen ohne Absagen', act.reduce((a, g) => a + seatsOf(g), 0)));
+    mn.replaceChildren(...MENUS.slice(1).map((m) => { const n = act.filter((g) => g.menu === m).reduce((a, g) => a + seatsOf(g), 0); return n ? h('span', { class: 'badge' }, m, ' ', h('b', {}, n)) : null; }).filter(Boolean));
+  }
+  const mn = h('div', { class: 'row hint', style: 'margin:-2px 0 10px' });
+  function row(g) {
+    return h('div', { class: 'item' }, h('span', { class: 'nm' }, h('b', {}, g.name), g.plusOne ? h('span', { class: 'badge', style: 'margin-left:6px' }, '+1') : null, ' ', h('span', { class: 'muted' }, g.group)),
+      sel(SIDES, g.side, (v) => { g.side = v; store.changed(); render(); }, 'Seite'),
+      sel(RSVPS, g.rsvp, (v) => { g.rsvp = v; store.changed(); render(); }, 'Antwort'),
+      sel(MENUS, g.menu || '–', (v) => { g.menu = v; store.changed(); }, 'Menü'),
+      (() => { const s = h('select', { 'aria-label': 'Tisch', onchange: () => { g.table = s.value; store.changed(); render(); } }, h('option', { value: '' }, '– kein Tisch –'), d.tables.map((t) => h('option', { value: t.id }, t.name))); s.value = g.table; return s; })(),
+      h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => { editGuest = g.id; render(); window.scrollTo(0, 0); } }, '✎'),
+      delBtn(() => confirmDel('„' + g.name + '“ löschen?', () => { d.guests = d.guests.filter((x) => x !== g); })));
+  }
+  renderList();
+  return [form, fs, sums, mn, list];
+}
+function csvCell(v) { v = String(v == null ? '' : v); return /[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+function exportCsv() {
+  const d = D(); if (!d.guests.length) { alert('Es gibt noch keine Gäste zum Exportieren.'); return; }
+  const rows = [['Name', 'Seite', 'Gruppe', 'Antwort', 'Menü', 'Tisch', 'Plus-Eins']].concat(d.guests.map((g) => [g.name, g.side, g.group, g.rsvp, g.menu && g.menu !== '–' ? g.menu : '', tableName(g.table), g.plusOne ? 'Ja' : 'Nein']));
+  download('gaesteliste.csv', '﻿' + rows.map((r) => r.map(csvCell).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+
+/* ---------- Sitzplan ---------- */
+function vSeating() {
+  const d = D();
+  const nm = h('input', { type: 'text', placeholder: 'Tisch ' + (d.tables.length + 1), 'aria-label': 'Tischname' }), sc = h('input', { type: 'number', min: 1, max: 40, value: 8, class: 'w', 'aria-label': 'Plätze' });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Tischname', nm), h('label', { class: 'f' }, 'Plätze', sc), h('button', { class: 'primary' }, 'Tisch hinzufügen'),
+    h('button', { type: 'button', onclick: autoSeat }, '✨ Automatisch verteilen'));
+  form.onsubmit = (e) => { e.preventDefault(); d.tables.push({ id: uid(), name: nm.value.trim() || 'Tisch ' + (d.tables.length + 1), seats: Math.max(1, Math.min(40, parseInt(sc.value, 10) || 8)) }); store.changed(); render(); };
+  const free = d.guests.filter((g) => !g.table && g.rsvp !== 'Absage');
+  const used = (t) => d.guests.filter((g) => g.table === t.id).reduce((a, g) => a + seatsOf(g), 0);
+  function autoSeat() {
+    const todo = free.slice().sort((a, b) => (a.group || '').localeCompare(b.group || '', 'de') || a.side.localeCompare(b.side));
+    let n = 0; todo.forEach((g) => { const t = d.tables.find((x) => x.seats - used(x) >= seatsOf(g)); if (t) { g.table = t.id; n++; } });
+    store.changed(); render(); if (n < todo.length) alert('Nicht alle Gäste passen an die Tische. Füge weitere Tische oder Plätze hinzu.');
+  }
+  const cards = d.tables.map((t) => {
+    const gs = d.guests.filter((g) => g.table === t.id), u = used(t), dots = [];
+    for (let i = 0; i < Math.max(t.seats, u); i++) dots.push(h('i', { class: i >= t.seats ? 'x' : i < u ? 'on' : '' }));
+    const add = h('select', { 'aria-label': 'Gast zuweisen', onchange: () => { const g = d.guests.find((x) => x.id === add.value); if (g) { g.table = t.id; store.changed(); render(); } } }, h('option', { value: '' }, '+ Gast zuweisen …'), free.map((g) => h('option', { value: g.id }, g.name + (g.plusOne ? ' (+1)' : ''))));
+    return h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', { style: 'flex:1;overflow-wrap:anywhere' }, t.name), h('span', { class: 'badge ' + (u > t.seats ? 'err' : u === t.seats ? 'ok' : '') }, u + ' / ' + t.seats),
+      h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Tisch bearbeiten', onclick: () => { const n = prompt('Tischname', t.name); if (n && n.trim()) t.name = n.trim(); const s = parseInt(prompt('Anzahl Plätze', t.seats), 10); if (s > 0) t.seats = Math.min(40, s); store.changed(); render(); } }, '✎'),
+      delBtn(() => confirmDel('„' + t.name + '“ löschen? Die Gäste werden wieder frei.', () => { d.guests.forEach((g) => { if (g.table === t.id) g.table = ''; }); d.tables = d.tables.filter((x) => x !== t); }))),
+      h('div', { class: 'seats' }, dots), u > t.seats ? h('div', { class: 'neg hint' }, 'Zu viele Gäste für diesen Tisch.') : null,
+      gs.map((g) => h('div', { class: 'item' }, h('span', { class: 'nm' }, g.name, g.plusOne ? ' (+1)' : '', g.rsvp === 'Offen' ? h('span', { class: 'badge warn', style: 'margin-left:6px' }, 'Offen') : null), h('button', { class: 'small', title: 'Vom Tisch nehmen', 'aria-label': 'Vom Tisch nehmen', onclick: () => { g.table = ''; store.changed(); render(); } }, '✕'))),
+      !gs.length ? h('div', { class: 'muted hint' }, 'Noch niemand am Tisch.') : null, free.length ? add : null);
+  });
+  return [form, h('div', { class: 'sum' }, stat('Tische', d.tables.length), stat('Plätze gesamt', d.tables.reduce((a, t) => a + t.seats, 0)), stat('Platziert', d.guests.filter((g) => g.table).reduce((a, g) => a + seatsOf(g), 0)), stat('Noch ohne Tisch', free.reduce((a, g) => a + seatsOf(g), 0), free.length ? 'neg' : 'pos')),
+    d.tables.length ? h('div', { class: 'tgrid' }, cards) : empty('Noch keine Tische. Lege Tische mit ihrer Platzanzahl an und weise dann Gäste zu.'),
+    free.length ? h('div', { class: 'card', style: 'margin-top:10px' }, h('strong', {}, 'Noch ohne Tisch'), h('div', { class: 'row', style: 'margin-top:6px' }, free.map((g) => h('span', { class: 'badge' }, g.name + (g.plusOne ? ' (+1)' : ''))))) : null];
+}
+
+/* ---------- Tagesablauf ---------- */
+function vSchedule() {
+  const d = D();
+  const tm = h('input', { type: 'time', required: true, 'aria-label': 'Uhrzeit' }), tt = h('input', { type: 'text', required: true, placeholder: 'z. B. Trauung', 'aria-label': 'Programmpunkt' }), nt = h('input', { type: 'text', placeholder: 'optional, z. B. Ort oder Verantwortliche', 'aria-label': 'Notiz' });
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f' }, 'Uhrzeit', tm), h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Programmpunkt', tt), h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Notiz', nt), h('button', { class: 'primary' }, 'Hinzufügen'),
+    h('button', { type: 'button', onclick: () => { let n = 0; TPL_DAY.forEach(([t, x]) => { if (!d.schedule.some((s) => s.time === t && s.title === x)) { d.schedule.push({ id: uid(), time: t, title: x, note: '' }); n++; } }); if (!n) alert('Alle Vorlagen-Einträge sind schon vorhanden.'); store.changed(); render(); } }, '📋 Vorlage einfügen'));
+  form.onsubmit = (e) => { e.preventDefault(); d.schedule.push({ id: uid(), time: tm.value, title: tt.value.trim(), note: nt.value.trim() }); store.changed(); render(); };
+  const sorted = d.schedule.slice().sort((a, b) => (a.time < '06:00' ? '1' : '0') + a.time < (b.time < '06:00' ? '1' : '0') + b.time ? -1 : 1);
+  return [form, sorted.length ? h('div', { class: 'card' }, sorted.map((s) => h('div', { class: 'tl' }, h('span', { class: 'tm' }, s.time), h('span', { class: 'nm', style: 'flex:1;min-width:160px' }, h('b', {}, s.title), s.note ? h('span', { class: 'muted' }, ' · ' + s.note) : null),
+    h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => { const t = prompt('Uhrzeit (HH:MM)', s.time); if (t && /^\d{1,2}:\d{2}$/.test(t.trim())) s.time = t.trim().padStart(5, '0'); const n = prompt('Programmpunkt', s.title); if (n && n.trim()) s.title = n.trim(); const o = prompt('Notiz', s.note || ''); if (o != null) s.note = o.trim(); store.changed(); render(); } }, '✎'),
+    delBtn(() => confirmDel('„' + s.title + '“ löschen?', () => { d.schedule = d.schedule.filter((x) => x !== s); }))))) : empty('Noch kein Zeitplan. Trage Uhrzeiten ein oder füge die Vorlage für einen typischen Hochzeitstag ein.')];
+}
+
+/* ---------- Dienstleister ---------- */
+function vVendors() {
+  const d = D(), ev = d.vendors.find((v) => v.id === editVendor);
+  const name = h('input', { type: 'text', required: true, value: ev ? ev.name : '', placeholder: 'Name der Firma oder Person', 'aria-label': 'Name' }), trade = sel(TRADES, ev ? ev.trade : TRADES[0], () => {}, 'Gewerk');
+  const contact = h('input', { type: 'text', value: ev ? ev.contact : '', placeholder: 'Telefon, E-Mail …', 'aria-label': 'Kontakt' }), price = h('input', { type: 'text', class: 'w', inputMode: 'decimal', value: ev && ev.price ? num(ev.price) : '', placeholder: '0', 'aria-label': 'Preis' }), status = sel(STATUS, ev ? ev.status : STATUS[0], () => {}, 'Status');
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Name', name), h('label', { class: 'f' }, 'Gewerk', trade), h('label', { class: 'f', style: 'flex:1;min-width:150px' }, 'Kontakt', contact), h('label', { class: 'f' }, 'Preis (€)', price), h('label', { class: 'f' }, 'Status', status),
+    h('button', { class: 'primary' }, ev ? 'Speichern' : 'Hinzufügen'), ev ? h('button', { type: 'button', onclick: () => { editVendor = null; render(); } }, 'Abbrechen') : null);
+  form.onsubmit = (e) => {
+    e.preventDefault(); const p = parseAmount(price.value || '0'); if (isNaN(p)) { alert('Bitte einen gültigen Preis eingeben.'); return; }
+    const v = { name: name.value.trim(), trade: trade.value, contact: contact.value.trim(), price: p, status: status.value };
+    if (ev) Object.assign(ev, v); else d.vendors.push(Object.assign({ id: uid() }, v)); editVendor = null; store.changed(); render();
+  };
+  const act = d.vendors.filter((v) => v.status !== 'Abgesagt'), booked = act.filter((v) => ['Gebucht', 'Anzahlung geleistet', 'Bezahlt'].includes(v.status));
+  const cards = d.vendors.slice().sort((a, b) => TRADES.indexOf(a.trade) - TRADES.indexOf(b.trade)).map((v) => h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', { style: 'flex:1;overflow-wrap:anywhere' }, v.name), h('span', { class: 'badge' }, v.trade), h('b', {}, v.price ? eur(v.price) : ''),
+    sel(STATUS, v.status, (x) => { v.status = x; store.changed(); render(); }, 'Status'),
+    h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Bearbeiten', onclick: () => { editVendor = v.id; render(); window.scrollTo(0, 0); } }, '✎'), delBtn(() => confirmDel('„' + v.name + '“ löschen?', () => { d.vendors = d.vendors.filter((x) => x !== v); }))),
+    v.contact ? h('div', { class: 'muted', style: 'margin-top:4px;overflow-wrap:anywhere' }, v.contact) : null));
+  return [form, h('div', { class: 'sum' }, stat('Dienstleister', act.length), stat('Davon gebucht', booked.length, 'pos'), stat('Preise gesamt', eur(act.reduce((a, v) => a + (v.price || 0), 0))), stat('Gebuchte Preise', eur(booked.reduce((a, v) => a + (v.price || 0), 0)))),
+    cards.length ? cards : empty('Noch keine Dienstleister. Sammle hier Angebote und Kontakte von Location, Fotograf, Musik und mehr.')];
+}
+
+/* ---------- Checkliste ---------- */
+function vChecklist() {
+  const d = D();
+  const tx = h('input', { type: 'text', required: true, placeholder: 'z. B. Einladungen bestellen', 'aria-label': 'Aufgabe' }), per = sel(PERIODS, PERIODS[0], () => {}, 'Zeitraum');
+  const form = h('form', { class: 'card form' }, h('label', { class: 'f', style: 'flex:1;min-width:180px' }, 'Aufgabe', tx), h('label', { class: 'f' }, 'Zeitraum', per), h('button', { class: 'primary' }, 'Hinzufügen'),
+    h('button', { type: 'button', onclick: () => { let n = 0; TPL_TASKS.forEach(([p, t]) => { if (!d.tasks.some((x) => x.period === p && x.text === t)) { d.tasks.push({ id: uid(), period: p, text: t, done: false }); n++; } }); if (!n) alert('Alle Vorlagen-Aufgaben sind schon vorhanden.'); store.changed(); render(); } }, '📋 Vorlagen einfügen'));
+  form.onsubmit = (e) => { e.preventDefault(); d.tasks.push({ id: uid(), period: per.value, text: tx.value.trim(), done: false }); store.changed(); render(); };
+  const groups = PERIODS.concat(d.tasks.map((t) => t.period).filter((p) => !PERIODS.includes(p)).filter((p, i, a) => a.indexOf(p) === i));
+  const cards = groups.map((p) => {
+    const ts = d.tasks.filter((t) => t.period === p); if (!ts.length) return null; const dn = ts.filter((t) => t.done).length;
+    return h('div', { class: 'card' }, h('div', { class: 'cat' }, h('h3', {}, p), h('span', { class: 'badge ' + (dn === ts.length ? 'ok' : '') }, dn + ' / ' + ts.length)),
+      ts.map((t) => h('div', { class: 'item' }, h('label', { class: 'nm', style: t.done ? 'text-decoration:line-through;opacity:.6' : '' }, h('input', { type: 'checkbox', checked: t.done, onchange: (e) => { t.done = e.target.checked; store.changed(); render(); } }), ' ', t.text),
+        delBtn(() => confirmDel('„' + t.text + '“ löschen?', () => { d.tasks = d.tasks.filter((x) => x !== t); })))));
+  }).filter(Boolean);
+  return [form, d.tasks.length ? h('div', { class: 'sum' }, stat('Erledigt', d.tasks.filter((t) => t.done).length + ' / ' + d.tasks.length), stat('Noch offen', d.tasks.filter((t) => !t.done).length)) : null, cards.length ? cards : empty('Noch keine Aufgaben. Mit „Vorlagen einfügen“ bekommst du eine Checkliste von 12 Monaten vorher bis nach der Hochzeit.')];
+}
+
+const VIEWS = { ov: vOverview, bu: vBudget, gu: vGuests, ti: vSeating, ab: vSchedule, dl: vVendors, ck: vChecklist };
+function render() {
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('view').replaceChildren(...[VIEWS[tab]()].flat(Infinity).filter(Boolean));
+}
+$('tabs').onclick = (e) => { const b = e.target.closest('button[data-tab]'); if (b) { tab = b.dataset.tab; render(); } };
+window.addEventListener('simpletools-lang', () => render());
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

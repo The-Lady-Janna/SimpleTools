@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geschenke &amp; Wunschlisten</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:10px; }
+  .sum .card { margin:0; text-align:center; } .sum b { display:block; font-size:1.2rem; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  input.w { width:7em; } label.f.grow { flex:1; min-width:150px; }
+  .form input, .form select, .form textarea { max-width:100%; }
+  h2.sec { font-size:1.05rem; margin:16px 0 6px; }
+  .ev { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  .ev .dt { min-width:4.2em; text-align:center; font-weight:600; border-right:1px solid var(--line); padding-right:12px; }
+  .ev .info { flex:1; min-width:160px; } .ev .info b { word-break:break-word; }
+  .ev .acts { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .meta { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:.88rem; color:var(--muted); align-items:center; }
+  .pc .head { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; } .pc h3 { margin:0; font-size:1.1rem; flex:1; min-width:8em; word-break:break-word; }
+  .note { white-space:pre-wrap; font-size:.9rem; margin:6px 0 0; word-break:break-word; }
+  .idea { display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap; padding:8px 0; border-top:1px solid var(--line); }
+  .idea:first-child { border-top:0; } .idea .tx { flex:1; min-width:150px; word-break:break-word; }
+  .idea select { max-width:9.5em; }
+  .bar { position:relative; height:16px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; margin:6px 0; }
+  .bar i { position:absolute; left:0; top:0; bottom:0; display:block; }
+  .bar .pl { background:var(--c2, var(--line)); opacity:.45; } .bar .sp2 { background:var(--accent); } .bar.over .sp2 { background:var(--err); }
+  .bar u { position:absolute; top:-1px; bottom:-1px; width:2px; background:var(--fg); }
+  .legend { display:flex; flex-wrap:wrap; gap:4px 14px; font-size:.85rem; } .legend span { white-space:nowrap; }
+  .it { display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding:6px 0; border-top:1px solid var(--line); } .it:first-of-type { border-top:0; }
+  .it .tx { flex:1; min-width:140px; word-break:break-word; } .it.res .tx { text-decoration:line-through; color:var(--muted); }
+  textarea.exp { width:100%; min-height:9em; box-sizing:border-box; font-family:inherit; }
+  .yr { font-weight:600; margin:12px 0 2px; }
+  .neg { color:var(--err); } .pos { color:var(--ok); }
+  details > summary { cursor:pointer; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Geschenke &amp; Wunschlisten</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="sum">
+    <div class="card"><span class="muted">Nächster Anlass</span><b id="snext"></b></div>
+    <div class="card"><span class="muted">Geplant (dieses Jahr)</span><b id="splan"></b></div>
+    <div class="card"><span class="muted">Ausgegeben (dieses Jahr)</span><b id="sspent"></b></div>
+  </div>
+  <div class="tabs" id="tabs">
+    <button data-tab="occ">🗓️ Anlässe</button><button data-tab="per">👥 Personen</button><button data-tab="ide">💡 Ideen</button>
+    <button data-tab="bud">💶 Budget</button><button data-tab="wish">📝 Wunschlisten</button><button data-tab="his">📚 Historie</button>
+  </div>
+
+  <section id="s-occ">
+    <div id="occNext"></div>
+    <details class="card"><summary>Eigenen Anlass hinzufügen</summary>
+      <form id="oform" class="form" style="margin-top:8px">
+        <label class="f grow">Name<input type="text" id="oname" required placeholder="z. B. Hochzeitstag oder Einweihung"></label>
+        <label class="f">Datum<input type="date" id="odate" required></label>
+        <label class="f" style="flex-direction:row;align-items:center;gap:6px"><input type="checkbox" id="oyearly" checked> jährlich wiederholen</label>
+        <button class="primary">Hinzufügen</button>
+      </form>
+    </details>
+    <div id="occCustom"></div>
+  </section>
+
+  <section id="s-per" hidden>
+    <form id="pform" class="card form">
+      <label class="f grow">Name<input type="text" id="pname" required placeholder="z. B. Oma Ruth"></label>
+      <label class="f">Beziehung<select id="prel"><option value="Familie">Familie</option><option value="Partner(in)">Partner(in)</option><option value="Freund(in)">Freund(in)</option><option value="Kollege/Kollegin">Kollege/Kollegin</option><option value="Bekannte(r)">Bekannte(r)</option><option value="Sonstige">Sonstige</option></select></label>
+      <label class="f">Geburtstag<input type="date" id="pbday"></label>
+      <label class="f">Budget pro Anlass (€)<input type="text" id="pbud" class="w" inputmode="decimal" placeholder="0"></label>
+      <label class="f grow" style="flex-basis:100%">Größen &amp; Vorlieben<textarea id="pnote" rows="2" placeholder="z. B. Kleidergröße M, mag Tee, kein Parfum"></textarea></label>
+      <button class="primary" id="psub">Hinzufügen</button><button type="button" id="pcancel" hidden>Abbrechen</button>
+    </form>
+    <div id="perList"></div>
+  </section>
+
+  <section id="s-ide" hidden>
+    <form id="iform" class="card form">
+      <label class="f"><span>Für</span><select id="iper" required></select></label>
+      <label class="f grow">Idee<input type="text" id="itext" required placeholder="z. B. Kochbuch oder Wollschal"></label>
+      <label class="f">Preis (€)<input type="text" id="iprice" class="w" inputmode="decimal" placeholder="0"></label>
+      <label class="f">Anlass<select id="iocc"></select></label>
+      <label class="f">Jahr<input type="number" id="iyear" class="w" min="2000" max="2100" required></label>
+      <label class="f">Status<select id="istat"></select></label>
+      <label class="f grow" style="flex-basis:100%">Link oder Notiz<input type="text" id="inote" placeholder="https://… oder Hinweis"></label>
+      <button class="primary" id="isub">Hinzufügen</button><button type="button" id="icancel" hidden>Abbrechen</button>
+    </form>
+    <div class="row" style="margin-bottom:8px">
+      <label class="f">Person<select id="fper"></select></label>
+      <label class="f">Jahr<select id="fyear"></select></label>
+      <label class="f">Status<select id="fstat"></select></label>
+    </div>
+    <div id="ideaList"></div>
+  </section>
+
+  <section id="s-bud" hidden>
+    <div class="row" style="margin-bottom:8px"><label class="f">Jahr<select id="byear"></select></label></div>
+    <div id="budList"></div>
+  </section>
+
+  <section id="s-wish" hidden>
+    <form id="wform" class="card form">
+      <label class="f grow">Neue Wunschliste<input type="text" id="wname" required placeholder="z. B. Mein Geburtstag oder Weihnachten"></label>
+      <button class="primary">Anlegen</button>
+    </form>
+    <div id="wishList"></div>
+  </section>
+
+  <section id="s-his" hidden>
+    <div class="card form">
+      <label class="f"><span>Person</span><select id="hper"></select></label>
+      <label class="f grow">Schon geschenkt? Prüfen<input type="search" id="hq" placeholder="Idee eintippen …"></label>
+    </div>
+    <div id="hisList"></div>
+  </section>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'geschenke',
+  defaults: () => ({ persons: [], occasions: [], ideas: [], wishlists: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const STATUS = ['Idee', 'Bestellt', 'Da', 'Verpackt', 'Übergeben'];
+const PRIOS = ['hoch', 'mittel', 'niedrig'];
+const PRIO_LABEL = { hoch: '★★★ Hoch', mittel: '★★ Mittel', niedrig: '★ Niedrig' };
+const OCC = ['Geburtstag', 'Weihnachten', 'Sonstiges'];
+const SPENT = ['Bestellt', 'Da', 'Verpackt', 'Übergeben'];
+let tab = 'occ', editP = null, editI = null;
+const openExport = new Set();
+const thisYear = () => new Date().getFullYear();
+const T = (s) => SimpleI18n.translate(s);
+const setKids = (el, ...k) => el.replaceChildren(...k.flat(Infinity).filter((x) => x != null && x !== false));
+function normalize() {
+  const d = store.data;
+  ['persons', 'occasions', 'ideas', 'wishlists'].forEach((k) => { if (!Array.isArray(d[k])) d[k] = []; });
+  d.wishlists.forEach((w) => { if (!Array.isArray(w.items)) w.items = []; });
+}
+function parseAmount(s) { s = String(s || '').trim().replace(/\s|€/g, ''); if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.'); const n = Number(s); return Number.isFinite(n) ? Math.abs(n) : NaN; }
+const num2 = (n) => (Math.round((n || 0) * 100) / 100).toString().replace('.', SimpleI18n.dec);
+const today0 = () => parseYmd(ymd(new Date()));
+const dayDiff = (d) => Math.round((d - today0()) / 86400000);
+const person = (id) => store.data.persons.find((p) => p.id === id);
+const cd = (n) => n === 0 ? 'Heute 🎉' : n === 1 ? 'Morgen' : `in ${n} Tagen`;
+const cdBadge = (n) => h('span', { class: 'badge ' + (n <= 7 ? 'err' : n <= 30 ? 'warn' : '') }, cd(n));
+const shortDate = (d) => d.toLocaleDateString('de-DE', { day: 'numeric', month: 'short' });
+function nextOcc(mm, dd, yearly, fullYear) {
+  const t = today0(); let y = t.getFullYear();
+  let d = new Date(y, mm, dd);
+  if (!yearly) { d = new Date(fullYear, mm, dd); return d >= t ? d : null; }
+  if (d < t) d = new Date(y + 1, mm, dd);
+  return d;
+}
+function events() {
+  const d = store.data, out = [];
+  d.persons.forEach((p) => { if (!p.bday) return; const b = parseYmd(p.bday); const dt = nextOcc(b.getMonth(), b.getDate(), true); out.push({ kind: 'bday', date: dt, p, occ: 'Geburtstag', age: b.getFullYear() > 1900 ? dt.getFullYear() - b.getFullYear() : 0 }); });
+  const t = today0(); let x = new Date(t.getFullYear(), 11, 24); if (x < t) x = new Date(t.getFullYear() + 1, 11, 24);
+  out.push({ kind: 'xmas', date: x, occ: 'Weihnachten' });
+  d.occasions.forEach((o) => { const b = parseYmd(o.date); const dt = nextOcc(b.getMonth(), b.getDate(), o.yearly, b.getFullYear()); if (dt) out.push({ kind: 'custom', date: dt, o, occ: o.name }); });
+  return out.sort((a, b) => a.date - b.date || (a.kind === 'bday' ? -1 : 1));
+}
+const ideasFor = (ev) => store.data.ideas.filter((i) => i.year === ev.date.getFullYear() && i.occ === ev.occ && (ev.kind !== 'bday' || i.person === ev.p.id));
+const spentOf = (list) => list.filter((i) => SPENT.includes(i.status)).reduce((a, i) => a + (i.price || 0), 0);
+const planOf = (list) => list.reduce((a, i) => a + (i.price || 0), 0);
+function gotoIdeas(personId, occ, year) {
+  tab = 'ide'; editI = null; render();
+  $('iper').value = personId || $('iper').value; $('iocc').value = occ || 'Geburtstag'; $('iyear').value = year || thisYear(); $('itext').focus();
+}
+function evRow(ev) {
+  const n = dayDiff(ev.date), ids = ideasFor(ev), ready = ids.filter((i) => ['Da', 'Verpackt', 'Übergeben'].includes(i.status)).length;
+  const info = [];
+  if (ev.kind === 'bday') info.push(h('div', {}, h('span', { class: 'muted' }, 'Geburtstag'), ' ', h('b', {}, ev.p.name), ev.age ? h('span', { class: 'muted' }, ' ' + `wird ${ev.age}`) : null));
+  else if (ev.kind === 'xmas') info.push(h('div', {}, h('b', {}, '🎄 Weihnachten')));
+  else info.push(h('div', {}, h('b', {}, '🎉 ' + ev.o.name)));
+  const meta = [];
+  if (ids.length) meta.push(h('span', {}, ids.length === 1 ? '1 Idee' : `${ids.length} Ideen`), h('span', {}, `${ready} bereit`), h('span', {}, 'Geplant: ' + eur(planOf(ids))));
+  else if (ev.kind !== 'bday') meta.push(h('span', {}, 'Noch keine Ideen'));
+  if (ev.kind === 'bday' && !ids.length) meta.push(h('span', { class: 'badge warn' }, 'Noch keine Idee'));
+  if (ev.kind === 'bday' && ev.p.budget > 0) meta.push(h('span', {}, 'Budget: ' + eur(ev.p.budget)));
+  if (ev.kind === 'xmas') { const no = store.data.persons.filter((p) => !ids.some((i) => i.person === p.id)); if (no.length) meta.push(h('span', {}, 'Noch keine Idee für:', ' ', no.map((p) => p.name).join(', '))); }
+  return h('div', { class: 'card ev' }, h('div', { class: 'dt' }, shortDate(ev.date)), h('div', { class: 'info' }, info, h('div', { class: 'meta' }, meta)),
+    h('div', { class: 'acts' }, cdBadge(n), h('button', { class: 'small', onclick: () => gotoIdeas(ev.kind === 'bday' ? ev.p.id : '', ev.occ, ev.date.getFullYear()) }, '+ Idee')));
+}
+function renderOcc() {
+  const evs = events(), near = evs.filter((e) => dayDiff(e.date) <= 60), later = evs.filter((e) => dayDiff(e.date) > 60);
+  setKids($('occNext'), h('h2', { class: 'sec' }, 'In den nächsten 60 Tagen'),
+    near.length ? near.map(evRow) : h('div', { class: 'card muted' }, 'Keine Anlässe in den nächsten 60 Tagen.'),
+    later.length ? h('h2', { class: 'sec' }, 'Später') : null, later.map(evRow));
+  const oc = store.data.occasions;
+  setKids($('occCustom'), oc.length ? h('h2', { class: 'sec' }, 'Eigene Anlässe') : null, oc.map((o) => h('div', { class: 'card row' }, h('b', { class: 'tx', style: 'flex:1' }, o.name), h('span', { class: 'muted' }, fmtDate(o.date)), h('span', { class: 'badge' }, o.yearly ? 'jährlich' : 'einmalig'),
+    h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm(`„${o.name}“ löschen?`)) { store.data.occasions = oc.filter((x) => x !== o); store.changed(); render(); } } }, '✕'))));
+}
+function renderPer() {
+  const ps = store.data.persons.slice().sort((a, b) => a.name.localeCompare(b.name));
+  setKids($('perList'), (ps.length ? ps.map((p) => {
+    const ids = store.data.ideas.filter((i) => i.person === p.id), meta = [h('span', { class: 'badge' }, p.rel)];
+    if (p.bday) { const b = parseYmd(p.bday), nx = nextOcc(b.getMonth(), b.getDate(), true), n = dayDiff(nx); meta.push(h('span', {}, '🎂 ' + fmtDate(p.bday)), cdBadge(n)); }
+    if (p.budget > 0) meta.push(h('span', {}, 'Budget: ' + eur(p.budget)));
+    meta.push(ids.length === 1 ? h('span', {}, '1 Idee') : h('span', {}, `${ids.length} Ideen`));
+    return h('div', { class: 'card pc' }, h('div', { class: 'head' }, h('h3', {}, p.name),
+      h('button', { class: 'small', onclick: () => gotoIdeas(p.id, 'Geburtstag', thisYear()) }, '+ Idee'),
+      h('button', { class: 'small', onclick: () => { tab = 'his'; render(); $('hper').value = p.id; render(); } }, 'Historie'),
+      h('button', { class: 'small', onclick: () => startEditP(p) }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm(`„${p.name}“ löschen? Alle Geschenkideen dieser Person werden ebenfalls gelöscht.`)) { store.data.persons = store.data.persons.filter((x) => x !== p); store.data.ideas = store.data.ideas.filter((i) => i.person !== p.id); store.changed(); render(); } } }, '✕')),
+      h('div', { class: 'meta' }, meta), p.note ? h('p', { class: 'note' }, p.note) : null);
+  }) : [h('div', { class: 'card muted' }, 'Noch keine Personen. Lege oben die Menschen an, die du beschenken möchtest.')]));
+}
+function startEditP(p) { editP = p.id; $('pname').value = p.name; $('prel').value = p.rel; $('pbday').value = p.bday || ''; $('pbud').value = p.budget ? num2(p.budget) : ''; $('pnote').value = p.note || ''; tab = 'per'; render(); $('pname').focus(); }
+function fillSelect(sel, opts, keep) {
+  const v = keep != null ? keep : sel.value;
+  sel.replaceChildren(...opts.map(([val, label]) => h('option', { value: val }, label)));
+  if (opts.some((o) => o[0] === v)) sel.value = v;
+}
+function years() { const s = new Set([thisYear(), thisYear() + 1]); store.data.ideas.forEach((i) => s.add(i.year)); return [...s].sort((a, b) => b - a); }
+function renderIdeas() {
+  const d = store.data, pOpts = d.persons.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => [p.id, p.name]);
+  fillSelect($('iper'), pOpts);
+  fillSelect($('iocc'), OCC.concat(d.occasions.map((o) => o.name)).filter((x, i, a) => a.indexOf(x) === i).map((o) => [o, o]));
+  fillSelect($('istat'), STATUS.map((s) => [s, s]));
+  fillSelect($('fper'), [['', 'Alle Personen']].concat(pOpts));
+  fillSelect($('fyear'), [['', 'Alle Jahre']].concat(years().map((y) => [String(y), String(y)])), $('fyear').value || String(thisYear()));
+  fillSelect($('fstat'), [['', 'Alle Status']].concat(STATUS.map((s) => [s, s])));
+  $('isub').textContent = editI ? 'Übernehmen' : 'Hinzufügen'; $('icancel').hidden = !editI;
+  const fp = $('fper').value, fy = $('fyear').value, fs = $('fstat').value;
+  const list = d.ideas.filter((i) => (!fp || i.person === fp) && (!fy || String(i.year) === fy) && (!fs || i.status === fs)).sort((a, b) => b.year - a.year || STATUS.indexOf(a.status) - STATUS.indexOf(b.status));
+  setKids($('ideaList'), (!d.persons.length ? [h('div', { class: 'card muted' }, 'Lege zuerst eine Person an, dann kannst du Geschenkideen sammeln.')] : list.length ? [h('div', { class: 'card' }, list.map(ideaRow))] : [h('div', { class: 'card muted' }, 'Keine Ideen für diese Auswahl.')]));
+}
+function linkOrText(s) { return /^https?:\/\//i.test(s) ? h('a', { href: s, target: '_blank', rel: 'noopener noreferrer' }, 'Link öffnen ↗') : s; }
+function ideaRow(i) {
+  const p = person(i.person), st = h('select', { 'aria-label': 'Status' }, STATUS.map((s) => h('option', { value: s, selected: s === i.status }, s)));
+  st.onchange = () => { i.status = st.value; store.changed(); render(); };
+  return h('div', { class: 'idea' }, h('div', { class: 'tx' }, h('b', {}, i.text), h('div', { class: 'meta' }, h('span', {}, p ? p.name : '?'), h('span', {}, i.occ), h('span', {}, String(i.year)), i.note ? h('span', {}, linkOrText(i.note)) : null)),
+    h('b', {}, i.price ? eur(i.price) : '–'), st,
+    h('button', { class: 'small', onclick: () => { editI = i.id; $('iper').value = i.person; $('itext').value = i.text; $('iprice').value = i.price ? num2(i.price) : ''; $('iocc').value = i.occ; $('iyear').value = i.year; $('istat').value = i.status; $('inote').value = i.note || ''; render(); $('itext').focus(); } }, 'Bearbeiten'),
+    h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm(`„${i.text}“ löschen?`)) { store.data.ideas = store.data.ideas.filter((x) => x !== i); store.changed(); render(); } } }, '✕'));
+}
+function renderBudget() {
+  const d = store.data, ys = years(); fillSelect($('byear'), ys.map((y) => [String(y), String(y)]), $('byear').value || String(thisYear()));
+  const y = +$('byear').value, rows = [];
+  let tb = 0, tp = 0, ts = 0;
+  d.persons.slice().sort((a, b) => a.name.localeCompare(b.name)).forEach((p) => {
+    const ids = d.ideas.filter((i) => i.person === p.id && i.year === y);
+    if (!ids.length && !(p.budget > 0)) return;
+    const occs = new Set(ids.map((i) => i.occ)).size || 1, budget = (p.budget || 0) * occs, plan = planOf(ids), sp = spentOf(ids);
+    tb += budget; tp += plan; ts += sp; rows.push({ p, budget, plan, sp, occs });
+  });
+  const maxv = (r) => Math.max(r.budget, r.plan, r.sp, 1);
+  const bar = (budget, plan, sp, mx) => h('div', { class: 'bar' + (budget > 0 && Math.max(plan, sp) > budget ? ' over' : '') }, h('i', { class: 'pl', style: `width:${plan / mx * 100}%` }), h('i', { class: 'sp2', style: `width:${sp / mx * 100}%` }), budget > 0 ? h('u', { style: `left:${Math.min(99, budget / mx * 100)}%` }) : null);
+  const legend = h('div', { class: 'legend' }, h('span', {}, '■ Ausgegeben'), h('span', {}, '▭ Geplant'), h('span', {}, '| Budget'));
+  const card = (name, budget, plan, sp, mx, extra) => h('div', { class: 'card' }, h('div', { class: 'row' }, h('b', { style: 'flex:1;word-break:break-word' }, name), extra, budget > 0 && Math.max(plan, sp) > budget ? h('span', { class: 'badge err' }, 'Über Budget') : null),
+    bar(budget, plan, sp, mx), h('div', { class: 'meta' }, h('span', {}, 'Budget: ' + eur(budget)), h('span', {}, 'Geplant: ' + eur(plan)), h('span', {}, 'Ausgegeben: ' + eur(sp)), budget > 0 ? h('span', { class: budget - plan < 0 ? 'neg' : 'pos' }, 'Rest: ' + eur(budget - plan)) : null));
+  setKids($('budList'), (rows.length ? [card('Gesamt', tb, tp, ts, Math.max(tb, tp, ts, 1)), legend, rows.map((r) => card(r.p.name, r.budget, r.plan, r.sp, maxv(r), r.occs > 1 ? h('span', { class: 'muted' }, `${r.occs} Anlässe`) : null))] : [h('div', { class: 'card muted' }, 'Keine Daten für dieses Jahr. Trage Budgets bei den Personen und Preise bei den Ideen ein.')]));
+}
+function exportText(w) {
+  const skip = w.hideRes;
+  const items = w.items.filter((x) => !(skip && x.reserved)).sort((a, b) => PRIOS.indexOf(a.prio) - PRIOS.indexOf(b.prio));
+  const lines = [T('Wunschliste') + ': ' + w.name, ''];
+  items.forEach((x, n) => lines.push((n + 1) + '. ' + x.text + (x.price ? ' – ' + eur(x.price) : '') + ' [' + '★'.repeat(3 - PRIOS.indexOf(x.prio)) + ']' + (x.reserved ? ' (' + T('reserviert') + ')' : '')));
+  if (!items.length) lines.push(T('Noch keine Einträge.'));
+  return lines.join('\n');
+}
+function wishCard(w) {
+  const items = w.items.slice().sort((a, b) => PRIOS.indexOf(a.prio) - PRIOS.indexOf(b.prio));
+  const tx = h('input', { type: 'text', required: true, placeholder: 'Wunsch', 'aria-label': 'Wunsch', style: 'flex:1;min-width:140px' });
+  const pr = h('input', { type: 'text', inputMode: 'decimal', class: 'w', placeholder: 'Preis €', 'aria-label': 'Preis' });
+  const pi = h('select', { 'aria-label': 'Priorität' }, PRIOS.map((p) => h('option', { value: p, selected: p === 'mittel' }, PRIO_LABEL[p])));
+  const f = h('form', { class: 'row', style: 'margin-top:8px' }, tx, pr, pi, h('button', { class: 'primary' }, 'Hinzufügen'));
+  f.onsubmit = (e) => { e.preventDefault(); const p = parseAmount(pr.value || '0'); if (isNaN(p)) { alert('Bitte einen gültigen Preis eingeben.'); return; } w.items.push({ id: uid(), text: tx.value.trim(), price: Math.round(p * 100) / 100, prio: pi.value, reserved: false }); store.changed(); render(); };
+  const total = w.items.reduce((a, x) => a + (x.price || 0), 0);
+  const exp = openExport.has(w.id) ? [h('label', { style: 'display:block;margin:8px 0 4px' }, h('input', { type: 'checkbox', checked: !!w.hideRes, onchange: (e) => { w.hideRes = e.target.checked; store.changed(); render(); } }), ' Reservierte weglassen'),
+    h('textarea', { class: 'exp', readOnly: true, value: exportText(w), 'aria-label': 'Text zum Teilen' }),
+    h('div', { class: 'row' }, h('button', { class: 'small primary', onclick: (e) => copyText(exportText(w), e.target) }, 'Kopieren'), h('button', { class: 'small', onclick: () => download('wunschliste.txt', exportText(w)) }, 'Als Datei speichern'))] : null;
+  return h('div', { class: 'card' }, h('div', { class: 'row' }, h('h3', { style: 'margin:0;flex:1;font-size:1.1rem;word-break:break-word' }, '🎁 ' + w.name), h('span', { class: 'muted' }, 'Summe: ' + eur(total)),
+    h('button', { class: 'small', onclick: () => { openExport.has(w.id) ? openExport.delete(w.id) : openExport.add(w.id); render(); } }, 'Als Text teilen'),
+    h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { if (confirm(`„${w.name}“ löschen?`)) { store.data.wishlists = store.data.wishlists.filter((x) => x !== w); store.changed(); render(); } } }, '✕')),
+    items.length ? h('div', { style: 'margin-top:6px' }, items.map((x) => h('div', { class: 'it' + (x.reserved ? ' res' : '') }, h('div', { class: 'tx' }, x.text), h('span', { class: 'muted' }, x.price ? eur(x.price) : ''), h('span', { class: 'badge ' + (x.prio === 'hoch' ? 'err' : x.prio === 'mittel' ? 'warn' : '') }, PRIO_LABEL[x.prio]),
+      h('label', { class: 'muted' }, h('input', { type: 'checkbox', checked: !!x.reserved, onchange: (e) => { x.reserved = e.target.checked; store.changed(); render(); } }), ' reserviert'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Löschen', onclick: () => { w.items = w.items.filter((y) => y !== x); store.changed(); render(); } }, '✕')))) : h('p', { class: 'muted' }, 'Noch keine Einträge.'), f, exp);
+}
+function renderWish() { const ws = store.data.wishlists; setKids($('wishList'), (ws.length ? ws.map(wishCard) : [h('div', { class: 'card muted' }, 'Noch keine Wunschlisten. Lege eine an, z. B. für deinen Geburtstag, und teile sie als Text.')])); }
+const norm = (s) => String(s).toLowerCase().replace(/\s+/g, ' ').trim();
+function renderHis() {
+  const d = store.data;
+  fillSelect($('hper'), d.persons.slice().sort((a, b) => a.name.localeCompare(b.name)).map((p) => [p.id, p.name]));
+  const pid = $('hper').value, q = norm($('hq').value), out = [];
+  if (!d.persons.length) { setKids($('hisList'), h('div', { class: 'card muted' }, 'Noch keine Personen.')); return; }
+  const all = d.ideas.filter((i) => i.person === pid), given = all.filter((i) => i.status === 'Übergeben');
+  const cnt = {}; given.forEach((i) => { const k = norm(i.text); cnt[k] = (cnt[k] || 0) + 1; });
+  if (q) {
+    const hit = all.filter((i) => norm(i.text).includes(q) || q.includes(norm(i.text)));
+    out.push(hit.length ? h('div', { class: 'card' }, h('b', {}, 'Achtung, schon vorhanden:'), hit.map((i) => h('div', { class: 'meta' }, h('b', { style: 'color:var(--fg)' }, i.text), h('span', {}, String(i.year)), h('span', { class: 'badge' }, i.status)))) : h('div', { class: 'card pos' }, 'Nichts Ähnliches gefunden ✓'));
+  }
+  const ys = [...new Set(all.map((i) => i.year))].sort((a, b) => b - a);
+  ys.forEach((y) => { out.push(h('div', { class: 'yr' }, String(y)), h('div', { class: 'card' }, all.filter((i) => i.year === y && (!q || norm(i.text).includes(q))).map((i) => h('div', { class: 'it' }, h('div', { class: 'tx' }, h('b', {}, i.text), ' ', h('span', { class: 'muted' }, i.occ)), h('span', { class: 'muted' }, i.price ? eur(i.price) : ''), cnt[norm(i.text)] > 1 && i.status === 'Übergeben' ? h('span', { class: 'badge warn' }, 'Mehrfach geschenkt') : null, h('span', { class: 'badge ' + (i.status === 'Übergeben' ? 'ok' : '') }, i.status))))); });
+  if (!all.length) out.push(h('div', { class: 'card muted' }, 'Noch keine Geschenke für diese Person.'));
+  setKids($('hisList'), out);
+}
+function render() {
+  const d = store.data, y = thisYear(), yi = d.ideas.filter((i) => i.year === y), ne = events()[0];
+  $('snext').textContent = ''; $('snext').append(ne ? (ne.kind === 'bday' ? ne.p.name : ne.kind === 'xmas' ? 'Weihnachten' : ne.o.name) : '–', ne ? h('div', { class: 'muted', style: 'font-size:.85rem;font-weight:400' }, cd(dayDiff(ne.date))) : '');
+  $('splan').textContent = eur(planOf(yi)); $('sspent').textContent = eur(spentOf(yi));
+  document.querySelectorAll('#tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  ['occ', 'per', 'ide', 'bud', 'wish', 'his'].forEach((t) => { $('s-' + t).hidden = t !== tab; });
+  $('psub').textContent = editP ? 'Übernehmen' : 'Hinzufügen'; $('pcancel').hidden = !editP;
+  if (tab === 'occ') renderOcc(); else if (tab === 'per') renderPer(); else if (tab === 'ide') renderIdeas(); else if (tab === 'bud') renderBudget(); else if (tab === 'wish') renderWish(); else renderHis();
+}
+document.querySelectorAll('#tabs button').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; render(); }; });
+$('oform').onsubmit = (e) => { e.preventDefault(); store.data.occasions.push({ id: uid(), name: $('oname').value.trim(), date: $('odate').value, yearly: $('oyearly').checked }); $('oform').reset(); $('oyearly').checked = true; store.changed(); render(); };
+$('pform').onsubmit = (e) => {
+  e.preventDefault(); const b = parseAmount($('pbud').value || '0'); if (isNaN(b)) { alert('Bitte einen gültigen Betrag eingeben.'); return; }
+  const rec = { name: $('pname').value.trim(), rel: $('prel').value, bday: $('pbday').value, budget: b, note: $('pnote').value.trim() };
+  if (editP) Object.assign(person(editP) || {}, rec); else store.data.persons.push(Object.assign({ id: uid() }, rec));
+  editP = null; $('pform').reset(); store.changed(); render();
+};
+$('pcancel').onclick = () => { editP = null; $('pform').reset(); render(); };
+$('iform').onsubmit = (e) => {
+  e.preventDefault(); const pr = parseAmount($('iprice').value || '0'); if (isNaN(pr)) { alert('Bitte einen gültigen Preis eingeben.'); return; }
+  if (!$('iper').value) { alert('Bitte zuerst eine Person anlegen.'); return; }
+  const rec = { person: $('iper').value, text: $('itext').value.trim(), price: Math.round(pr * 100) / 100, occ: $('iocc').value, year: +$('iyear').value, status: $('istat').value, note: $('inote').value.trim() };
+  const dup = store.data.ideas.find((i) => i.id !== editI && i.person === rec.person && norm(i.text) === norm(rec.text) && i.status === 'Übergeben');
+  if (dup && !confirm(`„${rec.text}“ wurde dieser Person schon geschenkt (${dup.year}). Trotzdem hinzufügen?`)) return;
+  if (editI) Object.assign(store.data.ideas.find((i) => i.id === editI) || {}, rec); else store.data.ideas.push(Object.assign({ id: uid() }, rec));
+  const keepP = rec.person, keepO = rec.occ, keepY = rec.year; editI = null; $('iform').reset(); $('iper').value = keepP; $('iocc').value = keepO; $('iyear').value = keepY; store.changed(); render(); $('itext').focus();
+};
+$('icancel').onclick = () => { editI = null; $('iform').reset(); $('iyear').value = thisYear(); render(); };
+['fper', 'fyear', 'fstat', 'byear', 'hper'].forEach((id) => { $(id).onchange = render; });
+$('hq').oninput = render;
+$('wform').onsubmit = (e) => { e.preventDefault(); store.data.wishlists.push({ id: uid(), name: $('wname').value.trim(), items: [] }); $('wform').reset(); store.changed(); render(); };
+$('iyear').value = thisYear();
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

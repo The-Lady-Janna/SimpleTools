@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vision &amp; Jahresplan</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1000px; }
+  .two { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:start; }
+  @media (max-width: 760px) { .two { grid-template-columns:minmax(0,1fr); } }
+  .f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  .banner { text-align:center; padding:18px 12px; }
+  .banner .word { font-size:2.2rem; font-weight:700; color:var(--accent); line-height:1.1; overflow-wrap:anywhere; }
+  .banner .motto { font-size:1.15rem; font-style:italic; margin-top:6px; overflow-wrap:anywhere; }
+  .area { display:grid; grid-template-columns:minmax(0,1fr) minmax(90px,1.2fr) 2.2em auto; gap:8px; align-items:center; padding:4px 0; }
+  .area input[type=text] { min-width:0; width:100%; }
+  .area input[type=range] { width:100%; }
+  .area b { text-align:right; }
+  .radar { width:100%; height:auto; max-height:380px; display:block; }
+  .radar .ring { fill:none; stroke:var(--line); stroke-width:1; }
+  .radar .axis { stroke:var(--line); stroke-width:1; }
+  .radar .shape { fill:var(--accent); fill-opacity:.28; stroke:var(--accent); stroke-width:2; stroke-linejoin:round; }
+  .radar .dot { fill:var(--accent); }
+  .radar text { fill:var(--fg); font-size:11px; }
+  .radar text.rn { fill:var(--muted); font-size:9px; }
+  .board.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:12px; }
+  .board.collage { columns:190px; column-gap:12px; }
+  .vc { position:relative; border:1px solid var(--line); border-radius:12px; overflow:hidden; background:color-mix(in srgb, var(--cc, var(--card)) 24%, var(--card)); border-top:5px solid var(--cc, var(--line)); display:flex; flex-direction:column; }
+  .board.grid .vc { aspect-ratio:1/1.05; }
+  .board.collage .vc { break-inside:avoid; margin:0 0 12px; }
+  .board.collage .vc:nth-child(3n+2) .em { padding:34px 8px; }
+  .vc img { width:100%; display:block; object-fit:cover; min-height:0; }
+  .board.grid .vc img { flex:1; min-height:0; }
+  .vc .em { font-size:3rem; text-align:center; padding:16px 8px 4px; line-height:1.1; }
+  .vc .tx { padding:8px 10px; font-weight:600; text-align:center; overflow-wrap:anywhere; }
+  .vc .act { display:flex; gap:4px; justify-content:center; padding:0 6px 8px; flex-wrap:wrap; }
+  .swatches { display:flex; gap:6px; align-items:center; }
+  .sw { width:26px; height:26px; min-height:0; padding:0; border-radius:50%; border:2px solid var(--line); background:var(--cc, var(--card)); }
+  .sw.on { border-color:var(--fg); box-shadow:0 0 0 2px var(--bg), 0 0 0 4px var(--fg); }
+  .qgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:12px; }
+  .qgrid .card { margin:0; }
+  .qgrid .card.cur { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .prio { display:flex; gap:8px; align-items:center; margin-top:6px; }
+  .prio input[type=text] { flex:1; min-width:0; }
+  .prio input.done { text-decoration:line-through; color:var(--muted); }
+  .mgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px 12px; }
+  .mgrid label.cur span { color:var(--accent); font-weight:700; }
+  .aff { display:flex; gap:8px; align-items:center; padding:6px 0; border-bottom:1px solid var(--line); }
+  .aff input { flex:1; min-width:0; }
+  .yr { display:flex; align-items:center; gap:8px; }
+  .yr b { font-size:1.2rem; min-width:3.2em; text-align:center; }
+  .printhead { display:none; }
+  @media print {
+    body { background:#fff; }
+    .toolbar, #status, .tabs, .noprint, main > p:first-child, main > h1, button, .hint { display:none !important; }
+    .printhead { display:block; }
+    main .panel[hidden] { display:block !important; }
+    .card, .vc, .qgrid .card { break-inside:avoid; box-shadow:none; }
+    .area input[type=range] { display:none; }
+    input { border:none !important; background:transparent !important; padding:0 !important; }
+    .area { grid-template-columns:minmax(0,1fr) 2.2em; }
+  }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Vision &amp; Jahresplan</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted hint" style="margin:-4px 0 8px">Teilt seine Datei mit <a href="ziele.html">Ziele &amp; OKRs</a> und dem <a href="rueckblick.html">Rückblick</a>.</p>
+  <div class="card row noprint">
+    <div class="yr"><button class="small" id="yprev" aria-label="Vorheriges Jahr">◀</button><b id="year"></b><button class="small" id="ynext" aria-label="Nächstes Jahr">▶</button></div>
+    <span class="sp"></span>
+    <button id="print">🖨️ Drucken</button>
+  </div>
+  <div class="printhead"><h2 id="phead"></h2></div>
+  <div class="tabs" id="tabs">
+    <button data-tab="over">Überblick</button><button data-tab="board">Vision-Board</button><button data-tab="plan">Jahresplan</button><button data-tab="aff">Affirmationen</button>
+  </div>
+
+  <section class="panel" id="p-over">
+    <div class="card banner">
+      <div class="word" id="bword"></div>
+      <div class="motto" id="bmotto"></div>
+    </div>
+    <div class="card form noprint">
+      <label class="f" style="flex:1;min-width:140px">Wort des Jahres<input type="text" id="word" maxlength="40" placeholder="z. B. Mut"></label>
+      <label class="f" style="flex:2;min-width:200px">Jahres-Motto<input type="text" id="motto" maxlength="140" placeholder="z. B. Weniger, aber besser"></label>
+    </div>
+    <div class="two">
+      <div class="card"><h3 style="margin:0 0 4px">Lebensbereiche</h3>
+        <p class="muted" style="margin:0 0 6px;font-size:.88rem">Wie zufrieden bist du gerade? 1 = gar nicht, 10 = völlig.</p>
+        <div id="areas"></div>
+        <div class="row noprint" style="margin-top:8px"><button id="addarea">+ Bereich</button><span class="sp"></span><span id="avg" class="badge"></span></div>
+      </div>
+      <div class="card"><h3 style="margin:0 0 4px">Rad des Lebens</h3><div id="radar"></div></div>
+    </div>
+    <div class="card" id="mcard"><h3 style="margin:0 0 6px">Fokus im <span id="mname"></span></h3>
+      <input type="text" id="mfocus" style="width:100%" maxlength="200" placeholder="Worauf konzentrierst du dich diesen Monat?" aria-label="Monats-Fokus"></div>
+  </section>
+
+  <section class="panel" id="p-board" hidden>
+    <form id="cform" class="card form noprint">
+      <label class="f" style="width:5em">Emoji<input type="text" id="cemoji" maxlength="4" placeholder="🌴"></label>
+      <label class="f" style="flex:1;min-width:180px">Text / Affirmation<input type="text" id="ctext" maxlength="120" placeholder="z. B. Ich laufe einen Halbmarathon"></label>
+      <label class="f">Bild (optional)<input type="file" id="cfile" accept="image/*"></label>
+      <div class="f"><span>Farbe</span><div class="swatches" id="swatches"></div></div>
+      <button class="primary" id="csave">Karte hinzufügen</button><button type="button" id="ccancel" hidden>Abbrechen</button>
+    </form>
+    <div class="row noprint" style="margin-bottom:10px"><div class="tabs" style="margin:0" id="vtabs"><button data-v="grid">Raster</button><button data-v="collage">Collage</button></div></div>
+    <div id="board"></div>
+  </section>
+
+  <section class="panel" id="p-plan" hidden>
+    <div class="qgrid" id="quarters"></div>
+    <div class="card"><h3 style="margin:0 0 8px">Monats-Fokus</h3><div class="mgrid" id="months"></div></div>
+  </section>
+
+  <section class="panel" id="p-aff" hidden>
+    <form id="aform" class="card row noprint">
+      <input type="text" id="atext" style="flex:1;min-width:200px" maxlength="200" placeholder="z. B. Ich bin genug und ich wachse jeden Tag" aria-label="Affirmation">
+      <button class="primary">Hinzufügen</button>
+    </form>
+    <div class="card" id="afflist"></div>
+  </section>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'ziele',
+  defaults: () => ({ goals: [], journal: [], vision: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const COLORS = ['', 'c1', 'c2', 'c3', 'c4', 'c5'];
+const DEF_AREAS = ['Gesundheit', 'Karriere', 'Finanzen', 'Beziehungen', 'Persönlichkeit', 'Freizeit'];
+let tab = 'over', editId = null, cColor = '', cImg = '';
+const tr = (s) => (window.SimpleI18n ? SimpleI18n.translate(s) : s);
+function normalize() {
+  const d = store.data;
+  if (!d.vision || typeof d.vision !== 'object' || Array.isArray(d.vision)) d.vision = {};
+  const v = d.vision;
+  if (!Number.isInteger(v.year)) v.year = new Date().getFullYear();
+  if (!v.years || typeof v.years !== 'object') v.years = {};
+  if (!Array.isArray(v.areas)) v.areas = DEF_AREAS.map((n) => ({ id: uid(), name: n, score: 5 }));
+  if (!Array.isArray(v.cards)) v.cards = [];
+  if (!Array.isArray(v.affirmations)) v.affirmations = [];
+  if (v.view !== 'collage') v.view = 'grid';
+  v.areas.forEach((a) => { if (!a.id) a.id = uid(); if (!(a.score >= 1 && a.score <= 10)) a.score = 5; if (typeof a.name !== 'string') a.name = ''; });
+  v.cards.forEach((c) => { if (!c.id) c.id = uid(); });
+  v.affirmations.forEach((a) => { if (!a.id) a.id = uid(); });
+}
+const V = () => store.data.vision;
+function Y() {
+  const v = V(), k = String(v.year);
+  const y = v.years[k] || (v.years[k] = {});
+  if (typeof y.motto !== 'string') y.motto = '';
+  if (typeof y.word !== 'string') y.word = '';
+  if (!y.months || typeof y.months !== 'object') y.months = {};
+  if (!Array.isArray(y.quarters)) y.quarters = [];
+  for (let i = 0; i < 4; i++) {
+    const q = y.quarters[i] || (y.quarters[i] = {});
+    if (typeof q.theme !== 'string') q.theme = '';
+    if (!Array.isArray(q.prios)) q.prios = [];
+    for (let j = 0; j < 3; j++) if (!q.prios[j] || typeof q.prios[j] !== 'object') q.prios[j] = { text: '', done: false };
+  }
+  return y;
+}
+const monthName = (m) => new Date(V().year, m, 1).toLocaleDateString('de-DE', { month: 'long' });
+const curMonth = () => (V().year === new Date().getFullYear() ? new Date().getMonth() : 0);
+const save = () => store.changed();
+
+function svg(tag, attrs, text) { const e = document.createElementNS('http://www.w3.org/2000/svg', tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (text != null) e.textContent = text; return e; }
+function radar() {
+  const as = V().areas, n = as.length, W = 440, H = 330, cx = W / 2, cy = H / 2, R = 108;
+  if (n < 3) return h('p', { class: 'muted' }, 'Lege mindestens 3 Lebensbereiche an, um das Rad zu sehen.');
+  const s = svg('svg', { viewBox: `0 0 ${W} ${H}`, class: 'radar', role: 'img', 'aria-label': 'Radar-Diagramm der Zufriedenheit' });
+  const pt = (i, r) => { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  [2, 4, 6, 8, 10].forEach((k) => { s.append(svg('polygon', { class: 'ring', points: as.map((_, i) => pt(i, (R * k) / 10).join(',')).join(' ') })); });
+  [2, 4, 6, 8, 10].forEach((k) => s.append(svg('text', { class: 'rn', x: cx + 3, y: cy - (R * k) / 10 + 9 }, String(k))));
+  as.forEach((a, i) => {
+    const [x, y] = pt(i, R); s.append(svg('line', { class: 'axis', x1: cx, y1: cy, x2: x, y2: y }));
+    const [lx, ly] = pt(i, R + 14), c = Math.cos(-Math.PI / 2 + (2 * Math.PI * i) / n);
+    const nm = (a.name || '').length > 16 ? a.name.slice(0, 15) + '…' : a.name || '–';
+    s.append(svg('text', { x: lx, y: ly + 4, 'text-anchor': Math.abs(c) < 0.25 ? 'middle' : c > 0 ? 'start' : 'end' }, nm));
+  });
+  s.append(svg('polygon', { class: 'shape', points: as.map((a, i) => pt(i, (R * a.score) / 10).join(',')).join(' ') }));
+  as.forEach((a, i) => { const [x, y] = pt(i, (R * a.score) / 10); s.append(svg('circle', { class: 'dot', cx: x, cy: y, r: 3.5 })); });
+  return s;
+}
+function drawRadar() {
+  const as = V().areas;
+  $('radar').replaceChildren(radar());
+  $('avg').textContent = as.length ? 'Ø ' + (as.reduce((t, a) => t + a.score, 0) / as.length).toFixed(1).replace('.', SimpleI18n.dec) : '';
+}
+function areaRow(a) {
+  const num = h('b', {}, String(a.score));
+  const name = h('input', { type: 'text', value: tr(a.name), maxLength: 40, 'aria-label': 'Name des Lebensbereichs', placeholder: 'Bereich' });
+  name.oninput = () => { a.name = name.value; save(); drawRadar(); };
+  const r = h('input', { type: 'range', min: 1, max: 10, step: 1, value: a.score, 'aria-label': 'Zufriedenheit 1 bis 10' });
+  r.oninput = () => { a.score = Number(r.value); num.textContent = String(a.score); save(); drawRadar(); };
+  const del = h('button', { class: 'small noprint', title: 'Löschen', 'aria-label': 'Bereich löschen', onclick: () => { if (confirm('Lebensbereich „' + (a.name || '–') + '“ löschen?')) { V().areas = V().areas.filter((x) => x !== a); save(); render(); } } }, '✕');
+  return h('div', { class: 'area' }, name, r, num, del);
+}
+function renderOver() {
+  const y = Y();
+  $('bword').textContent = y.word || '✨';
+  $('bmotto').textContent = y.motto ? '„' + y.motto + '“' : '';
+  $('bmotto').hidden = !y.motto;
+  if (document.activeElement !== $('word')) $('word').value = y.word;
+  if (document.activeElement !== $('motto')) $('motto').value = y.motto;
+  $('areas').replaceChildren(...V().areas.map(areaRow));
+  if (!V().areas.length) $('areas').replaceChildren(h('p', { class: 'muted' }, 'Noch keine Lebensbereiche.'));
+  drawRadar();
+  const m = curMonth();
+  $('mcard').hidden = V().year !== new Date().getFullYear();
+  $('mname').textContent = monthName(m) + ' ' + V().year;
+  if (document.activeElement !== $('mfocus')) $('mfocus').value = y.months[m] || '';
+}
+function cardEl(c, i) {
+  const list = V().cards;
+  const move = (d) => { const j = i + d; if (j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; save(); render(); };
+  return h('div', { class: 'vc', style: c.color ? '--cc:var(--' + c.color + ')' : '' },
+    c.img ? h('img', { src: c.img, alt: c.text || 'Vision' }) : null,
+    c.emoji ? h('div', { class: 'em', 'aria-hidden': 'true' }, c.emoji) : null,
+    c.text ? h('div', { class: 'tx' }, c.text) : null,
+    h('div', { class: 'act noprint' },
+      h('button', { class: 'small', title: 'Nach vorn', 'aria-label': 'Nach vorn', onclick: () => move(-1) }, '◀'),
+      h('button', { class: 'small', title: 'Nach hinten', 'aria-label': 'Nach hinten', onclick: () => move(1) }, '▶'),
+      h('button', { class: 'small', onclick: () => startEdit(c) }, 'Bearbeiten'),
+      h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Karte löschen', onclick: () => { if (confirm('Karte löschen?')) { V().cards = list.filter((x) => x !== c); if (editId === c.id) resetForm(); save(); render(); } } }, '✕')));
+}
+function renderBoard() {
+  const v = V();
+  document.querySelectorAll('#vtabs button').forEach((b) => b.classList.toggle('on', b.dataset.v === v.view));
+  $('board').replaceChildren(v.cards.length ? h('div', { class: 'board ' + v.view }, v.cards.map(cardEl)) : h('div', { class: 'card muted' }, 'Dein Vision-Board ist noch leer. Füge Karten mit Bild oder Emoji und einem Satz hinzu, der dich motiviert.'));
+  $('swatches').replaceChildren(...COLORS.map((k) => h('button', { type: 'button', class: 'sw' + (k === cColor ? ' on' : ''), style: k ? '--cc:var(--' + k + ')' : '', 'aria-label': k ? 'Farbe ' + k.slice(1) : 'Keine Farbe', onclick: () => { cColor = k; renderBoard(); } })));
+  $('csave').textContent = editId ? 'Änderungen speichern' : 'Karte hinzufügen';
+  $('ccancel').hidden = !editId;
+}
+function resetForm() { editId = null; cColor = ''; cImg = ''; $('cform').reset(); }
+function startEdit(c) { editId = c.id; cColor = c.color || ''; cImg = c.img || ''; $('cemoji').value = c.emoji || ''; $('ctext').value = c.text || ''; $('cfile').value = ''; renderBoard(); $('cform').scrollIntoView({ block: 'nearest' }); $('ctext').focus(); }
+function shrink(file) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(file), im = new Image();
+    im.onload = () => {
+      let max = 640, out = '';
+      for (let t = 0; t < 6; t++) {
+        const k = Math.min(1, max / Math.max(im.width, im.height)), c = document.createElement('canvas');
+        c.width = Math.max(1, Math.round(im.width * k)); c.height = Math.max(1, Math.round(im.height * k));
+        const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(im, 0, 0, c.width, c.height);
+        out = c.toDataURL('image/jpeg', t < 3 ? 0.75 : 0.55);
+        if (out.length <= 150000) break;
+        max = Math.round(max * 0.75);
+      }
+      URL.revokeObjectURL(url);
+      out.length <= 200000 ? res(out) : rej(new Error('big'));
+    };
+    im.onerror = () => { URL.revokeObjectURL(url); rej(new Error('bad')); };
+    im.src = url;
+  });
+}
+$('cfile').onchange = async () => {
+  const f = $('cfile').files[0]; if (!f) return;
+  try { cImg = await shrink(f); } catch (e) { cImg = ''; $('cfile').value = ''; alert('Das Bild konnte nicht verarbeitet werden.'); }
+};
+$('cform').onsubmit = (e) => {
+  e.preventDefault();
+  const emoji = $('cemoji').value.trim(), text = $('ctext').value.trim();
+  if (!emoji && !text && !cImg) { alert('Bitte ein Bild, ein Emoji oder einen Text angeben.'); return; }
+  const data = { emoji, text, img: cImg, color: cColor };
+  if (editId) { const c = V().cards.find((x) => x.id === editId); if (c) Object.assign(c, data); } else V().cards.push({ id: uid(), ...data });
+  resetForm(); save(); render();
+};
+$('ccancel').onclick = () => { resetForm(); renderBoard(); };
+document.querySelectorAll('#vtabs button').forEach((b) => { b.onclick = () => { V().view = b.dataset.v; save(); render(); }; });
+
+function renderPlan() {
+  const y = Y(), cq = Math.floor(new Date().getMonth() / 3), isNow = V().year === new Date().getFullYear();
+  $('quarters').replaceChildren(...y.quarters.map((q, i) => {
+    const done = q.prios.filter((p) => p.done && p.text.trim()).length, filled = q.prios.filter((p) => p.text.trim()).length;
+    const badge = h('span', { class: 'badge' + (filled && done === filled ? ' ok' : '') }, done + '/3');
+    const th = h('input', { type: 'text', value: q.theme, maxLength: 60, placeholder: 'Thema des Quartals', 'aria-label': 'Quartalsthema Q' + (i + 1), style: 'width:100%;margin-top:6px' });
+    th.oninput = () => { q.theme = th.value; save(); };
+    return h('div', { class: 'card' + (isNow && i === cq ? ' cur' : '') },
+      h('div', { class: 'row' }, h('h3', { style: 'margin:0' }, 'Q' + (i + 1)), isNow && i === cq ? h('span', { class: 'badge warn' }, 'Aktuell') : null, h('span', { class: 'sp' }), badge), th,
+      q.prios.map((p, j) => {
+        const cb = h('input', { type: 'checkbox', checked: !!p.done, 'aria-label': 'Priorität ' + (j + 1) + ' erledigt' });
+        const tx = h('input', { type: 'text', value: p.text, maxLength: 100, placeholder: (j + 1) + '. Priorität', 'aria-label': 'Priorität ' + (j + 1), class: p.done ? 'done' : '' });
+        tx.oninput = () => { p.text = tx.value; save(); };
+        cb.onchange = () => { p.done = cb.checked; save(); render(); };
+        return h('div', { class: 'prio' }, cb, tx);
+      }));
+  }));
+  const cm = curMonth();
+  $('months').replaceChildren(...Array.from({ length: 12 }, (_, m) => {
+    const inp = h('input', { type: 'text', value: y.months[m] || '', maxLength: 200, placeholder: 'Fokus …', 'aria-label': 'Fokus ' + monthName(m) });
+    inp.oninput = () => { y.months[m] = inp.value; save(); };
+    return h('label', { class: 'f' + (isNow && m === cm ? ' cur' : '') }, h('span', {}, monthName(m)), inp);
+  }));
+}
+function renderAff() {
+  const l = V().affirmations;
+  $('afflist').replaceChildren(...(l.length ? l.map((a) => {
+    const t = h('input', { type: 'text', value: a.text, maxLength: 200, 'aria-label': 'Affirmation' });
+    t.oninput = () => { a.text = t.value; save(); };
+    return h('div', { class: 'aff' }, h('span', { 'aria-hidden': 'true' }, '💬'), t, h('button', { class: 'small noprint', title: 'Löschen', 'aria-label': 'Affirmation löschen', onclick: () => { V().affirmations = l.filter((x) => x !== a); save(); render(); } }, '✕'));
+  }) : [h('span', { class: 'muted' }, 'Noch keine Affirmationen. Schreibe positive Sätze in der Gegenwartsform, z. B. „Ich bin geduldig mit mir“.')]));
+}
+function render() {
+  $('year').textContent = String(V().year);
+  $('phead').textContent = 'Vision & Jahresplan ' + V().year;
+  document.querySelectorAll('#tabs button').forEach((b) => { b.classList.toggle('on', b.dataset.tab === tab); });
+  ['over', 'board', 'plan', 'aff'].forEach((k) => { $('p-' + k).hidden = k !== tab; });
+  renderOver(); renderBoard(); renderPlan(); renderAff();
+}
+document.querySelectorAll('#tabs button').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; render(); }; });
+$('yprev').onclick = () => { V().year--; save(); render(); };
+$('ynext').onclick = () => { V().year++; save(); render(); };
+$('word').oninput = () => { const y = Y(); y.word = $('word').value; save(); $('bword').textContent = y.word || '✨'; };
+$('motto').oninput = () => { const y = Y(); y.motto = $('motto').value; save(); $('bmotto').textContent = y.motto ? '„' + y.motto + '“' : ''; $('bmotto').hidden = !y.motto; };
+$('mfocus').oninput = () => { Y().months[curMonth()] = $('mfocus').value; save(); };
+$('mfocus').onchange = render;
+$('addarea').onclick = () => { V().areas.push({ id: uid(), name: '', score: 5 }); save(); render(); const i = document.querySelectorAll('#areas .area input[type=text]'); if (i.length) i[i.length - 1].focus(); };
+$('aform').onsubmit = (e) => { e.preventDefault(); const t = $('atext').value.trim(); if (!t) return; V().affirmations.push({ id: uid(), text: t }); $('atext').value = ''; save(); render(); };
+$('print').onclick = () => { render(); if (window.SimpleI18n) SimpleI18n.apply(); window.print(); };
+if (window.SimpleI18n) SimpleI18n.onChange(() => render());
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

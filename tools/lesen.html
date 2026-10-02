@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lesetagebuch</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  label.f input, label.f select { min-width:0; }
+  .bk { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:10px 0; background:var(--card); }
+  .bk .top { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; }
+  .bk .ttl { font-weight:600; font-size:1.02rem; overflow-wrap:anywhere; }
+  .bk .badges { display:flex; flex-wrap:wrap; gap:4px; margin-top:4px; }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:6px; overflow:hidden; margin:6px 0 2px; }
+  .bar > i { display:block; height:100%; background:var(--accent); } .bar.ok > i { background:var(--ok); }
+  .stars { display:inline-flex; gap:0; } .stars button { background:none; border:none; padding:0 1px; font-size:1.25rem; line-height:1; cursor:pointer; color:var(--line); min-height:0; box-shadow:none; }
+  .stars button.on { color:var(--warn); } .stars.ro { color:var(--warn); letter-spacing:1px; white-space:nowrap; }
+  .det { margin-top:10px; padding-top:10px; border-top:1px dashed var(--line); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:8px; }
+  .grid label.f input, .grid label.f select { width:100%; box-sizing:border-box; }
+  .q { border-left:3px solid var(--accent); padding:4px 10px; margin:8px 0; display:flex; gap:8px; align-items:flex-start; }
+  .q .t { flex:1; overflow-wrap:anywhere; white-space:pre-wrap; } .q .t.zitat { font-style:italic; }
+  .hint { color:var(--muted); font-size:.82rem; }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(130px,1fr)); gap:8px; margin:8px 0; }
+  .kpi { border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:var(--bg); } .kpi b { display:block; font-size:1.35rem; } .kpi span { color:var(--muted); font-size:.8rem; }
+  .hb { display:grid; grid-template-columns:minmax(70px,9em) 1fr 3em; gap:8px; align-items:center; margin:4px 0; font-size:.9rem; }
+  .hb .lbl { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } .hb .bar { margin:0; } .hb .n { text-align:right; color:var(--muted); }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; }
+  .day { font-weight:600; margin-top:10px; display:flex; justify-content:space-between; gap:8px; }
+  .filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; } .filters input[type=search] { flex:1; min-width:160px; }
+  .filters select { min-width:0; max-width:100%; }
+  textarea { box-sizing:border-box; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Lesetagebuch</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs"><button data-tab="books">Bücher</button><button data-tab="read">Lesen</button><button data-tab="goal">Jahresziel</button><button data-tab="stats">Statistik</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'lesen',
+  defaults: () => ({ books: [], readlog: [], goals: {} }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const STATUS = ['Wunsch', 'Lese ich', 'Gelesen', 'Abgebrochen'], FORMATS = ['Print', 'E-Book', 'Hörbuch'];
+const BADGE = { 'Wunsch': '', 'Lese ich': 'warn', 'Gelesen': 'ok', 'Abgebrochen': 'err' };
+let tab = 'books', openId = null, year = new Date().getFullYear();
+const F = { q: '', status: '', format: '', genre: '', sort: 'neu' };
+const today = () => ymd(new Date());
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.books)) d.books = [];
+  if (!Array.isArray(d.readlog)) d.readlog = [];
+  if (!d.goals || typeof d.goals !== 'object' || Array.isArray(d.goals)) d.goals = {};
+  d.books = d.books.filter((b) => b && typeof b === 'object');
+  d.books.forEach((b) => {
+    if (!b.id) b.id = uid();
+    for (const k of ['title', 'author', 'genre', 'start', 'end']) if (typeof b[k] !== 'string') b[k] = '';
+    for (const k of ['pages', 'page', 'rating']) b[k] = Math.max(0, Math.round(Number(b[k])) || 0);
+    if (b.rating > 5) b.rating = 5;
+    if (!STATUS.includes(b.status)) b.status = 'Wunsch';
+    if (!FORMATS.includes(b.format)) b.format = 'Print';
+    if (!Array.isArray(b.quotes)) b.quotes = [];
+    b.quotes = b.quotes.filter((q) => q && typeof q.text === 'string');
+    b.quotes.forEach((q) => { if (!q.id) q.id = uid(); if (q.type !== 'Notiz') q.type = 'Zitat'; q.page = Math.max(0, Math.round(Number(q.page)) || 0); if (typeof q.date !== 'string') q.date = ''; });
+  });
+  d.readlog = d.readlog.filter((r) => r && typeof r.date === 'string');
+  d.readlog.forEach((r) => { if (!r.id) r.id = uid(); r.pages = Math.max(0, Math.round(Number(r.pages)) || 0); });
+}
+const bookById = (id) => store.data.books.find((b) => b.id === id);
+const fmt1 = (n) => (Math.round(n * 10) / 10).toString().replace('.', SimpleI18n.dec);
+const num = (s) => parseFloat(String(s).replace(',', '.')) || 0;
+const yearOf = (b) => parseInt((b.end || '').slice(0, 4), 10) || 0;
+const finished = (y) => store.data.books.filter((b) => b.status === 'Gelesen' && (y == null || yearOf(b) === y));
+const pct = (b) => b.pages > 0 ? Math.min(100, Math.round(b.page / b.pages * 100)) : 0;
+function setStatus(b, s) {
+  b.status = s;
+  if (s === 'Lese ich' && !b.start) b.start = today();
+  if (s === 'Gelesen') { if (!b.end) b.end = today(); if (b.pages) b.page = b.pages; }
+}
+function logPages(b, n, date) {
+  if (n <= 0) return;
+  store.data.readlog.push({ id: uid(), bookId: b.id, date: date || today(), pages: n });
+  b.page = b.pages ? Math.min(b.pages, b.page + n) : b.page + n;
+  if (b.status === 'Wunsch') setStatus(b, 'Lese ich');
+  store.changed();
+  if (b.pages && b.page >= b.pages && b.status !== 'Gelesen' && confirm('Letzte Seite erreicht. Buch als gelesen markieren?')) { setStatus(b, 'Gelesen'); store.changed(); }
+}
+function stars(value, onset) {
+  const box = h('span', { class: 'stars', role: 'group', 'aria-label': 'Bewertung' });
+  for (let i = 1; i <= 5; i++) box.append(h('button', { type: 'button', class: i <= value ? 'on' : '', 'aria-label': i === 1 ? '1 Stern' : i + ' Sterne', onclick: () => onset(value === i ? 0 : i) }, '★'));
+  return box;
+}
+const starText = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  $('view').replaceChildren(tab === 'books' ? booksView() : tab === 'read' ? readView() : tab === 'goal' ? goalView() : statsView());
+}
+function lf(label, el) { return h('label', { class: 'f' }, label, el); }
+function bookCard(b, rerender) {
+  const open = openId === b.id;
+  const badges = h('div', { class: 'badges' }, h('span', { class: 'badge ' + BADGE[b.status] }, b.status), h('span', { class: 'badge' }, b.format), b.genre ? h('span', { class: 'badge' }, b.genre) : null,
+    b.pages ? h('span', { class: 'badge' }, b.pages + ' Seiten') : null, b.quotes.length ? h('span', { class: 'badge' }, '💬 ' + b.quotes.length) : null);
+  const info = [];
+  if (b.status === 'Lese ich' || (b.status === 'Abgebrochen' && b.page)) {
+    if (b.pages) info.push(h('div', { class: 'bar' + (pct(b) >= 100 ? ' ok' : '') }, h('i', { style: 'width:' + pct(b) + '%' })), h('div', { class: 'hint' }, 'Seite ' + b.page + ' von ' + b.pages + ' · ' + pct(b) + ' %'));
+    else if (b.page) info.push(h('div', { class: 'hint' }, 'Seite ' + b.page));
+  }
+  const dates = [b.start ? ['Start ', fmtDate(b.start)] : null, b.start && b.end ? ' · ' : null, b.end ? ['Ende ', fmtDate(b.end)] : null].filter(Boolean);
+  const top = h('div', { class: 'top' }, h('div', { style: 'flex:1;min-width:150px' }, h('div', { class: 'ttl' }, b.title || '–'), b.author ? h('div', { class: 'muted' }, b.author) : null, badges),
+    b.rating ? h('span', { class: 'stars ro', 'aria-label': b.rating === 1 ? '1 Stern' : b.rating + ' Sterne' }, starText(b.rating)) : null,
+    h('button', { class: 'small', 'aria-expanded': String(open), onclick: () => { openId = open ? null : b.id; rerender(); } }, open ? 'Schließen' : 'Details'));
+  const card = h('div', { class: 'bk' }, top, info, dates.length ? h('div', { class: 'hint' }, dates) : null);
+  if (open) card.append(detail(b, rerender));
+  return card;
+}
+function detail(b, rerender) {
+  const txt = (k, label, type) => { const i = h('input', { type: type || 'text', value: b[k] }); i.onchange = () => { b[k] = i.value.trim(); store.changed(); rerender(); }; return lf(label, i); };
+  const numf = (k, label) => { const i = h('input', { type: 'number', min: 0, value: b[k] || '' }); i.onchange = () => { b[k] = Math.max(0, parseInt(i.value, 10) || 0); if (b.pages && b.page > b.pages) b.page = b.pages; store.changed(); rerender(); }; return lf(label, i); };
+  const sel = (k, label, opts, fn) => { const s = h('select', {}, opts.map((o) => h('option', { value: o, selected: o === b[k] }, o))); s.onchange = () => { if (fn) fn(s.value); else b[k] = s.value; store.changed(); rerender(); }; return lf(label, s); };
+  const grid = h('div', { class: 'grid' }, txt('title', 'Titel'), txt('author', 'Autor'), h('label', { class: 'f' }, 'Genre', (() => { const i = h('input', { type: 'text', value: b.genre, list: 'genres' }); i.onchange = () => { b.genre = i.value.trim(); store.changed(); rerender(); }; return i; })()),
+    numf('pages', 'Seiten'), numf('page', 'Aktuelle Seite'), sel('status', 'Status', STATUS, (v) => setStatus(b, v)), sel('format', 'Format', FORMATS), txt('start', 'Start', 'date'), txt('end', 'Ende', 'date'));
+  const rate = h('div', { class: 'row', style: 'margin:8px 0' }, h('span', { class: 'muted' }, 'Bewertung'), stars(b.rating, (n) => { b.rating = n; store.changed(); rerender(); }));
+  const list = h('div', {}, b.quotes.length ? b.quotes.map((q) => h('div', { class: 'q' }, h('div', { class: 't ' + (q.type === 'Zitat' ? 'zitat' : '') }, h('span', { class: 'badge' }, q.type), ' ', q.text, q.page ? h('span', { class: 'hint' }, '  (S. ' + q.page + ')') : null),
+    h('button', { class: 'small', title: 'Eintrag löschen', 'aria-label': 'Eintrag löschen', onclick: () => { if (confirm('Diesen Eintrag löschen?')) { b.quotes = b.quotes.filter((x) => x !== q); store.changed(); rerender(); } } }, '✕'))) : h('p', { class: 'muted' }, 'Noch keine Zitate oder Notizen.'));
+  const qt = h('select', { 'aria-label': 'Art' }, h('option', { value: 'Zitat' }, 'Zitat'), h('option', { value: 'Notiz' }, 'Notiz'));
+  const qx = h('textarea', { placeholder: 'Zitat oder Notiz…', 'aria-label': 'Text', style: 'width:100%;min-height:60px' });
+  const qp = h('input', { type: 'number', min: 0, placeholder: 'Seite', 'aria-label': 'Seite', style: 'width:6em' });
+  const qf = h('form', {}, qx, h('div', { class: 'row', style: 'margin-top:6px' }, qt, qp, h('button', { class: 'primary' }, 'Hinzufügen')));
+  qf.onsubmit = (e) => { e.preventDefault(); const t = qx.value.trim(); if (!t) return; b.quotes.push({ id: uid(), type: qt.value, text: t, page: parseInt(qp.value, 10) || 0, date: today() }); store.changed(); rerender(); };
+  const cp = h('button', { class: 'small', onclick: () => copyText(b.quotes.map((q) => (q.type === 'Zitat' ? '„' + q.text + '“' : q.text) + (q.page ? ' (S. ' + q.page + ')' : '')).join('\n\n'), cp) }, 'Kopieren');
+  const del = h('button', { class: 'small', onclick: () => { if (confirm('Dieses Buch löschen?')) { store.data.books = store.data.books.filter((x) => x !== b); store.data.readlog = store.data.readlog.filter((r) => r.bookId !== b.id); openId = null; store.changed(); rerender(); } } }, 'Buch löschen');
+  return h('div', { class: 'det' }, grid, rate, h('h3', { style: 'margin:10px 0 0;font-size:1rem' }, '💬 Zitate & Notizen'), list, qf, h('div', { class: 'row', style: 'margin-top:10px' }, b.quotes.length ? cp : null, h('span', { class: 'sp' }), del));
+}
+function booksView() {
+  const t = h('input', { type: 'text', required: true, placeholder: 'Titel', 'aria-label': 'Titel', style: 'flex:2;min-width:160px' });
+  const a = h('input', { type: 'text', placeholder: 'Autor', 'aria-label': 'Autor', style: 'flex:1;min-width:120px' });
+  const g = h('input', { type: 'text', list: 'genres', placeholder: 'Genre', 'aria-label': 'Genre', style: 'flex:1;min-width:110px' });
+  const p = h('input', { type: 'number', min: 1, placeholder: 'Seiten', 'aria-label': 'Seiten', style: 'width:6.5em' });
+  const fo = h('select', { 'aria-label': 'Format' }, FORMATS.map((x) => h('option', { value: x }, x)));
+  const st = h('select', { 'aria-label': 'Status' }, STATUS.map((x) => h('option', { value: x }, x)));
+  const f = h('form', { class: 'card' }, h('div', { class: 'row' }, t, a, g, p, fo, st, h('button', { class: 'primary' }, '+ Buch')),
+    h('datalist', { id: 'genres' }, [...new Set(store.data.books.map((x) => x.genre).filter(Boolean))].sort().map((x) => h('option', { value: x }))));
+  f.onsubmit = (e) => {
+    e.preventDefault(); if (!t.value.trim()) return;
+    const b = { id: uid(), title: t.value.trim(), author: a.value.trim(), genre: g.value.trim(), pages: parseInt(p.value, 10) || 0, page: 0, status: 'Wunsch', format: fo.value, start: '', end: '', rating: 0, quotes: [] };
+    setStatus(b, st.value); store.data.books.push(b); openId = null; store.changed(); render();
+  };
+  const q = h('input', { type: 'search', placeholder: 'Suchen…', 'aria-label': 'Suchen', value: F.q });
+  const mk = (k, label, first, opts) => { const s = h('select', { 'aria-label': label }, first ? h('option', { value: '' }, first) : null, opts.map((o) => h('option', { value: o[0], selected: o[0] === F[k] }, o[1]))); s.onchange = () => { F[k] = s.value; refresh(); }; return s; };
+  const genres = [...new Set(store.data.books.map((x) => x.genre).filter(Boolean))].sort();
+  const box = h('div', {});
+  const flt = h('div', { class: 'card filters' }, q, mk('status', 'Status', 'Alle Status', STATUS.map((x) => [x, x])), mk('format', 'Format', 'Alle Formate', FORMATS.map((x) => [x, x])),
+    genres.length ? mk('genre', 'Genre', 'Alle Genres', genres.map((x) => [x, x])) : null,
+    mk('sort', 'Sortierung', null, [['neu', 'Zuletzt hinzugefügt'], ['titel', 'Titel A–Z'], ['autor', 'Autor A–Z'], ['bewertung', 'Beste Bewertung'], ['fortschritt', 'Fortschritt'], ['ende', 'Zuletzt gelesen']]));
+  q.oninput = () => { F.q = q.value; refresh(); };
+  function refresh() {
+    const s = F.q.trim().toLowerCase(), cmp = (x, y) => x.localeCompare(y, 'de');
+    let list = store.data.books.filter((b) => (!F.status || b.status === F.status) && (!F.format || b.format === F.format) && (!F.genre || b.genre === F.genre)
+      && (!s || [b.title, b.author, b.genre].concat(b.quotes.map((x) => x.text)).join('\n').toLowerCase().includes(s)));
+    const idx = (b) => store.data.books.indexOf(b);
+    list.sort((x, y) => F.sort === 'titel' ? cmp(x.title, y.title) : F.sort === 'autor' ? cmp(x.author, y.author) || cmp(x.title, y.title)
+      : F.sort === 'bewertung' ? y.rating - x.rating || cmp(x.title, y.title) : F.sort === 'fortschritt' ? pct(y) - pct(x) || cmp(x.title, y.title)
+      : F.sort === 'ende' ? (y.end || '').localeCompare(x.end || '') : idx(y) - idx(x));
+    box.replaceChildren(...(list.length ? list.map((b) => bookCard(b, refresh)) : [h('div', { class: 'card muted' }, store.data.books.length ? 'Keine Bücher gefunden.' : 'Noch keine Bücher. Trage oben dein erstes Buch ein.')]),
+      h('p', { class: 'hint' }, list.length === 1 ? '1 Buch' : list.length + ' Bücher'));
+  }
+  refresh();
+  return h('div', {}, f, flt, box);
+}
+function readView() {
+  const d = store.data, cur = d.books.filter((b) => b.status === 'Lese ich');
+  const out = [];
+  const bsel = h('select', { 'aria-label': 'Buch' }, cur.length ? null : h('option', { value: '' }, 'Kein Buch in Arbeit'), cur.map((b) => h('option', { value: b.id }, b.title)), d.books.filter((b) => b.status !== 'Lese ich' && b.status !== 'Gelesen').map((b) => h('option', { value: b.id }, b.title)));
+  const dt = h('input', { type: 'date', value: today(), 'aria-label': 'Datum' });
+  const pg = h('input', { type: 'number', min: 1, required: true, placeholder: 'Seiten gelesen', 'aria-label': 'Seiten gelesen', style: 'width:11.5em' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'row' }, bsel, dt, pg, h('button', { class: 'primary' }, 'Lese-Eintrag speichern')));
+  f.onsubmit = (e) => { e.preventDefault(); const b = bookById(bsel.value); const n = parseInt(pg.value, 10) || 0; if (!b || n <= 0 || !dt.value) return; logPages(b, n, dt.value); render(); };
+  out.push(f);
+  if (cur.length) out.push(h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 4px;font-size:1.05rem' }, '📖 Aktuell am Lesen'), cur.map((b) => {
+    const i = h('input', { type: 'number', min: 0, max: b.pages || undefined, placeholder: 'Seite', 'aria-label': 'Aktuelle Seite', style: 'width:6em', value: b.page || '' });
+    const go = () => { const v = parseInt(i.value, 10); if (isNaN(v) || v < 0) return; const t = b.pages ? Math.min(v, b.pages) : v; if (t > b.page) logPages(b, t - b.page); else { b.page = t; store.changed(); } render(); };
+    i.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
+    return h('div', { class: 'bk' }, h('div', { class: 'top' }, h('div', { style: 'flex:1;min-width:150px' }, h('div', { class: 'ttl' }, b.title), b.author ? h('div', { class: 'muted' }, b.author) : null), h('span', { class: 'muted' }, 'Jetzt bei Seite'), i, h('button', { class: 'small', onclick: go }, 'Speichern')),
+      b.pages ? [h('div', { class: 'bar' }, h('i', { style: 'width:' + pct(b) + '%' })), h('div', { class: 'hint' }, 'Seite ' + b.page + ' von ' + b.pages + ' · ' + pct(b) + ' %')] : null);
+  })));
+  const log = d.readlog.slice().sort((a, b) => b.date.localeCompare(a.date)), days = [...new Set(log.map((r) => r.date))];
+  out.push(h('div', { class: 'card' }, h('h2', { style: 'margin:0;font-size:1.05rem' }, '🗓️ Lese-Einträge'), days.length ? days.slice(0, 30).map((day) => {
+    const rs = log.filter((r) => r.date === day), sum = rs.reduce((a, r) => a + r.pages, 0);
+    return h('div', {}, h('div', { class: 'day' }, h('span', {}, day === today() ? 'Heute · ' + fmtDate(day) : fmtDate(day)), h('span', { class: 'muted' }, sum + ' Seiten')),
+      rs.map((r) => { const b = bookById(r.bookId); return h('div', { class: 'pick', style: 'display:flex;gap:8px;align-items:center;padding:3px 0' }, h('span', { style: 'flex:1;overflow-wrap:anywhere' }, b ? b.title : '–'), h('span', { class: 'muted' }, r.pages + ' Seiten'),
+        h('button', { class: 'small', title: 'Eintrag löschen', 'aria-label': 'Eintrag löschen', onclick: () => { if (confirm('Diesen Eintrag löschen?')) { d.readlog = d.readlog.filter((x) => x !== r); if (b) b.page = Math.max(0, b.page - r.pages); store.changed(); render(); } } }, '✕')); }));
+  }) : h('p', { class: 'muted' }, 'Noch keine Lese-Einträge.')));
+  return h('div', {}, ...out);
+}
+function barChart(items, unit) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 200, L = 28, R = 8, T = 14, B = 24;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('class', 'chart');
+  const el = (tag, a, t, p) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; (p || svg).append(n); return n; };
+  const max = Math.max(1, ...items.map((i) => i.v)), top = Math.ceil(max / 4) * 4 || 4, bw = (W - L - R) / items.length;
+  for (let i = 0; i <= 4; i++) { const y = T + (H - T - B) * (1 - i / 4); el('line', { x1: L, x2: W - R, y1: y, y2: y, stroke: 'var(--line)' }); el('text', { x: L - 4, y: y + 4, 'text-anchor': 'end' }, String(Math.round(top * i / 4))); }
+  items.forEach((it, i) => {
+    const hgt = (H - T - B) * it.v / top, x = L + i * bw + bw * 0.15, g = el('g', {});
+    el('rect', { x, y: H - B - hgt, width: bw * 0.7, height: Math.max(hgt, it.v ? 1 : 0), rx: 3, fill: 'var(--accent)' }, null, g);
+    el('title', {}, it.l + ': ' + it.v + ' ' + unit(it.v), g);
+    if (it.show !== false) el('text', { x: x + bw * 0.35, y: H - 8, 'text-anchor': 'middle' }, it.s || it.l);
+  });
+  return svg;
+}
+const monthName = (m) => new Date(2021, m, 1).toLocaleDateString('de-DE', { month: 'short' });
+const booksUnit = (n) => n === 1 ? 'Buch' : 'Bücher';
+function goalView() {
+  const d = store.data, g = d.goals[year] || 0, done = finished(year), n = done.length, pages = done.reduce((a, b) => a + b.pages, 0);
+  const ys = [...new Set(d.books.filter((b) => b.status === 'Gelesen' && yearOf(b)).map(yearOf).concat([new Date().getFullYear(), year]))].sort((a, b) => b - a);
+  const ysel = h('select', { 'aria-label': 'Jahr' }, ys.map((y) => h('option', { value: y, selected: y === year }, y))); ysel.onchange = () => { year = parseInt(ysel.value, 10); render(); };
+  const gi = h('input', { type: 'number', min: 0, value: g || '', placeholder: 'z. B. 24', 'aria-label': 'Ziel: Bücher pro Jahr', style: 'width:6em' });
+  gi.onchange = () => { const v = Math.max(0, parseInt(gi.value, 10) || 0); if (v) d.goals[year] = v; else delete d.goals[year]; store.changed(); render(); };
+  const out = [h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', {}, 'Jahr'), ysel, h('span', { class: 'sp' }), h('label', { class: 'row muted' }, 'Ziel: Bücher pro Jahr', gi)))];
+  if (g) {
+    const now = new Date(), cy = now.getFullYear();
+    const frac = year < cy ? 1 : year > cy ? 0 : ((now - new Date(cy, 0, 1)) / 864e5 + 1) / (new Date(cy, 11, 31) - new Date(cy, 0, 1) + 864e5) * 864e5;
+    const exp = g * frac, diff = Math.round(n - exp);
+    const msg = n >= g ? '🎉 Ziel erreicht!' : year !== cy ? 'Ziel nicht erreicht.' : diff === 0 ? 'Du liegst genau im Plan.' : diff > 0 ? (diff === 1 ? 'Du liegst 1 Buch vor dem Plan.' : 'Du liegst ' + diff + ' Bücher vor dem Plan.') : (diff === -1 ? 'Du liegst 1 Buch hinter dem Plan.' : 'Du liegst ' + (-diff) + ' Bücher hinter dem Plan.');
+    out.push(h('div', { class: 'card' }, h('div', { class: 'row' }, h('strong', { style: 'font-size:1.3rem' }, n + ' / ' + g), h('span', { class: 'muted' }, g === 1 ? 'Buch' : 'Bücher'), h('span', { class: 'sp' }), h('span', { class: 'badge ' + (n >= g || diff >= 0 ? 'ok' : 'warn') }, msg)),
+      h('div', { class: 'bar' + (n >= g ? ' ok' : ''), style: 'height:14px' }, h('i', { style: 'width:' + Math.min(100, n / g * 100) + '%' })),
+      n < g && year >= cy ? h('p', { class: 'hint' }, 'Noch ' + (g - n) + (g - n === 1 ? ' Buch' : ' Bücher') + ' bis zum Ziel.') : null));
+  } else out.push(h('div', { class: 'card muted' }, 'Setze dir oben ein Jahresziel, um deinen Fortschritt zu sehen.'));
+  const mon = Array.from({ length: 12 }, (_, m) => ({ l: monthName(m), v: done.filter((b) => parseInt(b.end.slice(5, 7), 10) - 1 === m).length }));
+  out.push(h('div', { class: 'kpis' }, h('div', { class: 'kpi' }, h('b', {}, n), h('span', {}, n === 1 ? 'Buch gelesen' : 'Bücher gelesen')), h('div', { class: 'kpi' }, h('b', {}, pages.toLocaleString('de-DE')), h('span', {}, 'Seiten gesamt')),
+    h('div', { class: 'kpi' }, h('b', {}, n ? Math.round(pages / n).toLocaleString('de-DE') : '–'), h('span', {}, 'Seiten pro Buch (Schnitt)')), h('div', { class: 'kpi' }, h('b', {}, fmt1(n / (year === new Date().getFullYear() ? Math.max(1, new Date().getMonth() + 1) : 12))), h('span', {}, 'Bücher pro Monat (Schnitt)'))));
+  out.push(h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 6px;font-size:1.05rem' }, 'Bücher pro Monat'), barChart(mon, booksUnit)));
+  out.push(h('div', { class: 'card' }, done.length ? [h('h2', { style: 'margin:0 0 4px;font-size:1.05rem' }, '✅ Gelesen in diesem Jahr'), done.slice().sort((a, b) => b.end.localeCompare(a.end)).map((b) => h('div', { style: 'display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)' }, h('span', { style: 'flex:1;overflow-wrap:anywhere' }, b.title, b.author ? h('span', { class: 'muted' }, ' · ' + b.author) : null), b.rating ? h('span', { class: 'stars ro' }, starText(b.rating)) : null, h('span', { class: 'muted' }, fmtDate(b.end))))] : h('p', { class: 'muted' }, 'In diesem Jahr noch kein Buch gelesen.')));
+  return h('div', {}, ...out);
+}
+function hbars(rows, total) {
+  const max = Math.max(1, ...rows.map((r) => r[1]));
+  return rows.length ? rows.map((r) => h('div', { class: 'hb' }, h('span', { class: 'lbl', title: r[0] }, r[0]), h('div', { class: 'bar' }, h('i', { style: 'width:' + r[1] / max * 100 + '%' })), h('span', { class: 'n' }, r[1]))) : h('p', { class: 'muted' }, 'Keine Daten.');
+}
+function countBy(list, fn) { const m = {}; list.forEach((b) => { const k = fn(b); if (k) m[k] = (m[k] || 0) + 1; }); return Object.entries(m).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'de')); }
+function statsView() {
+  const d = store.data, bs = d.books;
+  if (!bs.length) return h('div', { class: 'card muted' }, 'Sobald du Bücher einträgst, siehst du hier deine Statistik.');
+  const rd = finished(), rated = bs.filter((b) => b.rating), avg = rated.length ? rated.reduce((a, b) => a + b.rating, 0) / rated.length : 0;
+  const logPagesTotal = d.readlog.reduce((a, r) => a + r.pages, 0), pagesRead = rd.reduce((a, b) => a + b.pages, 0);
+  const dayset = new Set(d.readlog.filter((r) => r.pages > 0).map((r) => r.date));
+  let streak = 0; const c = new Date(); if (!dayset.has(ymd(c))) c.setDate(c.getDate() - 1);
+  while (dayset.has(ymd(c))) { streak++; c.setDate(c.getDate() - 1); }
+  const withDur = rd.filter((b) => b.start && b.end && b.end >= b.start), avgDays = withDur.length ? withDur.reduce((a, b) => a + Math.round((parseYmd(b.end) - parseYmd(b.start)) / 864e5) + 1, 0) / withDur.length : 0;
+  const k = (v, l) => h('div', { class: 'kpi' }, h('b', {}, v), h('span', {}, l));
+  const last = Array.from({ length: 30 }, (_, i) => { const x = new Date(); x.setDate(x.getDate() - 29 + i); const key = ymd(x); return { l: fmtDate(key).slice(0, 5), v: d.readlog.filter((r) => r.date === key).reduce((a, r) => a + r.pages, 0), show: i % 5 === 4 || i === 0 }; });
+  const dist = [5, 4, 3, 2, 1].map((n) => [starText(n), bs.filter((b) => b.rating === n).length]);
+  const top = rated.slice().sort((a, b) => b.rating - a.rating || a.title.localeCompare(b.title, 'de')).slice(0, 5);
+  const card = (title, ...kids) => h('div', { class: 'card' }, h('h2', { style: 'margin:0 0 6px;font-size:1.05rem' }, title), ...kids);
+  return h('div', {}, h('div', { class: 'kpis' }, k(bs.length, bs.length === 1 ? 'Buch insgesamt' : 'Bücher insgesamt'), k(rd.length, rd.length === 1 ? 'Buch gelesen' : 'Bücher gelesen'), k(pagesRead.toLocaleString('de-DE'), 'Seiten in gelesenen Büchern'),
+    k(logPagesTotal.toLocaleString('de-DE'), 'Seiten erfasst'), k(avg ? fmt1(avg) + ' ★' : '–', 'Ø Bewertung'), k(streak, streak === 1 ? 'Tag in Folge gelesen' : 'Tage in Folge gelesen'), k(avgDays ? Math.round(avgDays) : '–', 'Tage pro Buch (Schnitt)')),
+    card('📖 Seiten pro Tag (letzte 30 Tage)', barChart(last, (n) => n === 1 ? 'Seite' : 'Seiten')),
+    card('Nach Status', hbars(STATUS.map((s) => [s, bs.filter((b) => b.status === s).length]).filter((r) => r[1]))),
+    card('Nach Format', hbars(FORMATS.map((s) => [s, bs.filter((b) => b.format === s).length]).filter((r) => r[1]))),
+    card('Nach Genre', hbars(countBy(bs, (b) => b.genre))),
+    card('Bewertungen', hbars(dist)),
+    top.length ? card('⭐ Lieblingsbücher', top.map((b) => h('div', { style: 'display:flex;gap:8px;padding:3px 0;border-bottom:1px solid var(--line)' }, h('span', { style: 'flex:1;overflow-wrap:anywhere' }, b.title), h('span', { class: 'stars ro' }, starText(b.rating))))) : null);
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>

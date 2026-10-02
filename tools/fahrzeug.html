@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fahrzeug-Logbuch</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  label.f input, label.f select { min-width:0; width:100%; box-sizing:border-box; }
+  .form { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:8px; align-items:end; }
+  .form .wide { grid-column:1/-1; }
+  .vcard { border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin:10px 0; background:var(--bg); }
+  .vcard h3 { margin:0 0 6px; font-size:1.05rem; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .vcard h3 .sp { flex:1; }
+  .kv { display:grid; grid-template-columns:9.5em 1fr; gap:2px 10px; align-items:center; margin:4px 0; }
+  .kv .v { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
+  .kv .k { color:var(--muted); }
+  @media (max-width:520px) { .kv { grid-template-columns:1fr; } }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:8px; margin:10px 0; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:8px 10px; background:var(--bg); }
+  .stat b { display:block; font-size:1.2rem; } .stat span { color:var(--muted); font-size:.8rem; }
+  .tw { overflow-x:auto; } table { width:100%; border-collapse:collapse; } td, th { padding:5px 6px; border-bottom:1px solid var(--line); text-align:left; white-space:nowrap; }
+  td.n, th.n { text-align:right; } tr.tot td { font-weight:700; }
+  .item { display:flex; flex-wrap:wrap; gap:6px 10px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); } .item.done { opacity:.6; }
+  .item .grow { flex:1; min-width:11em; }
+  .hint { color:var(--muted); font-size:.82rem; }
+  svg.chart { width:100%; height:auto; display:block; } svg.chart text { fill:var(--muted); font-size:11px; }
+  h2.s { margin:0 0 6px; font-size:1.05rem; }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Fahrzeug-Logbuch</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="tabs"><button data-tab="cars">Fahrzeuge</button><button data-tab="fuel">Tanken</button><button data-tab="service">Service &amp; Reparaturen</button><button data-tab="due">Fristen</button><button data-tab="cost">Kosten</button></div>
+  <div id="view"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'fahrzeug',
+  defaults: () => ({ vehicles: [], fuel: [], service: [], reminders: [] }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const ARTEN = ['Inspektion', 'Ölwechsel', 'Reparatur', 'Bremsen', 'Reifen', 'TÜV/HU', 'Sonstiges'];
+const KINDS = ['Reifen', 'Termin', 'Erinnerung'];
+let tab = 'cars', curV = '', editCar = null, editFuel = null, editSvc = null, editRem = null, showDone = false;
+function normalize() {
+  const d = store.data;
+  for (const k of ['vehicles', 'fuel', 'service', 'reminders']) if (!Array.isArray(d[k])) d[k] = [];
+  if (curV !== 'all' && !d.vehicles.some((v) => v.id === curV)) curV = d.vehicles.length ? d.vehicles[0].id : '';
+}
+const num = (s) => {
+  s = String(s == null ? '' : s).trim().replace(/\s/g, '').replace(/€|km|l$/gi, '');
+  if (!s) return NaN;
+  const c = s.lastIndexOf(','), p = s.lastIndexOf('.');
+  if (c >= 0 && p >= 0) s = c > p ? s.replace(/\./g, '').replace(',', '.') : s.replace(/,/g, '');
+  else if (c >= 0) s = s.replace(',', '.');
+  return /^-?\d*\.?\d+$/.test(s) ? parseFloat(s) : NaN;
+};
+const intKm = (s) => { const t = String(s == null ? '' : s).trim().replace(/[\s.,'’]/g, ''); return /^\d+$/.test(t) ? parseInt(t, 10) : NaN; };
+const fmtN = (x, dec) => (Math.round(x * Math.pow(10, dec)) / Math.pow(10, dec)).toFixed(dec).replace('.', SimpleI18n.dec);
+const fmtKm = (n) => Math.round(n).toLocaleString('de-DE') + ' km';
+const vOf = (id) => store.data.vehicles.find((v) => v.id === id);
+const vName = (id) => { const v = vOf(id); return v ? v.name : '–'; };
+const today = () => ymd(new Date());
+const daysTo = (s) => Math.round((parseYmd(s) - parseYmd(today())) / 86400000);
+function addMonths(s, m) { const d = parseYmd(s), day = d.getDate(); d.setDate(1); d.setMonth(d.getMonth() + m); d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate())); return ymd(d); }
+function dueBadge(s) {
+  if (!s) return h('span', { class: 'badge' }, 'kein Datum');
+  const n = daysTo(s);
+  if (n < -1) return h('span', { class: 'badge err' }, `seit ${-n} Tagen überfällig`);
+  if (n === -1) return h('span', { class: 'badge err' }, 'seit gestern überfällig');
+  if (n === 0) return h('span', { class: 'badge warn' }, 'heute fällig');
+  if (n === 1) return h('span', { class: 'badge warn' }, 'morgen fällig');
+  if (n <= 30) return h('span', { class: 'badge warn' }, `in ${n} Tagen`);
+  return h('span', { class: 'badge ok' }, `in ${n} Tagen`);
+}
+function kmBadge(target, km) {
+  const r = target - km;
+  if (r < 0) return h('span', { class: 'badge err' }, `seit ${(-r).toLocaleString('de-DE')} km überfällig`);
+  return h('span', { class: r <= 1000 ? 'badge warn' : 'badge ok' }, `in ${r.toLocaleString('de-DE')} km fällig`);
+}
+function field(label, input, cls) { return h('label', { class: 'f ' + (cls || '') }, h('span', {}, label), input); }
+function inp(type, val, extra) { return h('input', Object.assign({ type, value: val == null ? '' : val }, extra || {})); }
+function toCsv(rows, name) {
+  const q = (c) => { c = String(c == null ? '' : c); return /[";\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; };
+  download(name, '﻿' + rows.map((r) => r.map(q).join(';')).join('\r\n'), 'text/csv;charset=utf-8');
+}
+const cn = (x, d) => x == null || isNaN(x) ? '' : String(+x.toFixed(d == null ? 2 : d)).replace('.', ',');
+function vSelect(allowAll) {
+  const s = h('select', { 'aria-label': 'Fahrzeug' }, allowAll ? h('option', { value: 'all' }, 'Alle Fahrzeuge') : null,
+    store.data.vehicles.map((v) => h('option', { value: v.id, selected: v.id === curV }, v.name + (v.plate ? ' · ' + v.plate : ''))));
+  s.value = curV; s.onchange = () => { curV = s.value; editFuel = editSvc = editRem = null; render(); };
+  return h('div', { class: 'card toolbar' }, h('span', { class: 'muted' }, 'Fahrzeug:'), s);
+}
+function bumpKm(vid, km) { const v = vOf(vid); if (v && km > (v.km || 0)) v.km = km; }
+function sel(v) { return curV === 'all' ? true : v === curV; }
+
+function render() {
+  document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('on', b.dataset.tab === tab));
+  const v = $('view');
+  if (tab !== 'cars' && !store.data.vehicles.length) {
+    v.replaceChildren(h('div', { class: 'card muted' }, 'Lege zuerst unter „Fahrzeuge“ ein Fahrzeug an.')); return;
+  }
+  if ((tab === 'fuel' || tab === 'service') && curV === 'all') curV = store.data.vehicles[0].id;
+  v.replaceChildren(tab === 'cars' ? carsView() : tab === 'fuel' ? fuelView() : tab === 'service' ? svcView() : tab === 'due' ? dueView() : costView());
+}
+
+/* ---------- Fahrzeuge ---------- */
+function carsView() {
+  const d = store.data, e = d.vehicles.find((v) => v.id === editCar) || {};
+  const name = inp('text', e.name, { required: true, placeholder: 'z. B. Golf', 'aria-label': 'Name' });
+  const plate = inp('text', e.plate, { placeholder: 'z. B. B-AB 123', 'aria-label': 'Kennzeichen' });
+  const km = inp('text', e.km != null ? String(e.km) : '', { inputMode: 'numeric', placeholder: '0', 'aria-label': 'Kilometerstand' });
+  const tuev = inp('date', e.tuev, { 'aria-label': 'TÜV/HU bis' });
+  const ins = inp('date', e.ins, { 'aria-label': 'Versicherung bis' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Name', name), field('Kennzeichen', plate), field('Kilometerstand', km), field('TÜV/HU fällig am', tuev), field('Versicherung endet am', ins),
+    h('div', { class: 'row' }, h('button', { class: 'primary' }, editCar ? 'Speichern' : 'Fahrzeug hinzufügen'), editCar ? h('button', { type: 'button', onclick: () => { editCar = null; render(); } }, 'Abbrechen') : null)));
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const k = km.value.trim() ? intKm(km.value) : 0;
+    if (isNaN(k)) { alert('Bitte einen gültigen Kilometerstand eingeben.'); return; }
+    const o = editCar ? d.vehicles.find((v) => v.id === editCar) : { id: uid() };
+    Object.assign(o, { name: name.value.trim(), plate: plate.value.trim().toUpperCase(), km: k, tuev: tuev.value, ins: ins.value });
+    if (!editCar) { d.vehicles.push(o); curV = o.id; }
+    editCar = null; store.changed(); render();
+  };
+  const cards = d.vehicles.map((v) => {
+    const last = d.service.filter((s) => s.vid === v.id).sort((a, b) => b.date.localeCompare(a.date))[0];
+    const nxt = nextServices(v.id);
+    return h('div', { class: 'vcard' }, h('h3', {}, '🚗 ' + v.name, v.plate ? h('span', { class: 'badge' }, v.plate) : null, h('span', { class: 'sp' }),
+      h('button', { class: 'small', onclick: () => { editCar = v.id; render(); scrollTo(0, 0); } }, 'Bearbeiten'),
+      h('button', { class: 'small', onclick: () => { if (confirm('Fahrzeug „' + v.name + '“ mit allen Einträgen löschen?')) { for (const k of ['fuel', 'service', 'reminders']) d[k] = d[k].filter((x) => x.vid !== v.id); d.vehicles = d.vehicles.filter((x) => x !== v); normalize(); store.changed(); render(); } } }, 'Löschen')),
+      h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Kilometerstand'), h('div', { class: 'v' }, h('strong', {}, fmtKm(v.km || 0)))),
+      h('div', { class: 'kv' }, h('span', { class: 'k' }, 'TÜV/HU'), h('div', { class: 'v' }, v.tuev ? [fmtDate(v.tuev), dueBadge(v.tuev)] : h('span', { class: 'muted' }, 'nicht eingetragen'))),
+      h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Versicherung'), h('div', { class: 'v' }, v.ins ? [fmtDate(v.ins), dueBadge(v.ins)] : h('span', { class: 'muted' }, 'nicht eingetragen'))),
+      last ? h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Letzter Service'), h('div', { class: 'v' }, fmtDate(last.date), h('span', { class: 'muted' }, last.type))) : null,
+      nxt.map((n) => h('div', { class: 'kv' }, h('span', { class: 'k' }, 'Nächster Service'), h('div', { class: 'v' }, h('strong', {}, n.type), n.s.nextDate ? [fmtDate(n.s.nextDate), dueBadge(n.s.nextDate)] : null, n.s.nextKm ? [fmtKm(n.s.nextKm), kmBadge(n.s.nextKm, v.km || 0)] : null))));
+  });
+  return h('div', {}, f, d.vehicles.length ? h('div', { class: 'card' }, cards) : h('div', { class: 'card muted' }, 'Noch keine Fahrzeuge. Lege oben dein erstes Fahrzeug an.'),
+    h('p', { class: 'hint' }, 'Der Kilometerstand wird beim Eintragen von Tankstopps und Services automatisch nachgeführt.'));
+}
+function nextServices(vid) {
+  const m = {};
+  for (const s of store.data.service) if (s.vid === vid && (s.nextKm || s.nextDate)) { if (!m[s.type] || s.date > m[s.type].date || (s.date === m[s.type].date && (s.km || 0) > (m[s.type].km || 0))) m[s.type] = s; }
+  return Object.keys(m).map((t) => ({ type: t, s: m[t] })).sort((a, b) => (a.s.nextDate || '9').localeCompare(b.s.nextDate || '9'));
+}
+
+/* ---------- Tanken ---------- */
+function fuelStats(vid) {
+  const es = store.data.fuel.filter((f) => f.vid === vid).sort((a, b) => a.km - b.km || a.date.localeCompare(b.date));
+  let lastKm = null, l = 0, c = 0, SL = 0, SC = 0, SD = 0;
+  for (const e of es) {
+    e.calc = null;
+    if (lastKm != null) {
+      l += e.liters; c += e.cost;
+      if (e.full) { const dist = e.km - lastKm; if (dist > 0 && l > 0) { e.calc = { cons: l / dist * 100, cpk: c / dist, dist }; SL += l; SC += c; SD += dist; } }
+    }
+    if (e.full) { lastKm = e.km; l = 0; c = 0; }
+  }
+  return { es, avg: SD ? { cons: SL / SD * 100, cpk: SC / SD } : null };
+}
+function lineChart(pts, unit) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 220, L = 42, R = 12, T = 12, B = 26;
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Diagramm Verbrauch');
+  const el = (tag, a, t) => { const n = document.createElementNS(NS, tag); for (const k in a) n.setAttribute(k, a[k]); if (t != null) n.textContent = t; svg.append(n); return n; };
+  let lo = Math.min(...pts.map((p) => p.y)), hi = Math.max(...pts.map((p) => p.y)); const pd = (hi - lo || 1) * 0.15; lo -= pd; hi += pd;
+  const t0 = pts[0].t, t1 = pts[pts.length - 1].t, span = t1 - t0 || 1;
+  const X = (t) => pts.length === 1 || t1 === t0 ? (L + W - R) / 2 : L + (t - t0) / span * (W - L - R), Y = (v) => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+  for (let i = 0; i <= 4; i++) { const v = lo + (hi - lo) * i / 4; el('line', { x1: L, x2: W - R, y1: Y(v), y2: Y(v), stroke: 'var(--line)' }); el('text', { x: L - 6, y: Y(v) + 4, 'text-anchor': 'end' }, fmtN(v, 1)); }
+  el('text', { x: L, y: H - 6 }, fmtDate(ymd(new Date(t0)))); if (t1 !== t0) el('text', { x: W - R, y: H - 6, 'text-anchor': 'end' }, fmtDate(ymd(new Date(t1))));
+  if (pts.length > 1) el('polyline', { points: pts.map((p) => X(p.t) + ',' + Y(p.y)).join(' '), fill: 'none', stroke: 'var(--accent)', 'stroke-width': 2 });
+  pts.forEach((p) => { const c = el('circle', { cx: X(p.t), cy: Y(p.y), r: 3.5, fill: 'var(--accent)' }); c.append(Object.assign(document.createElementNS(NS, 'title'), { textContent: fmtDate(p.d) + ': ' + fmtN(p.y, 2) + ' ' + unit })); });
+  return svg;
+}
+function fuelView() {
+  const d = store.data, v = vOf(curV), e = d.fuel.find((x) => x.id === editFuel) || {};
+  const date = inp('date', e.date || today(), { required: true, 'aria-label': 'Datum' });
+  const km = inp('text', e.km != null ? String(e.km) : (v.km ? String(v.km) : ''), { inputMode: 'numeric', required: true, 'aria-label': 'Kilometerstand' });
+  const lit = inp('text', e.liters != null ? fmtN(e.liters, 2) : '', { inputMode: 'decimal', required: true, placeholder: '0' + SimpleI18n.dec + '00', 'aria-label': 'Liter' });
+  const cost = inp('text', e.cost != null ? fmtN(e.cost, 2) : '', { inputMode: 'decimal', required: true, placeholder: '0' + SimpleI18n.dec + '00', 'aria-label': 'Gesamtpreis in Euro' });
+  const full = inp('checkbox', null, { checked: editFuel ? !!e.full : true, 'aria-label': 'Vollgetankt' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Datum', date), field('Kilometerstand', km), field('Liter', lit), field('Gesamtpreis (€)', cost),
+    h('label', { class: 'row' }, full, 'Vollgetankt'),
+    h('div', { class: 'row' }, h('button', { class: 'primary' }, editFuel ? 'Speichern' : 'Tankstopp hinzufügen'), editFuel ? h('button', { type: 'button', onclick: () => { editFuel = null; render(); } }, 'Abbrechen') : null)));
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const k = intKm(km.value), l = num(lit.value), c = num(cost.value);
+    if (isNaN(k) || isNaN(l) || isNaN(c) || l <= 0 || c < 0) { alert('Bitte Kilometerstand, Liter und Preis als Zahlen eingeben (Liter größer als 0).'); return; }
+    const o = editFuel ? d.fuel.find((x) => x.id === editFuel) : { id: uid(), vid: curV };
+    Object.assign(o, { date: date.value, km: k, liters: l, cost: c, full: full.checked });
+    if (!editFuel) d.fuel.push(o);
+    bumpKm(o.vid, k); editFuel = null; store.changed(); render();
+  };
+  const st = fuelStats(curV), rows = st.es.slice().reverse();
+  const tot = st.es.reduce((a, x) => a + x.cost, 0), lsum = st.es.reduce((a, x) => a + x.liters, 0);
+  const pts = st.es.filter((x) => x.calc).map((x) => ({ t: parseYmd(x.date).getTime(), d: x.date, y: x.calc.cons })).sort((a, b) => a.t - b.t);
+  const tiles = h('div', { class: 'tiles' },
+    h('div', { class: 'stat' }, h('b', {}, st.avg ? fmtN(st.avg.cons, 1) + ' l/100 km' : '–'), h('span', {}, 'Ø Verbrauch')),
+    h('div', { class: 'stat' }, h('b', {}, st.avg ? eur(st.avg.cpk) + ' / km' : '–'), h('span', {}, 'Ø Spritkosten pro km')),
+    h('div', { class: 'stat' }, h('b', {}, lsum ? eur(tot / lsum) + ' / l' : '–'), h('span', {}, 'Ø Literpreis')),
+    h('div', { class: 'stat' }, h('b', {}, eur(tot)), h('span', {}, 'Tankkosten gesamt')));
+  const table = rows.length ? h('div', { class: 'tw' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Datum'), h('th', { class: 'n' }, 'Kilometerstand'), h('th', { class: 'n' }, 'Liter'), h('th', { class: 'n' }, 'Preis'), h('th', { class: 'n' }, '€ / Liter'), h('th', {}, 'Voll'), h('th', { class: 'n' }, 'Verbrauch'), h('th', { class: 'n' }, 'Kosten/km'), h('th', {}, ''))),
+    h('tbody', {}, rows.map((x) => h('tr', {}, h('td', {}, fmtDate(x.date)), h('td', { class: 'n' }, fmtKm(x.km)), h('td', { class: 'n' }, fmtN(x.liters, 2)), h('td', { class: 'n' }, eur(x.cost)), h('td', { class: 'n' }, fmtN(x.cost / x.liters, 3)), h('td', {}, x.full ? '✓' : '–'),
+      h('td', { class: 'n' }, x.calc ? fmtN(x.calc.cons, 1) + ' l/100 km' : '–'), h('td', { class: 'n' }, x.calc ? eur(x.calc.cpk) : '–'),
+      h('td', {}, h('button', { class: 'small', 'aria-label': 'Tankstopp bearbeiten', onclick: () => { editFuel = x.id; render(); scrollTo(0, 0); } }, '✎'), ' ',
+        h('button', { class: 'small', 'aria-label': 'Tankstopp löschen', onclick: () => { if (confirm('Tankstopp vom ' + fmtDate(x.date) + ' löschen?')) { d.fuel = d.fuel.filter((y) => y !== x); store.changed(); render(); } } }, '✕'))))))) : h('p', { class: 'muted' }, 'Noch keine Tankstopps.');
+  return h('div', {}, vSelect(false), f, tiles,
+    h('div', { class: 'card' }, h('h2', { class: 's' }, 'Verbrauch im Verlauf'), pts.length ? lineChart(pts, 'l/100 km') : h('p', { class: 'muted' }, 'Für den Verbrauch braucht es mindestens zwei Tankstopps mit „Vollgetankt“.')),
+    h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { class: 's sp' }, 'Tankstopps'), h('button', { class: 'small', onclick: () => toCsv([['Datum', 'Kilometerstand', 'Liter', 'Preis EUR', 'EUR pro Liter', 'Vollgetankt', 'Verbrauch l/100 km', 'Kosten EUR/km']].concat(st.es.map((x) => [x.date, x.km, cn(x.liters), cn(x.cost), cn(x.cost / x.liters, 3), x.full ? 'ja' : 'nein', x.calc ? cn(x.calc.cons) : '', x.calc ? cn(x.calc.cpk, 3) : ''])), 'tanken-' + (v.plate || v.name).replace(/[^\w-]+/g, '_') + '.csv') }, '⬇ CSV-Export')), table),
+    h('p', { class: 'hint' }, 'Der Verbrauch wird von Volltankung zu Volltankung berechnet; Teilbetankungen dazwischen zählen mit.'));
+}
+
+/* ---------- Service ---------- */
+function svcView() {
+  const d = store.data, v = vOf(curV), e = d.service.find((x) => x.id === editSvc) || {};
+  const date = inp('date', e.date || today(), { required: true, 'aria-label': 'Datum' });
+  const km = inp('text', e.km != null ? String(e.km) : (v.km ? String(v.km) : ''), { inputMode: 'numeric', 'aria-label': 'Kilometerstand' });
+  const type = h('select', { 'aria-label': 'Art' }, ARTEN.map((a) => h('option', { value: a, selected: a === e.type }, a))); if (e.type) type.value = e.type;
+  const cost = inp('text', e.cost != null ? fmtN(e.cost, 2) : '', { inputMode: 'decimal', placeholder: '0' + SimpleI18n.dec + '00', 'aria-label': 'Kosten in Euro' });
+  const shop = inp('text', e.shop, { placeholder: 'Werkstatt', 'aria-label': 'Werkstatt' });
+  const nkm = inp('text', e.nextKm ? String(e.nextKm) : '', { inputMode: 'numeric', placeholder: 'z. B. 45000', 'aria-label': 'Nächster Service bei Kilometerstand' });
+  const nd = inp('date', e.nextDate, { 'aria-label': 'Nächster Service am' });
+  const desc = inp('text', e.note, { placeholder: 'Notiz (optional)', 'aria-label': 'Notiz' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Datum', date), field('Kilometerstand', km), field('Art', type), field('Kosten (€)', cost), field('Werkstatt', shop),
+    field('Nächstes Intervall bei km', nkm), field('Nächstes Intervall am', nd), field('Notiz', desc),
+    h('div', { class: 'row' }, h('button', { class: 'primary' }, editSvc ? 'Speichern' : 'Eintrag hinzufügen'), editSvc ? h('button', { type: 'button', onclick: () => { editSvc = null; render(); } }, 'Abbrechen') : null)));
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const k = km.value.trim() ? intKm(km.value) : 0, c = cost.value.trim() ? num(cost.value) : 0, nk = nkm.value.trim() ? intKm(nkm.value) : 0;
+    if (isNaN(k) || isNaN(c) || isNaN(nk) || c < 0) { alert('Bitte Kilometerstand, Kosten und Intervall als Zahlen eingeben.'); return; }
+    const o = editSvc ? d.service.find((x) => x.id === editSvc) : { id: uid(), vid: curV };
+    Object.assign(o, { date: date.value, km: k, type: type.value, cost: c, shop: shop.value.trim(), nextKm: nk, nextDate: nd.value, note: desc.value.trim() });
+    if (!editSvc) d.service.push(o);
+    bumpKm(o.vid, k); editSvc = null; store.changed(); render();
+  };
+  const rows = d.service.filter((x) => x.vid === curV).sort((a, b) => b.date.localeCompare(a.date) || (b.km || 0) - (a.km || 0));
+  const total = rows.reduce((a, x) => a + (x.cost || 0), 0);
+  const list = rows.length ? rows.map((x) => h('div', { class: 'item' }, h('strong', { style: 'min-width:6.5em' }, fmtDate(x.date)),
+    h('div', { class: 'grow' }, h('div', {}, h('span', { class: 'badge' }, x.type), ' ', x.shop || null), h('div', { class: 'hint' }, [x.km ? fmtKm(x.km) : '', x.note || ''].filter(Boolean).join(' · ')),
+      x.nextKm || x.nextDate ? h('div', { class: 'hint' }, 'Nächstes Intervall: ', x.nextDate ? [fmtDate(x.nextDate), ' '] : null, x.nextKm ? fmtKm(x.nextKm) : null) : null),
+    h('strong', {}, eur(x.cost || 0)),
+    h('button', { class: 'small', 'aria-label': 'Eintrag bearbeiten', onclick: () => { editSvc = x.id; render(); scrollTo(0, 0); } }, '✎'),
+    h('button', { class: 'small', 'aria-label': 'Eintrag löschen', onclick: () => { if (confirm('Eintrag vom ' + fmtDate(x.date) + ' löschen?')) { d.service = d.service.filter((y) => y !== x); store.changed(); render(); } } }, '✕'))) : h('p', { class: 'muted' }, 'Noch keine Service- oder Reparatureinträge.');
+  return h('div', {}, vSelect(false), f, h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { class: 's sp' }, 'Service & Reparaturen'), h('span', { class: 'muted' }, 'Summe: ' + eur(total)),
+    h('button', { class: 'small', onclick: () => toCsv([['Datum', 'Kilometerstand', 'Art', 'Kosten EUR', 'Werkstatt', 'Nächster Service km', 'Nächster Service am', 'Notiz']].concat(rows.slice().reverse().map((x) => [x.date, x.km || '', x.type, cn(x.cost || 0), x.shop || '', x.nextKm || '', x.nextDate || '', x.note || ''])), 'service-' + (v.plate || v.name).replace(/[^\w-]+/g, '_') + '.csv') }, '⬇ CSV-Export')), list));
+}
+
+/* ---------- Fristen ---------- */
+function dueView() {
+  const d = store.data, e = d.reminders.find((x) => x.id === editRem) || {};
+  const vs = h('select', { 'aria-label': 'Fahrzeug' }, d.vehicles.map((v) => h('option', { value: v.id }, v.name))); vs.value = e.vid || (curV !== 'all' ? curV : d.vehicles[0].id);
+  const kind = h('select', { 'aria-label': 'Kategorie' }, KINDS.map((k) => h('option', { value: k }, k))); if (e.kind) kind.value = e.kind;
+  const title = inp('text', e.title, { required: true, list: 'remlist', placeholder: 'z. B. Winterreifen aufziehen', 'aria-label': 'Titel' });
+  const date = inp('date', e.date, { required: true, 'aria-label': 'Fällig am' });
+  const rep = inp('text', e.repeat ? String(e.repeat) : '', { inputMode: 'numeric', placeholder: '0', 'aria-label': 'Wiederholen alle Monate' });
+  const f = h('form', { class: 'card' }, h('div', { class: 'form' }, field('Fahrzeug', vs), field('Kategorie', kind), field('Titel', title), field('Fällig am', date), field('Wiederholen (Monate)', rep),
+    h('div', { class: 'row' }, h('button', { class: 'primary' }, editRem ? 'Speichern' : 'Hinzufügen'), editRem ? h('button', { type: 'button', onclick: () => { editRem = null; render(); } }, 'Abbrechen') : null)),
+    h('datalist', { id: 'remlist' }, ['Winterreifen aufziehen', 'Sommerreifen aufziehen', 'Reifendruck prüfen', 'Profiltiefe prüfen', 'Werkstatttermin', 'Hauptuntersuchung', 'Kfz-Steuer'].map((x) => h('option', { value: x }))));
+  f.onsubmit = (ev) => {
+    ev.preventDefault();
+    const r = rep.value.trim() ? intKm(rep.value) : 0;
+    if (isNaN(r)) { alert('Bitte die Wiederholung in ganzen Monaten angeben.'); return; }
+    const o = editRem ? d.reminders.find((x) => x.id === editRem) : { id: uid(), done: false };
+    Object.assign(o, { vid: vs.value, kind: kind.value, title: title.value.trim(), date: date.value, repeat: r });
+    if (!editRem) d.reminders.push(o);
+    editRem = null; store.changed(); render();
+  };
+  // automatische Fristen
+  const auto = [];
+  for (const v of d.vehicles) if (sel(v.id)) {
+    if (v.tuev) auto.push({ vid: v.id, date: v.tuev, label: 'TÜV/HU' });
+    if (v.ins) auto.push({ vid: v.id, date: v.ins, label: 'Versicherung endet' });
+    for (const n of nextServices(v.id)) { if (n.s.nextDate) auto.push({ vid: v.id, date: n.s.nextDate, label: 'Service: ' + n.type }); if (n.s.nextKm) auto.push({ vid: v.id, km: n.s.nextKm, cur: v.km || 0, label: 'Service: ' + n.type }); }
+  }
+  auto.sort((a, b) => (a.date || '9').localeCompare(b.date || '9'));
+  const showV = d.vehicles.length > 1;
+  const autoRows = auto.map((a) => h('div', { class: 'item' }, h('div', { class: 'grow' }, h('strong', {}, a.label), showV ? h('span', { class: 'hint' }, ' · ' + vName(a.vid)) : null),
+    a.date ? [h('span', {}, fmtDate(a.date)), dueBadge(a.date)] : [h('span', {}, fmtKm(a.km)), kmBadge(a.km, a.cur)]));
+  const rs = d.reminders.filter((r) => sel(r.vid)).sort((a, b) => (a.done - b.done) || a.date.localeCompare(b.date));
+  const open = rs.filter((r) => !r.done), done = rs.filter((r) => r.done);
+  const row = (r) => {
+    const cb = inp('checkbox', null, { checked: r.done, 'aria-label': 'Erledigt' });
+    cb.onchange = () => { if (!r.done && r.repeat > 0) r.date = addMonths(r.date, r.repeat); else r.done = !r.done; store.changed(); render(); };
+    return h('div', { class: 'item' + (r.done ? ' done' : '') }, cb, h('div', { class: 'grow' }, h('span', { class: 'badge' }, r.kind), ' ', h('strong', {}, r.title), showV ? h('span', { class: 'hint' }, ' · ' + vName(r.vid)) : null,
+      r.repeat > 0 ? h('div', { class: 'hint' }, `↻ alle ${r.repeat} Monate`) : null),
+      h('span', {}, fmtDate(r.date)), r.done ? h('span', { class: 'badge ok' }, 'erledigt') : dueBadge(r.date),
+      h('button', { class: 'small', 'aria-label': 'Bearbeiten', onclick: () => { editRem = r.id; render(); scrollTo(0, 0); } }, '✎'),
+      h('button', { class: 'small', 'aria-label': 'Löschen', onclick: () => { if (confirm('„' + r.title + '“ löschen?')) { d.reminders = d.reminders.filter((x) => x !== r); store.changed(); render(); } } }, '✕'));
+  };
+  return h('div', {}, vSelect(true), f,
+    h('div', { class: 'card' }, h('h2', { class: 's' }, 'Automatische Fristen'), autoRows.length ? autoRows : h('p', { class: 'muted' }, 'Trage TÜV/HU, Versicherung oder ein Service-Intervall ein, dann erscheint es hier.')),
+    h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { class: 's sp' }, 'Reifen, Termine & Erinnerungen'),
+      h('button', { class: 'small', onclick: () => toCsv([['Fahrzeug', 'Kategorie', 'Titel', 'Fällig am', 'Erledigt', 'Wiederholen (Monate)']].concat(rs.map((r) => [vName(r.vid), r.kind, r.title, r.date, r.done ? 'ja' : 'nein', r.repeat || ''])), 'fristen.csv') }, '⬇ CSV-Export')),
+      open.length ? open.map(row) : h('p', { class: 'muted' }, 'Nichts offen.'),
+      done.length ? h('div', {}, h('button', { class: 'small', style: 'margin-top:8px', onclick: () => { showDone = !showDone; render(); } }, showDone ? 'Erledigte ausblenden' : `Erledigte anzeigen (${done.length})`), showDone ? done.map(row) : null) : null));
+}
+
+/* ---------- Kosten ---------- */
+function costView() {
+  const d = store.data, items = [];
+  for (const f of d.fuel) if (sel(f.vid)) items.push({ y: f.date.slice(0, 4), cat: 'Tanken', c: f.cost });
+  for (const s of d.service) if (sel(s.vid)) items.push({ y: s.date.slice(0, 4), cat: s.type, c: s.cost || 0 });
+  const years = [...new Set(items.map((i) => i.y))].sort().reverse();
+  const cats = ['Tanken'].concat(ARTEN).filter((c) => items.some((i) => i.cat === c));
+  const sum = (fn) => items.filter(fn).reduce((a, i) => a + i.c, 0);
+  const thisY = String(new Date().getFullYear());
+  const tiles = h('div', { class: 'tiles' }, h('div', { class: 'stat' }, h('b', {}, eur(sum(() => true))), h('span', {}, 'Gesamtkosten')),
+    h('div', { class: 'stat' }, h('b', {}, eur(sum((i) => i.y === thisY))), h('span', {}, 'Dieses Jahr')),
+    h('div', { class: 'stat' }, h('b', {}, eur(sum((i) => i.cat === 'Tanken'))), h('span', {}, 'Davon Tanken')),
+    h('div', { class: 'stat' }, h('b', {}, eur(sum((i) => i.cat !== 'Tanken'))), h('span', {}, 'Davon Service & Reparaturen')));
+  const table = items.length ? h('div', { class: 'tw' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Kategorie'), years.map((y) => h('th', { class: 'n' }, y)), h('th', { class: 'n' }, 'Summe'))),
+    h('tbody', {}, cats.map((c) => h('tr', {}, h('td', {}, c), years.map((y) => h('td', { class: 'n' }, eur(sum((i) => i.cat === c && i.y === y)))), h('td', { class: 'n' }, h('strong', {}, eur(sum((i) => i.cat === c)))))),
+      h('tr', { class: 'tot' }, h('td', {}, 'Summe'), years.map((y) => h('td', { class: 'n' }, eur(sum((i) => i.y === y)))), h('td', { class: 'n' }, eur(sum(() => true))))))) : h('p', { class: 'muted' }, 'Noch keine Kosten erfasst.');
+  const csv = () => toCsv([['Kategorie'].concat(years, ['Summe'])].concat(cats.map((c) => [c].concat(years.map((y) => cn(sum((i) => i.cat === c && i.y === y))), [cn(sum((i) => i.cat === c))])), [['Summe'].concat(years.map((y) => cn(sum((i) => i.y === y))), [cn(sum(() => true))])]), 'fahrzeugkosten.csv');
+  return h('div', {}, vSelect(true), tiles, h('div', { class: 'card' }, h('div', { class: 'row' }, h('h2', { class: 's sp' }, 'Kosten pro Jahr und Kategorie'), items.length ? h('button', { class: 'small', onclick: csv }, '⬇ CSV-Export') : null), table,
+    years.length ? yearBars(years.slice().reverse(), sum) : null));
+}
+function yearBars(years, sum) {
+  const NS = 'http://www.w3.org/2000/svg', W = 700, H = 200, L = 10, B = 34, T = 22, n = years.length, bw = Math.min(70, (W - L * 2) / n * 0.6);
+  const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${W} ${H}`); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Diagramm Kosten pro Jahr'); svg.style.marginTop = '12px';
+  const el = (tag, a, t) => { const x = document.createElementNS(NS, tag); for (const k in a) x.setAttribute(k, a[k]); if (t != null) x.textContent = t; svg.append(x); return x; };
+  const tot = years.map((y) => ({ y, f: sum((i) => i.y === y && i.cat === 'Tanken'), s: sum((i) => i.y === y && i.cat !== 'Tanken') })), mx = Math.max(1, ...tot.map((t) => t.f + t.s));
+  tot.forEach((t, i) => {
+    const cx = L + (W - L * 2) * (i + 0.5) / n, hf = (t.f / mx) * (H - B - T), hs = (t.s / mx) * (H - B - T);
+    el('rect', { x: cx - bw / 2, y: H - B - hf, width: bw, height: hf, fill: 'var(--accent)' });
+    el('rect', { x: cx - bw / 2, y: H - B - hf - hs, width: bw, height: hs, fill: 'var(--c3, var(--warn))' });
+    el('text', { x: cx, y: H - B - hf - hs - 5, 'text-anchor': 'middle' }, eur(t.f + t.s)); el('text', { x: cx, y: H - 14, 'text-anchor': 'middle' }, t.y);
+  });
+  return h('div', {}, svg, h('div', { class: 'hint' }, h('span', { style: 'color:var(--accent)' }, '■'), ' Tanken  ', h('span', { style: 'color:var(--c3, var(--warn))' }, '■'), ' Service & Reparaturen'));
+}
+document.querySelectorAll('.tabs button').forEach((b) => b.onclick = () => { tab = b.dataset.tab; editFuel = editSvc = editRem = editCar = null; render(); });
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
