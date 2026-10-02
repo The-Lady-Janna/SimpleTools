@@ -15,7 +15,7 @@
     ['pastel-sky', 'Pastell Himmel', '#eaf4fd']
   ];
   var root = document.documentElement;
-  var cfg = { theme: 'auto', bg: '', collapsed: true };
+  var cfg = { theme: 'auto', bg: '', collapsed: true, width: 'full' };
 
   function load() {
     try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); if (o && typeof o === 'object') for (var k in cfg) if (k in o) cfg[k] = o[k]; } catch (e) {}
@@ -38,7 +38,11 @@
       root.removeAttribute('data-bgimg');
     }
   }
-  load(); applyTheme(); applyBg();
+  function applyWidth() {
+    if (cfg.width === 'narrow') root.setAttribute('data-width', 'narrow'); else root.removeAttribute('data-width');
+    window.dispatchEvent(new Event('resize'));
+  }
+  load(); applyTheme(); applyBg(); applyWidth();
 
   // Bild verkleinern (max. 1600 px, JPEG), damit es in den localStorage passt.
   function shrink(file, cb) {
@@ -100,7 +104,16 @@
       });
     };
 
+    var wBtns = [['full', 'Volle Breite'], ['narrow', 'Begrenzt']].map(function (w) {
+      var b = el('button', { type: 'button', textContent: w[1] }); b.dataset.w = w[0];
+      b.onclick = function () { cfg.width = w[0]; save(); applyWidth(); markW(); };
+      return b;
+    });
+    function markW() { wBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.w === cfg.width)); }); }
+    markW();
+
     panel.append(el('h2', { textContent: 'Design' }), grid,
+      el('h2', { textContent: 'Seitenbreite' }), el('div', { className: 'ui-row ui-width' }, wBtns),
       el('h2', { textContent: 'Hintergrundbild' }), el('div', { className: 'ui-row' }, [pick, clear, file]), hint);
 
     function toggle(open) {
