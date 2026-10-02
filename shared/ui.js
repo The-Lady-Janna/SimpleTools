@@ -12,10 +12,18 @@
     ['pastel-rose', 'Pastell Rosa', '#fdf0f5'],
     ['pastel-mint', 'Pastell Mint', '#ecf9f2'],
     ['pastel-lavender', 'Pastell Lavendel', '#f2effc'],
-    ['pastel-sky', 'Pastell Himmel', '#eaf4fd']
+    ['pastel-sky', 'Pastell Himmel', '#eaf4fd'],
+    ['candy', 'Candy 🍬', 'linear-gradient(135deg,#ff3d9a,#19c3e6 60%,#ffc933)'],
+    ['sunset', 'Sonnenuntergang', 'linear-gradient(135deg,#ffb347,#e4572e 55%,#8e5bd6)'],
+    ['ocean', 'Ozean', 'linear-gradient(135deg,#17b3a3,#0a85ad 55%,#6366f1)'],
+    ['forest', 'Wald', 'linear-gradient(135deg,#8bc34a,#2e8b57 60%,#3a9bb0)'],
+    ['rainbow', 'Regenbogen 🌈', 'linear-gradient(90deg,#ff4d6d,#ffa62b,#2ed47a,#3b9cff,#9b5cff)'],
+    ['neon', 'Neon', 'linear-gradient(135deg,#0d0221 30%,#ff2bd6 60%,#2bf0ff)'],
+    ['arcade', 'Arcade 🎮', 'linear-gradient(135deg,#14123a 40%,#ffd23f)']
   ];
+  var FUN = [['color', '🎨 Bunte Karten'], ['round', '🫧 Runde Formen'], ['anim', '✨ Animationen'], ['confetti', '🎉 Konfetti']];
   var root = document.documentElement;
-  var cfg = { theme: 'auto', bg: '', collapsed: true };
+  var cfg = { theme: 'auto', bg: '', collapsed: true, width: 'full', fun: [] };
 
   function load() {
     try { var o = JSON.parse(localStorage.getItem(KEY) || '{}'); if (o && typeof o === 'object') for (var k in cfg) if (k in o) cfg[k] = o[k]; } catch (e) {}
@@ -38,7 +46,43 @@
       root.removeAttribute('data-bgimg');
     }
   }
-  load(); applyTheme(); applyBg();
+  function applyWidth() {
+    if (cfg.width === 'narrow') root.setAttribute('data-width', 'narrow'); else root.removeAttribute('data-width');
+    window.dispatchEvent(new Event('resize'));
+  }
+  function applyFun() {
+    var f = Array.isArray(cfg.fun) ? cfg.fun.filter(function (x) { return FUN.some(function (t) { return t[0] === x; }); }) : [];
+    if (f.length) root.setAttribute('data-fun', f.join(' ')); else root.removeAttribute('data-fun');
+  }
+  function hasFun(k) { return Array.isArray(cfg.fun) && cfg.fun.indexOf(k) >= 0; }
+  load(); applyTheme(); applyBg(); applyWidth(); applyFun();
+
+  // Konfetti beim Abhaken (nur mit Option „Konfetti“, nicht bei reduzierter Bewegung)
+  function confetti(el) {
+    if (!hasFun('confetti') || !el || !el.getBoundingClientRect) return;
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var r = el.getBoundingClientRect(), cs = getComputedStyle(root), cols = ['--c1', '--c2', '--c3', '--c4', '--c5'].map(function (v) { return cs.getPropertyValue(v).trim() || '#f59e0b'; });
+    for (var i = 0; i < 22; i++) {
+      var p = document.createElement('span'); p.className = 'st-confetti';
+      p.style.left = (r.left + r.width / 2) + 'px'; p.style.top = (r.top + r.height / 2) + 'px'; p.style.background = cols[i % cols.length];
+      document.body.append(p);
+      var a = Math.random() * Math.PI * 2, d = 50 + Math.random() * 90, rot = (Math.random() - 0.5) * 900;
+      if (p.animate) {
+        p.animate([{ transform: 'translate(0,0) rotate(0deg)', opacity: 1 }, { transform: 'translate(' + Math.cos(a) * d + 'px,' + (Math.sin(a) * d + 70) + 'px) rotate(' + rot + 'deg)', opacity: 0 }],
+          { duration: 700 + Math.random() * 500, easing: 'cubic-bezier(.2,.7,.4,1)' }).onfinish = function (ev) { ev.target.effect.target.remove(); };
+      }
+      setTimeout(function (q) { return function () { q.remove(); }; }(p), 1500);
+    }
+  }
+  document.addEventListener('change', function (e) {
+    var t = e.target;
+    if (t && t.type === 'checkbox' && t.checked && !t.closest('form, .toolbar, summary, label')) confetti(t);
+  }, true);
+  document.addEventListener('click', function (e) {
+    var b = e.target && e.target.closest && e.target.closest('button');
+    if (!b) return;
+    if (/^\s*✓/.test(b.textContent) && b.textContent.trim().length > 1 || ((b.classList.contains('cell') || b.classList.contains('big')) && !b.classList.contains('done'))) confetti(b);
+  }, true);
 
   // Bild verkleinern (max. 1600 px, JPEG), damit es in den localStorage passt.
   function shrink(file, cb) {
@@ -100,7 +144,27 @@
       });
     };
 
+    var wBtns = [['full', 'Volle Breite'], ['narrow', 'Begrenzt']].map(function (w) {
+      var b = el('button', { type: 'button', textContent: w[1] }); b.dataset.w = w[0];
+      b.onclick = function () { cfg.width = w[0]; save(); applyWidth(); markW(); };
+      return b;
+    });
+    function markW() { wBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.w === cfg.width)); }); }
+    markW();
+
+    var fBtns = FUN.map(function (f) {
+      var b = el('button', { type: 'button', textContent: f[1] }); b.dataset.f = f[0];
+      b.onclick = function () { var i = cfg.fun.indexOf(f[0]); if (i >= 0) cfg.fun.splice(i, 1); else cfg.fun.push(f[0]); save(); applyFun(); markF(); if (f[0] === 'confetti' && hasFun('confetti')) confetti(b); };
+      return b;
+    });
+    function markF() { fBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(hasFun(b.dataset.f))); }); }
+    markF();
+    var party = el('button', { type: 'button', className: 'ui-party', textContent: '🎉 Spaß-Modus an' });
+    party.onclick = function () { cfg.theme = 'candy'; cfg.fun = FUN.map(function (f) { return f[0]; }); save(); applyTheme(); applyFun(); markThemes(); markF(); confetti(party); };
+
     panel.append(el('h2', { textContent: 'Design' }), grid,
+      el('h2', { textContent: 'Spaß' }), el('div', { className: 'ui-row ui-fun' }, fBtns), party,
+      el('h2', { textContent: 'Seitenbreite' }), el('div', { className: 'ui-row ui-width' }, wBtns),
       el('h2', { textContent: 'Hintergrundbild' }), el('div', { className: 'ui-row' }, [pick, clear, file]), hint);
 
     function toggle(open) {
