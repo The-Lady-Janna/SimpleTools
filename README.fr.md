@@ -6,6 +6,8 @@ De petits outils sous forme de pages HTML indépendantes : sans serveur, sans in
 Les données sont **enregistrées localement dans un fichier JSON** puis rechargées.
 Fonctionne dans **Chrome et Edge** (File System Access API). Les autres navigateurs utilisent une solution de repli (téléchargement / sélecteur de fichiers).
 
+Sur la page d'accueil, vous pouvez afficher et masquer des apps via **⚙️ Personnaliser les apps** (touchez les apps, « Terminé » pour finir). La sélection est conservée dans le `localStorage` du navigateur.
+
 ## Utilisation
 
 Ouvrez `index.html` dans le navigateur (un double-clic suffit, `file://` fonctionne) et choisissez un outil.

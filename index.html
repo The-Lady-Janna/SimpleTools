@@ -14,7 +14,16 @@
   <p>Kleine Tools als einzelne HTML-Seiten. Die Daten bleiben lokal auf deinem Rechner (JSON-Datei). Bitte Chrome oder Edge verwenden. Design und Hintergrundbild stellst du über 🎨 unten rechts ein.</p>
   <div class="topic-bar">
     <input type="search" id="q" placeholder="App suchen…" aria-label="App suchen">
+    <button type="button" id="edit" aria-pressed="false">⚙️ Apps anpassen</button>
     <nav class="topic-nav" aria-label="Themenbereiche"><a href="#t0">🧠 Fokus &amp; ADHS</a><a href="#t1">📋 Planen &amp; Organisieren</a><a href="#t2">💶 Geld</a><a href="#t3">🍽️ Essen &amp; Einkaufen</a><a href="#t4">🏠 Zuhause, Familie &amp; Tiere</a><a href="#t5">💪 Gesundheit &amp; Fitness</a><a href="#t6">🎯 Ziele &amp; Lernen</a><a href="#t7">✈️ Reisen, Feiern &amp; Hobbys</a></nav>
+  </div>
+  <div class="edit-bar card" id="editbar" hidden>
+    <span>Tippe auf Apps, um sie ein- oder auszublenden.</span>
+    <span class="muted" id="offcount"></span>
+    <span class="sp"></span>
+    <button type="button" id="showall">Alle einblenden</button>
+    <button type="button" id="hideall">Alle ausblenden</button>
+    <button type="button" id="done" class="primary">Fertig</button>
   </div>
   <div class="topics">
     <section class="topic" id="t0" aria-labelledby="t0h">
@@ -131,22 +140,68 @@
     </section>
   </div>
   <p class="muted" id="none" hidden>Keine App gefunden.</p>
+  <p class="muted" id="alloff" hidden>Alle Apps sind ausgeblendet. Über den Knopf ⚙️ oben kannst du sie wieder einblenden.</p>
   <p class="muted" style="margin-top:16px">🔗 <b>Gleiche Datei</b>: Apps in einem solchen Block speichern in dieselbe JSON-Datei und teilen ihre Daten.</p>
 </main>
 <script>
 (function () {
-  var q = document.getElementById("q"), none = document.getElementById("none");
-  function apply() {
-    var v = q.value.trim().toLowerCase(), any = false;
-    document.querySelectorAll(".topic").forEach(function (t) {
-      var vis = 0;
-      t.querySelectorAll(".tile").forEach(function (a) { var ok = !v || a.textContent.toLowerCase().indexOf(v) >= 0; a.hidden = !ok; if (ok) vis++; });
-      t.querySelectorAll(".bundle").forEach(function (b) { b.hidden = !b.querySelector(".tile:not([hidden])"); });
-      t.hidden = !vis; if (vis) any = true;
+  var KEY = "simpletools.hidden";
+  var q = document.getElementById("q"), none = document.getElementById("none"), alloff = document.getElementById("alloff");
+  var editBtn = document.getElementById("edit"), bar = document.getElementById("editbar"), cnt = document.getElementById("offcount");
+  var editing = false, off = {};
+  var tiles = Array.prototype.slice.call(document.querySelectorAll(".tile"));
+  try { JSON.parse(localStorage.getItem(KEY) || "[]").forEach(function (h) { off[h] = true; }); } catch (e) {}
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(Object.keys(off))); } catch (e) {} }
+  var navLinks = {};
+  document.querySelectorAll(".topic-nav a").forEach(function (a) { navLinks[a.getAttribute("href")] = a; });
+  tiles.forEach(function (a) {
+    var m = document.createElement("span"); m.className = "tile-mark"; m.setAttribute("aria-hidden", "true"); a.appendChild(m);
+    a.addEventListener("click", function (e) {
+      if (!editing) return;
+      e.preventDefault(); var h = a.getAttribute("href");
+      if (off[h]) delete off[h]; else off[h] = true;
+      save(); apply();
     });
-    none.hidden = any;
+    a.addEventListener("keydown", function (e) { if (editing && e.key === " ") { e.preventDefault(); a.click(); } });
+  });
+  function apply() {
+    var v = q.value.trim().toLowerCase(), any = false, nOff = 0;
+    tiles.forEach(function (a) { if (off[a.getAttribute("href")]) nOff++; });
+    document.querySelectorAll(".topic").forEach(function (t) {
+      var vis = 0, active = 0;
+      t.querySelectorAll(".tile").forEach(function (a) {
+        var isOff = !!off[a.getAttribute("href")];
+        a.classList.toggle("off", isOff);
+        if (editing) { a.setAttribute("role", "switch"); a.setAttribute("aria-checked", String(!isOff)); }
+        else { a.removeAttribute("role"); a.removeAttribute("aria-checked"); }
+        if (!isOff) active++;
+        var ok = (editing || !isOff) && (!v || a.textContent.toLowerCase().indexOf(v) >= 0);
+        a.hidden = !ok; if (ok) vis++;
+      });
+      t.querySelectorAll(".bundle").forEach(function (b) {
+        var shown = b.querySelectorAll(".tile:not([hidden])"); b.hidden = !shown.length;
+        if (shown.length) b.style.setProperty("--n", shown.length);
+        b.querySelectorAll(".tile").forEach(function (a) { a.classList.remove("vfirst"); });
+        if (shown.length) shown[0].classList.add("vfirst");
+      });
+      var small = t.querySelector("h2 small"); if (small) small.textContent = active;
+      t.hidden = !vis; if (vis) any = true;
+      var link = navLinks["#" + t.id]; if (link) link.hidden = !editing && !active;
+    });
+    none.hidden = any || (!editing && nOff === tiles.length);
+    alloff.hidden = editing || nOff !== tiles.length;
+    cnt.textContent = nOff ? nOff + " ausgeblendet" : "";
   }
+  function setEditing(on) {
+    editing = on; document.body.classList.toggle("editing", on); bar.hidden = !on;
+    editBtn.setAttribute("aria-pressed", String(on)); editBtn.hidden = on; apply();
+  }
+  editBtn.addEventListener("click", function () { setEditing(true); });
+  document.getElementById("done").addEventListener("click", function () { setEditing(false); editBtn.focus(); });
+  document.getElementById("showall").addEventListener("click", function () { off = {}; save(); apply(); });
+  document.getElementById("hideall").addEventListener("click", function () { tiles.forEach(function (a) { off[a.getAttribute("href")] = true; }); save(); apply(); });
   q.addEventListener("input", apply);
+  apply();
 })();
 </script>
 </body>
