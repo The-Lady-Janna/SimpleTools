@@ -11,7 +11,7 @@ Works in **Chrome and Edge** (File System Access API). Other browsers use a fall
 Open `index.html` in your browser (a double-click is enough, `file://` works) and pick a tool.
 Connect a JSON file with "Open…" or "Save as…" – from then on **every change is saved automatically**.
 The page checks every few seconds (and when you return to the tab) whether the connection to the file still exists and shows it at the top:
-file moved/deleted, access no longer granted (after a browser restart click "Restore connection" once) or file changed outside the page (nothing is overwritten until you choose "Reload file" or "Overwrite with my data").
+file moved/deleted, access no longer granted (after a browser restart click "Reconnect" once) or file changed outside the page (nothing is overwritten until you choose "Reload file" or "Overwrite with my data").
 
 ## Appearance
 
