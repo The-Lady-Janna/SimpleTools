@@ -1,5 +1,7 @@
 # SimpleTools
 
+**Deutsch** · [English](README.en.md) · [Español](README.es.md) · [Français](README.fr.md)
+
 Kleine Tools als einzelne HTML-Seiten – ohne Server, ohne Installation, ohne Build.
 Die Daten werden **lokal als JSON-Datei** gespeichert und wieder geladen.
 Funktioniert in **Chrome und Edge** (File System Access API). In anderen Browsern gibt es einen Fallback (Download / Datei-Auswahl).
