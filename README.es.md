@@ -6,6 +6,8 @@ Pequeñas herramientas como páginas HTML independientes: sin servidor, sin inst
 Los datos se **guardan localmente en un archivo JSON** y se vuelven a cargar después.
 Funciona en **Chrome y Edge** (File System Access API). Otros navegadores usan una alternativa (descarga / selector de archivos).
 
+En la página de inicio puedes mostrar y ocultar apps con **⚙️ Personalizar apps** (toca las apps, «Listo» para terminar). La selección se guarda en el `localStorage` del navegador.
+
 ## Uso
 
 Abre `index.html` en el navegador (basta con hacer doble clic, funciona con `file://`) y elige una herramienta.

@@ -6,6 +6,8 @@ Small tools as single HTML pages – no server, no installation, no build.
 Data is **stored locally as a JSON file** and loaded again later.
 Works in **Chrome and Edge** (File System Access API). Other browsers use a fallback (download / file picker).
 
+On the start page you can show and hide apps via **⚙️ Customize apps** (tap apps, "Done" to finish). The selection is kept in the browser's `localStorage`.
+
 ## Usage
 
 Open `index.html` in your browser (a double-click is enough, `file://` works) and pick a tool.

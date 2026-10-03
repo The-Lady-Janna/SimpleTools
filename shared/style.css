@@ -166,3 +166,16 @@ html[data-fun~=anim] h1 { animation:st-drop .5s cubic-bezier(.3,1.5,.5,1); }
   .bundle { grid-column:1 / -1; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); }
   .bundle .tile + .tile::before { display:none; }
 }
+
+/* Apps ein-/ausblenden (Startseite) */
+.topic-bar button { padding:6px 12px; }
+.edit-bar { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin:10px 0 0; padding:10px 14px; }
+.edit-bar .sp { flex:1; }
+.tile-mark { display:none; }
+body.editing .tile { position:relative; cursor:pointer; }
+body.editing .tile-mark { display:flex; position:absolute; top:8px; right:8px; width:1.6rem; height:1.6rem; border-radius:50%; align-items:center; justify-content:center; font-size:.95rem; font-weight:700; border:2px solid var(--accent); background:var(--accent); color:var(--on-accent); }
+body.editing .tile .tile-mark::before { content:"\2713"; }
+body.editing .tile.off { opacity:.5; border-style:dashed; filter:grayscale(.6); }
+body.editing .tile.off .tile-mark { background:var(--card); color:var(--muted); border-color:var(--line); }
+body.editing .tile.off .tile-mark::before { content:""; }
+.bundle .tile.vfirst::before { display:none; }

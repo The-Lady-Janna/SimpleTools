@@ -6,6 +6,8 @@ Kleine Tools als einzelne HTML-Seiten – ohne Server, ohne Installation, ohne B
 Die Daten werden **lokal als JSON-Datei** gespeichert und wieder geladen.
 Funktioniert in **Chrome und Edge** (File System Access API). In anderen Browsern gibt es einen Fallback (Download / Datei-Auswahl).
 
+Auf der Startseite lassen sich Apps über **⚙️ Apps anpassen** ein- und ausblenden (auf Apps tippen, „Fertig“ zum Beenden). Die Auswahl liegt im `localStorage` des Browsers.
+
 ## Benutzen
 
 `index.html` im Browser öffnen (Doppelklick genügt, auch per `file://`) und ein Tool wählen.
