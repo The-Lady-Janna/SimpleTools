@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Timer</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 1100px; }
+  .form { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-end; }
+  label.f { display:flex; flex-direction:column; font-size:.8rem; color:var(--muted); gap:2px; min-width:0; }
+  input.w { width:5em; }
+  .quick { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:10px 0; }
+  .quick button { border-radius:99px; padding:4px 14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(270px,1fr)); gap:12px; }
+  .tm { margin:0; border-left:6px solid var(--tc, var(--accent)); display:flex; flex-direction:column; gap:6px; min-width:0; }
+  .tm.ring { animation:pulse .8s infinite alternate; border-color:var(--err); }
+  @keyframes pulse { from { box-shadow:0 0 0 0 transparent; } to { box-shadow:0 0 0 5px var(--err); } }
+  @media (prefers-reduced-motion: reduce) { .tm.ring { animation:none; box-shadow:0 0 0 4px var(--err); } }
+  .tm input.nm { font-weight:600; font-size:1.05rem; background:transparent; border:1px solid transparent; flex:1; width:auto; min-width:0; }
+  .tm .row { flex-wrap:nowrap; }
+  .tm input.nm:hover, .tm input.nm:focus { border-color:var(--line); background:var(--bg); }
+  .tm .big { font-size:2.6rem; font-weight:700; text-align:center; font-variant-numeric:tabular-nums; line-height:1.1; }
+  .tm.done .big { color:var(--err); }
+  .bar { height:10px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--tc, var(--accent)); transition:width .3s linear; }
+  .acts { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+  .acts .go { flex:1; min-width:5.5em; }
+  .tm .info { font-size:.8rem; color:var(--muted); text-align:center; }
+  .set { display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; }
+  input[type=range] { width:9em; }
+  .sw { display:inline-flex; gap:4px; } .sw button { width:26px; height:26px; padding:0; border-radius:50%; background:var(--c); border:2px solid transparent; }
+  .sw button.on { border-color:var(--fg); }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Timer</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="quick" id="quick" role="group" aria-label="Schnellstart"><span class="muted">Schnellstart:</span></div>
+  <form id="form" class="card form">
+    <label class="f" style="flex:1;min-width:150px">Name<input type="text" id="name" placeholder="z. B. Tee oder Nudeln"></label>
+    <label class="f">Std.<input type="number" class="w" id="hh" min="0" max="99" value="0" inputmode="numeric"></label>
+    <label class="f">Min.<input type="number" class="w" id="mm" min="0" max="999" value="5" inputmode="numeric"></label>
+    <label class="f">Sek.<input type="number" class="w" id="ss" min="0" max="59" value="0" inputmode="numeric"></label>
+    <label class="f">Klang<select id="snd"></select></label>
+    <button type="button" id="test" aria-label="Klang testen" title="Klang testen">🔊</button>
+    <span class="sw" id="sw" role="group" aria-label="Farbe"></span>
+    <button class="primary" id="add">Timer hinzufügen</button>
+    <button type="button" id="cancel" hidden>Abbrechen</button>
+  </form>
+  <div class="card set">
+    <label class="f" style="flex-direction:row;align-items:center;gap:8px">Lautstärke <input type="range" id="vol" min="0" max="100"></label>
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="loop"> Klang wiederholen, bis ich stoppe</label>
+    <span class="sp"></span>
+    <button id="pauseall">Alle pausieren</button>
+    <button id="resetall">Alle zurücksetzen</button>
+  </div>
+  <p id="hint" class="muted" style="margin:8px 0 0;font-size:.85rem">Der Klang spielt nur, solange diese Seite geöffnet ist (auch im Hintergrund-Tab). Laufende Timer laufen nach einem Neuladen weiter, sofern die Datei verbunden ist.</p>
+  <div id="list" class="grid" style="margin-top:12px"></div>
+  <div id="empty" class="card muted" hidden>Noch keine Timer. Starte oben einen Schnellstart oder lege einen eigenen an.</div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'timer',
+  defaults: () => ({ timer: { list: [], settings: { vol: 70, loop: true } } }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const SOUNDS = { bell: 'Glocke 🔔', chime: 'Glockenspiel 🎶', beep: 'Piepton 📟', alarm: 'Alarm 🚨', melody: 'Melodie 🎵' };
+const COLORS = ['var(--accent)', 'var(--c1)', 'var(--c2)', 'var(--c3)', 'var(--c4)', 'var(--c5)'];
+const QUICK = [[60, '1 Min.'], [180, '3 Min.'], [300, '5 Min.'], [600, '10 Min.'], [900, '15 Min.'], [1800, '30 Min.'], [3600, '1 Std.']];
+let editId = null, color = 0;
+const ringing = new Set();
+let lastRing = 0, ringSince = 0;
+
+function normalize() {
+  const d = store.data;
+  if (!d.timer || typeof d.timer !== 'object' || Array.isArray(d.timer)) d.timer = {};
+  const T = d.timer;
+  if (!Array.isArray(T.list)) T.list = [];
+  if (!T.settings || typeof T.settings !== 'object') T.settings = {};
+  const S = T.settings;
+  if (typeof S.vol !== 'number') S.vol = 70;
+  if (typeof S.loop !== 'boolean') S.loop = true;
+  const now = Date.now();
+  T.list = T.list.filter((t) => t && typeof t === 'object').map((t) => {
+    t.id = t.id || uid();
+    t.name = typeof t.name === 'string' ? t.name : '';
+    t.secs = Math.max(1, Math.round(Number(t.secs)) || 300);
+    t.sound = SOUNDS[t.sound] ? t.sound : 'bell';
+    t.color = Math.min(COLORS.length - 1, Math.max(0, Math.round(Number(t.color)) || 0));
+    if (!['idle', 'run', 'pause', 'done'].includes(t.state)) t.state = 'idle';
+    t.left = Math.max(0, Math.round(Number(t.left))); if (isNaN(t.left)) t.left = t.secs;
+    if (t.state === 'run' && !(t.endAt > 0)) t.state = 'idle';
+    return t;
+  });
+}
+const T = () => store.data.timer;
+const find = (id) => T().list.find((t) => t.id === id);
+function remaining(t) {
+  if (t.state === 'run') return Math.max(0, Math.ceil((t.endAt - Date.now()) / 1000));
+  if (t.state === 'done') return 0;
+  return t.state === 'pause' ? t.left : t.secs;
+}
+function fmt(s) {
+  const hh = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return (hh ? hh + ':' + pad(m) : pad(m)) + ':' + pad(x);
+}
+
+// ---- Klänge (Web Audio, keine Dateien) ----
+let ctx = null;
+function audio() {
+  try { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === 'suspended') ctx.resume(); } catch (e) { ctx = null; }
+  return ctx;
+}
+document.addEventListener('pointerdown', audio, { capture: true });
+document.addEventListener('keydown', audio, { capture: true });
+function tone(c, out, f, t0, dur, type, vol) {
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+  o.connect(g); g.connect(out); o.start(t0); o.stop(t0 + dur + 0.05);
+}
+function play(kind) {
+  const c = audio(); if (!c) return;
+  const out = c.createGain(); out.gain.value = Math.pow(T().settings.vol / 100, 2); out.connect(c.destination);
+  const t = c.currentTime + 0.02;
+  if (kind === 'bell') { tone(c, out, 880, t, 2.2, 'sine', 0.5); tone(c, out, 1760, t, 1.4, 'sine', 0.25); tone(c, out, 2640, t, 0.8, 'sine', 0.12); }
+  else if (kind === 'chime') [523, 659, 784, 1047].forEach((f, i) => tone(c, out, f, t + i * 0.18, 0.9, 'triangle', 0.4));
+  else if (kind === 'beep') for (let i = 0; i < 4; i++) tone(c, out, 1000, t + i * 0.22, 0.12, 'square', 0.18);
+  else if (kind === 'alarm') for (let i = 0; i < 6; i++) tone(c, out, i % 2 ? 900 : 650, t + i * 0.17, 0.16, 'sawtooth', 0.2);
+  else [659, 659, 698, 784, 784, 698, 659, 587].forEach((f, i) => tone(c, out, f, t + i * 0.25, 0.3, 'triangle', 0.4));
+}
+
+// ---- Steuerung ----
+function addTimer(secs, name, sound, col, start) {
+  const t = { id: uid(), name: name || '', secs, sound: sound || $('snd').value || 'bell', color: col != null ? col : color, state: 'idle', left: secs, endAt: 0 };
+  T().list.push(t);
+  if (start) startT(t);
+  store.changed(); render();
+}
+function startT(t) {
+  audio();
+  if (t.state === 'done' || t.state === 'idle') t.left = t.secs;
+  t.endAt = Date.now() + t.left * 1000; t.state = 'run'; ringing.delete(t.id);
+}
+function pauseT(t) { if (t.state === 'run') { t.left = remaining(t); t.state = 'pause'; } }
+function resetT(t) { t.state = 'idle'; t.left = t.secs; t.endAt = 0; ringing.delete(t.id); }
+function act(t, fn) { fn(t); store.changed(); render(); }
+
+function render() {
+  const S = T().settings;
+  $('vol').value = S.vol; $('loop').checked = S.loop;
+  const list = $('list'); list.replaceChildren();
+  $('empty').hidden = T().list.length > 0;
+  for (const t of T().list) {
+    const r = remaining(t), run = t.state === 'run';
+    const card = h('div', { class: 'card tm' + (ringing.has(t.id) ? ' ring' : '') + (t.state === 'done' ? ' done' : ''), id: 'c' + t.id, style: '--tc:' + COLORS[t.color] },
+      h('div', { class: 'row' },
+        h('input', { class: 'nm', type: 'text', value: t.name, placeholder: 'Timer ohne Namen', 'aria-label': 'Name des Timers', onchange: (e) => { t.name = e.target.value.trim(); store.changed(); } }),
+        h('button', { class: 'small', title: 'Bearbeiten', 'aria-label': 'Timer bearbeiten', onclick: () => editT(t) }, '✎'),
+        h('button', { class: 'small', title: 'Löschen', 'aria-label': 'Timer löschen', onclick: () => { if (confirm('Diesen Timer löschen?')) { T().list = T().list.filter((x) => x !== t); ringing.delete(t.id); store.changed(); render(); } } }, '✕')),
+      h('div', { class: 'big', id: 't' + t.id, role: 'timer' }, fmt(r)),
+      h('div', { class: 'bar', 'aria-hidden': 'true' }, h('i', { id: 'b' + t.id, style: 'width:' + pct(t, r) + '%' })),
+      h('div', { class: 'info' }, t.state === 'done' ? 'Abgelaufen!' : 'Dauer ' + fmt(t.secs) + ' · ' + SOUNDS[t.sound]),
+      h('div', { class: 'acts' },
+        ringing.has(t.id) ? h('button', { class: 'primary go', onclick: () => act(t, (x) => { ringing.delete(x.id); }) }, 'Stoppen')
+          : h('button', { class: 'primary go', onclick: () => act(t, run ? pauseT : startT) }, run ? 'Pause' : t.state === 'pause' ? 'Weiter' : 'Start'),
+        h('button', { class: 'small', title: 'Eine Minute dazu', onclick: () => act(t, addMin) }, '+1 Min.'),
+        h('button', { class: 'small', title: 'Zurücksetzen', onclick: () => act(t, resetT) }, '↺ Zurücksetzen')));
+    list.append(card);
+  }
+  syncTitle();
+}
+function pct(t, r) { return t.state === 'idle' ? 100 : Math.max(0, Math.min(100, (r / Math.max(t.secs, r)) * 100)); }
+function addMin(t) {
+  if (t.state === 'run') t.endAt += 60000;
+  else if (t.state === 'done') { t.left = 60; t.endAt = Date.now() + 60000; t.state = 'run'; ringing.delete(t.id); }
+  else { t.left = (t.state === 'pause' ? t.left : t.secs) + 60; t.state = 'pause'; }
+}
+function editT(t) {
+  editId = t.id; $('name').value = t.name;
+  $('hh').value = Math.floor(t.secs / 3600); $('mm').value = Math.floor((t.secs % 3600) / 60); $('ss').value = t.secs % 60;
+  $('snd').value = t.sound; setColor(t.color);
+  $('add').textContent = 'Übernehmen'; $('cancel').hidden = false; $('name').focus(); window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function endEdit() { editId = null; $('form').reset(); $('hh').value = 0; $('mm').value = 5; $('ss').value = 0; $('add').textContent = 'Timer hinzufügen'; $('cancel').hidden = true; }
+function setColor(i) { color = i; [...$('sw').children].forEach((b, k) => b.classList.toggle('on', k === i)); }
+function syncTitle() {
+  const run = T().list.filter((t) => t.state === 'run');
+  if (ringing.size) document.title = '⏰ 00:00';
+  else if (run.length) document.title = '⏱ ' + fmt(Math.min(...run.map(remaining)));
+  else document.title = 'Timer';
+}
+
+// ---- Tick ----
+function tick() {
+  const now = Date.now(); let changed = false;
+  for (const t of T().list) {
+    if (t.state === 'run' && t.endAt <= now) {
+      t.state = 'done'; t.left = 0; changed = true;
+      if (now - t.endAt < 60000) { ringing.add(t.id); lastRing = 0; ringSince = now; }
+    }
+    const e = $('t' + t.id); if (!e) continue;
+    const r = remaining(t); const s = fmt(r);
+    if (e.textContent !== s) e.textContent = s;
+    const b = $('b' + t.id); if (b) b.style.width = pct(t, r) + '%';
+  }
+  if (changed) { store.changed(); render(); }
+  if (ringing.size) {
+    if (now - lastRing >= 3200) {
+      lastRing = now;
+      const kinds = [...new Set([...ringing].map((id) => (find(id) || {}).sound).filter(Boolean))];
+      kinds.forEach((k, i) => setTimeout(() => play(k), i * 1500));
+      if (!T().settings.loop) { ringing.clear(); render(); }
+    }
+    if (now - ringSince > 120000) { ringing.clear(); render(); }
+  }
+  syncTitle();
+}
+
+// ---- Verdrahtung ----
+$('snd').replaceChildren(...Object.entries(SOUNDS).map(([k, v]) => h('option', { value: k }, v)));
+$('sw').replaceChildren(...COLORS.map((c, i) => h('button', { type: 'button', style: '--c:' + c, 'aria-label': 'Farbe ' + (i + 1), onclick: () => setColor(i) })));
+setColor(0);
+$('quick').append(...QUICK.map(([s, l]) => h('button', { class: 'chip', onclick: () => addTimer(s, '', 'bell', 0, true) }, '▶ ' + l)));
+$('test').onclick = () => play($('snd').value);
+$('snd').onchange = () => play($('snd').value);
+$('vol').oninput = (e) => { T().settings.vol = +e.target.value; };
+$('vol').onchange = () => { store.changed(); play($('snd').value); };
+$('loop').onchange = (e) => { T().settings.loop = e.target.checked; store.changed(); };
+$('pauseall').onclick = () => { T().list.forEach(pauseT); store.changed(); render(); };
+$('resetall').onclick = () => { if (T().list.length && confirm('Alle Timer zurücksetzen?')) { T().list.forEach(resetT); store.changed(); render(); } };
+$('cancel').onclick = endEdit;
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const secs = (Math.max(0, +$('hh').value || 0) * 3600) + (Math.max(0, +$('mm').value || 0) * 60) + Math.max(0, +$('ss').value || 0);
+  if (secs < 1) { alert('Bitte eine Dauer von mindestens einer Sekunde eingeben.'); return; }
+  const name = $('name').value.trim();
+  if (editId) {
+    const t = find(editId);
+    if (t) { t.name = name; t.secs = secs; t.sound = $('snd').value; t.color = color; resetT(t); }
+    endEdit(); store.changed(); render();
+  } else { addTimer(secs, name, $('snd').value, color, true); $('name').value = ''; }
+};
+setInterval(tick, 250);
+document.addEventListener('visibilitychange', tick);
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
