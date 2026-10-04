@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pocket-Pet</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 960px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .tabs { display:flex; flex-wrap:wrap; gap:6px; margin:12px 0; }
+  .tabs button.on { background:var(--accent); color:var(--on-accent); border-color:var(--accent); }
+  .row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  button.small { padding:2px 9px; font-size:.85rem; }
+  [hidden] { display:none !important; }
+
+  main { max-width: 760px; }
+  h2 { margin: 0 0 8px; font-size: 1.1rem; }
+  .petcard .top { display:flex; flex-wrap:wrap; gap:6px 8px; align-items:center; margin-bottom:8px; }
+  .petcard .top h2 { margin:0; flex:1; min-width:6em; font-size:1.3rem; overflow-wrap:anywhere; }
+  .scene { position:relative; height:200px; border-radius:14px; border:1px solid var(--line); overflow:hidden;
+    background:linear-gradient(180deg,#bfe6ff 0%,#e8f6ff 62%,#a8d98a 62%,#8cc56e 100%); transition:filter .6s; }
+  .scene.night { filter:brightness(.55) saturate(.8); }
+  .scene .pw { position:absolute; left:50%; bottom:6px; width:170px; height:170px; margin-left:-85px; transform-origin:50% 95%; }
+  .scene .pw svg { width:100%; height:100%; overflow:visible; display:block; }
+  .pw.idle, .pw.glad { animation:bob 1.6s ease-in-out infinite; }
+  .pw.happy { animation:hop .5s ease-in-out infinite; }
+  .pw.sleep { animation:breathe 3.2s ease-in-out infinite; }
+  .pw.sad { animation:sway 2.4s ease-in-out infinite; }
+  .pw.sick { animation:shiver .35s linear infinite; }
+  .pw.faint { transform-origin:50% 50%; transform:translateY(34px) rotate(80deg); }
+  .pw.egg { animation:wobble 2.2s ease-in-out infinite; }
+  @keyframes bob { 0%,100% { transform:translateY(0) scale(1,1); } 50% { transform:translateY(-6px) scale(.98,1.03); } }
+  @keyframes hop { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-26px); } }
+  @keyframes breathe { 0%,100% { transform:scale(1,1); } 50% { transform:scale(1.02,.97); } }
+  @keyframes sway { 0%,100% { transform:rotate(-2deg); } 50% { transform:rotate(2deg); } }
+  @keyframes shiver { 0%,100% { transform:translateX(-1.5px); } 50% { transform:translateX(1.5px); } }
+  @keyframes wobble { 0%,100% { transform:rotate(-5deg); } 50% { transform:rotate(5deg); } }
+  .blink { transform-box:fill-box; transform-origin:center; animation:blink 4.5s infinite; }
+  @keyframes blink { 0%,94%,100% { transform:scaleY(1); } 97% { transform:scaleY(.1); } }
+  .scene .fx { position:absolute; font-size:1.7rem; pointer-events:none; }
+  .scene .zzz { right:26%; top:14%; animation:float 2.4s ease-in-out infinite; }
+  .scene .bubble { right:24%; top:12%; animation:float 2s ease-in-out infinite; }
+  .scene .heart { top:30%; animation:rise 1.6s ease-out infinite; opacity:0; }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+  @keyframes rise { 0% { transform:translateY(30px); opacity:0; } 30% { opacity:1; } 100% { transform:translateY(-50px); opacity:0; } }
+  .scene button.poop { position:absolute; bottom:8px; background:none; border:0; padding:2px; font-size:1.7rem; line-height:1; cursor:pointer; min-height:0; }
+  .scene .toy { position:absolute; bottom:10px; left:12%; font-size:2rem; }
+  .speech { min-height:2.6em; margin:8px 0; padding:7px 12px; border-radius:12px; background:var(--bg); border:1px solid var(--line); font-weight:600; }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:6px 18px; margin:8px 0 12px; }
+  .st { display:flex; align-items:center; gap:8px; font-size:.9rem; }
+  .st .lab { width:6.6em; flex:none; }
+  .bar { flex:1; height:12px; background:var(--bg); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .bar > i { display:block; height:100%; background:var(--ok); transition:width .4s; }
+  .bar.warn > i { background:var(--warn); } .bar.err > i { background:var(--err); }
+  .st .val { width:3.2em; text-align:right; color:var(--muted); font-variant-numeric:tabular-nums; }
+  .hearts { flex:1; letter-spacing:2px; }
+  .acts { display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; }
+  .acts button { display:flex; flex-direction:column; align-items:center; gap:2px; padding:8px 4px; min-height:62px; line-height:1.15; text-align:center; }
+  .acts button .ic { font-size:1.5rem; }
+  .species { display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:8px; margin:10px 0; }
+  .species button { display:flex; flex-direction:column; align-items:center; padding:6px 4px; gap:2px; }
+  .species button[aria-pressed=true] { border-color:var(--accent); outline:2px solid var(--accent); }
+  .species svg { width:78px; height:78px; }
+  .gcanvas { display:block; width:100%; max-width:420px; aspect-ratio:300/330; margin:8px auto; border:1px solid var(--line); border-radius:12px; touch-action:none; background:var(--bg); }
+  .gcanvas:focus-visible { outline:2px solid var(--accent); }
+  .ghud { gap:6px 16px; }
+  .gmsg { min-height:2.4em; }
+  .bignum { font-size:3.2rem; font-weight:700; text-align:center; padding:10px; border:1px solid var(--line); border-radius:12px; background:var(--bg); margin:8px 0; }
+  .shop .it { display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:5px 0; border-top:1px solid var(--line); }
+  .shop .it .ic { font-size:1.5rem; } .shop .it .nm { flex:1; min-width:7em; }
+  .hall .e, .log .e { display:flex; flex-wrap:wrap; gap:2px 10px; align-items:baseline; padding:4px 0; border-top:1px solid var(--line); }
+  .log .e .tm { color:var(--muted); font-variant-numeric:tabular-nums; font-size:.82rem; }
+  .memorial { text-align:center; }
+  .memorial svg { width:120px; height:120px; }
+  .setrow { display:flex; flex-direction:column; gap:2px; margin:8px 0; }
+  @media (prefers-reduced-motion: reduce) { .pw, .blink, .fx, .bar > i { animation:none !important; transition:none !important; } }
+  @media (max-width:480px) { .scene { height:180px; } .scene .pw { width:150px; height:150px; margin-left:-75px; } .st .lab { width:5.6em; } }
+
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Pocket-Pet</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <p class="muted" style="margin:-4px 0 8px">Teilt seine Datei mit den anderen Spielen – Stand und Highscores werden gemeinsam gespeichert. <a href="minigolf.html">Minigolf</a> · <a href="blockfall.html">Blockfall</a></p>
+  <div id="top"></div>
+  <div id="gamebox" class="card" hidden></div>
+  <div id="rest"></div>
+
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k === 'list' || k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const eur = (n) => (n || 0).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const t = h('textarea', { value: text }); document.body.append(t); t.select(); try { document.execCommand('copy'); } catch {} t.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = 'Kopiert ✓'; setTimeout(() => btn.textContent = o, 1200); }
+}
+const store = SimpleStorage.create({
+  name: 'spiele',
+  defaults: () => ({ pet: { v: 1 } }),
+  onChange: () => { normalize(); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+/* ===== Daten ===== */
+const SPECIES = [
+  { k: 'cat', name: 'Katze', emoji: '🐱', c: '#f4a259', d: '#b86a1e', b: '#ffe6c7', def: 'Mimi' },
+  { k: 'dog', name: 'Hund', emoji: '🐶', c: '#cf9b66', d: '#7a4b26', b: '#f6e0c4', def: 'Bello' },
+  { k: 'bun', name: 'Hase', emoji: '🐰', c: '#ecebf3', d: '#9c98b4', b: '#ffffff', def: 'Hoppel' },
+  { k: 'chick', name: 'Küken', emoji: '🐤', c: '#ffd84a', d: '#c79200', b: '#fff3b0', def: 'Piepsi' },
+  { k: 'dra', name: 'Drache', emoji: '🐲', c: '#6fcf97', d: '#2f8a58', b: '#eef8b0', def: 'Funke' },
+];
+const STAGES = ['Ei', 'Baby', 'Kind', 'Teenager', 'Erwachsen', 'Senior'];
+const AGE_AT = [0, 5, 1440, 4320, 7200, 17280];   // Minuten: Baby ab 5 Min., Kind ab Tag 1, Teen ab Tag 3, Erwachsen ab Tag 5, Senior ab Tag 12
+const OLD_AGE = 43200;                           // 30 Tage (nur ohne Gnädigen Modus)
+const OFFLINE_CAP = 480;                         // max. 8 Stunden Aufholen
+const HATS = [{ id: 'bow', icon: '🎀', name: 'Schleife', price: 20 }, { id: 'cap', icon: '🧢', name: 'Kappe', price: 25 }, { id: 'top', icon: '🎩', name: 'Zylinder', price: 40 }, { id: 'crown', icon: '👑', name: 'Krone', price: 80 }];
+const TOYS = [{ id: 'ball', icon: '⚽', name: 'Ball', price: 30 }, { id: 'teddy', icon: '🧸', name: 'Teddy', price: 45 }, { id: 'yoyo', icon: '🪀', name: 'Jo-Jo', price: 60 }];
+const STAT_ROWS = [['hunger', '🍖', 'Sattheit'], ['fun', '🎈', 'Spaß'], ['energy', '⚡', 'Energie'], ['hygiene', '🧼', 'Sauberkeit']];
+const URLSEED = (() => { const s = new URLSearchParams(location.search).get('seed'); return s != null && s !== '' ? (parseInt(s, 10) >>> 0) || 1 : null; })();
+
+let skew = 0;                                    // Test: verschiebt die Uhr
+const now = () => Date.now() + skew;
+const D = () => store.data.pet;
+const C = () => D().cur;
+const num = (v, lo, hi, def) => { v = Number(v); return Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : def; };
+const clamp = (v) => Math.min(100, Math.max(0, v));
+let flashMsg = '', flashUntil = 0, react = null, shopOpen = false, pick = 0, nameDraft = '';
+let dirty = false, lastSave = 0;
+
+function newCur(sp, name) {
+  const t = now();
+  return { species: sp, name: name, born: t, lastTick: t, stage: 0, asleep: false, sick: false, dead: false, how: '',
+    hunger: 80, fun: 70, energy: 90, hygiene: 90, health: 100, poop: 0, poopP: 0, weight: 50, stuff: 0,
+    careSum: 0, careN: 0, forms: {}, hat: '', toy: '', w: {}, cuddles: 0, seed: (URLSEED != null ? URLSEED : Math.floor(Math.random() * 4294967295)) >>> 0 };
+}
+function normalize() {
+  const d = store.data;
+  if (!d.pet || typeof d.pet !== 'object' || Array.isArray(d.pet)) d.pet = {};
+  const p = d.pet;
+  p.v = 1;
+  if (!p.settings || typeof p.settings !== 'object' || Array.isArray(p.settings)) p.settings = {};
+  p.settings.sound = p.settings.sound !== false;
+  p.settings.mercy = p.settings.mercy !== false;
+  p.coins = Math.floor(num(p.coins, 0, 1e7, 20));
+  if (!p.best || typeof p.best !== 'object') p.best = {};
+  p.best.catch = Math.floor(num(p.best.catch, 0, 1e6, 0)); p.best.hilo = Math.floor(num(p.best.hilo, 0, 1e6, 0));
+  if (!p.owned || typeof p.owned !== 'object' || Array.isArray(p.owned)) p.owned = {};
+  p.hall = (Array.isArray(p.hall) ? p.hall : []).filter((e) => e && typeof e === 'object').map((e) => ({ name: String(e.name || '').slice(0, 16), species: String(e.species || ''), days: Math.floor(num(e.days, 0, 1e5, 0)), stage: String(e.stage || ''), how: ['tot', 'alt', 'abgegeben'].includes(e.how) ? e.how : 'tot', t: num(e.t, 0, 1e15, 0) }));
+  p.log = (Array.isArray(p.log) ? p.log : []).filter((e) => e && typeof e.m === 'string').slice(0, 10).map((e) => ({ t: num(e.t, 0, 1e15, 0), m: e.m }));
+  if (p.cur && typeof p.cur === 'object' && !Array.isArray(p.cur)) {
+    const c = p.cur, t = now();
+    c.species = Math.floor(num(c.species, 0, SPECIES.length - 1, 0));
+    c.name = String(c.name || SPECIES[c.species].def).slice(0, 16);
+    c.born = num(c.born, 0, 1e15, t); c.lastTick = num(c.lastTick, 0, 1e15, t);
+    c.stage = Math.floor(num(c.stage, 0, 5, 0));
+    c.asleep = !!c.asleep; c.sick = !!c.sick; c.dead = !!c.dead; c.how = String(c.how || '');
+    c.hunger = num(c.hunger, 0, 100, 80); c.fun = num(c.fun, 0, 100, 70); c.energy = num(c.energy, 0, 100, 90);
+    c.hygiene = num(c.hygiene, 0, 100, 90); c.health = num(c.health, 0, 100, 100);
+    c.poop = Math.floor(num(c.poop, 0, 4, 0)); c.poopP = num(c.poopP, 0, 500, 0); c.weight = num(c.weight, 30, 100, 50); c.stuff = num(c.stuff, 0, 10, 0);
+    c.careSum = num(c.careSum, 0, 1e12, 0); c.careN = Math.floor(num(c.careN, 0, 1e9, 0)); c.cuddles = Math.floor(num(c.cuddles, 0, 1e9, 0));
+    if (!c.forms || typeof c.forms !== 'object' || Array.isArray(c.forms)) c.forms = {};
+    c.hat = HATS.some((x) => x.id === c.hat) ? c.hat : ''; c.toy = TOYS.some((x) => x.id === c.toy) ? c.toy : '';
+    if (!c.w || typeof c.w !== 'object' || Array.isArray(c.w)) c.w = {};
+    c.seed = (Math.floor(num(c.seed, 1, 4294967295, 12345))) >>> 0;
+  } else p.cur = null;
+  catchUp();
+}
+
+/* ===== Spielzeit ===== */
+function rnd() { const c = C(); let t = (c.seed = (c.seed + 0x6D2B79F5) >>> 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+const ageMin = (c) => Math.max(0, (now() - c.born) / 60000);
+const stageFor = (m) => { let s = 0; AGE_AT.forEach((a, i) => { if (m >= a) s = i; }); return s; };
+const heavy = (c) => c.weight >= 75;
+const mean = (c) => (c.hunger + c.fun + c.energy + c.hygiene + c.health) / 5;
+const quality = (c) => c.careN ? c.careSum / c.careN : 70;
+function logEv(m) { const p = D(); p.log.unshift({ t: now(), m: m }); p.log.length = Math.min(p.log.length, 10); }
+function warnOnce(c, key, low, msg) {
+  const v = c[key];
+  if (v < 20 && !c.w[key]) { c.w[key] = 1; logEv(msg); } else if (v > 40) c.w[key] = 0;
+}
+function die(c, how) {
+  c.dead = true; c.how = how; c.asleep = false;
+  D().hall.unshift({ name: c.name, species: SPECIES[c.species].name, days: Math.floor(ageMin(c) / 1440), stage: STAGES[c.stage], how: how, t: now() });
+  if (D().hall.length > 50) D().hall.length = 50;
+  if (how === 'alt') logEv(`„${c.name}“ ist friedlich eingeschlafen.`); else logEv(`„${c.name}“ ist gestorben.`);
+}
+function simulate(c, minutes) {
+  const mercy = D().settings.mercy, minH = 3;
+  for (let i = 0; i < minutes && !c.dead; i++) {
+    if (c.stage === 0) continue;
+    const a = c.asleep, hv = heavy(c);
+    c.hunger = clamp(c.hunger - (a ? 0.04 : 0.12) * (hv ? 1.1 : 1));
+    c.fun = clamp(c.fun - (a ? 0.02 : c.toy ? 0.07 : 0.09));
+    c.energy = clamp(c.energy + (a ? 0.45 : hv ? -0.1 : -0.08));
+    c.hygiene = clamp(c.hygiene - (a ? 0.02 : 0.05) - 0.03 * c.poop);
+    if (!a) { c.poopP += 0.6 + rnd() * 0.8; if (c.poopP >= 110) { c.poopP = 0; if (c.poop < 4) { c.poop++; logEv(`„${c.name}“ hat ein Häufchen gemacht.`); } } }
+    if (c.weight > 50) c.weight = Math.max(50, c.weight - 0.008);
+    c.stuff = Math.max(0, c.stuff - 0.05);
+    let h = c.health;
+    if (c.hunger <= 0) h -= 0.12; else if (c.hunger < 15) h -= 0.05;
+    if (c.hygiene < 10) h -= 0.05;
+    if (c.poop >= 3) h -= 0.04;
+    if (c.sick) h -= 0.08;
+    else if (Math.min(c.hunger, c.fun, c.hygiene, c.energy) >= 15 && c.poop < 3) h += (a ? 0.12 : 0.06) * (hv ? 0.4 : 1);
+    if (!c.sick && c.hygiene < 10 && c.poop >= 2 && rnd() < 0.002) { c.sick = true; logEv(`„${c.name}“ ist krank geworden.`); }
+    c.health = clamp(h);
+    if (!c.sick && c.health < 30) { c.sick = true; logEv(`„${c.name}“ ist krank geworden.`); }
+    if (mercy && c.health < minH) c.health = minH;
+    if (!mercy && c.health <= 0) { die(c, 'tot'); break; }
+    if (!a && c.energy <= 0) { c.asleep = true; logEv(`„${c.name}“ ist vor Erschöpfung eingeschlafen.`); }
+    if (a && c.energy >= 100) { c.asleep = false; logEv(`„${c.name}“ ist ausgeschlafen.`); }
+    warnOnce(c, 'hunger', 20, `„${c.name}“ hat großen Hunger.`);
+    warnOnce(c, 'fun', 20, `„${c.name}“ ist gelangweilt.`);
+    warnOnce(c, 'hygiene', 20, `„${c.name}“ ist ziemlich schmutzig.`);
+    c.careSum += mean(c); c.careN++;
+    if (!mercy && ageMin(c) >= OLD_AGE) { die(c, 'alt'); break; }
+  }
+}
+function checkStage(c) {
+  if (c.dead) return false;
+  const target = stageFor(ageMin(c));
+  let ch = false;
+  while (c.stage < target) {
+    c.stage++; ch = true;
+    if (c.stage >= 2) { const q = quality(c); c.forms[c.stage] = q >= 72 ? 'A' : q < 48 ? 'C' : 'B'; D().coins += 10; }
+    if (c.stage === 1) logEv(`„${c.name}“ ist geschlüpft! 🐣`);
+    else if (c.stage === 2) logEv(`„${c.name}“ ist jetzt ein Kind. (+10 Münzen)`);
+    else if (c.stage === 3) logEv(`„${c.name}“ ist jetzt ein Teenager. (+10 Münzen)`);
+    else if (c.stage === 4) logEv(`„${c.name}“ ist erwachsen geworden. (+10 Münzen)`);
+    else logEv(`„${c.name}“ ist jetzt ein Senior. (+10 Münzen)`);
+  }
+  if (ch) { beep([[523, .1], [659, .1], [784, .1], [1047, .25]]); react = { until: Date.now() + 3000 }; }
+  return ch;
+}
+// holt verpasste Zeit nach (max. 8 Stunden); gibt zurück, ob sich etwas geändert hat
+function catchUp() {
+  const c = D() && C();
+  if (!c || c.dead) return false;
+  const t = now();
+  if (c.lastTick > t) c.lastTick = t;
+  const steps = Math.floor((t - c.lastTick) / 60000);
+  let ch = false;
+  if (steps > 0) {
+    const eff = Math.min(steps, OFFLINE_CAP);
+    simulate(c, eff);
+    if (steps > eff) c.lastTick = t; else c.lastTick += steps * 60000;
+    if (steps >= 60 && !c.dead) { if (steps >= 2880) logEv(`Willkommen zurück! Du warst ${Math.round(steps / 1440)} Tage weg.`); else logEv(`Willkommen zurück! Du warst ${Math.round(steps / 60)} Std. weg.`); }
+    ch = true;
+  }
+  if (checkStage(c)) ch = true;
+  if (ch) dirty = true;
+  return ch;
+}
+function save() { dirty = false; lastSave = Date.now(); store.changed(); }
+function flush(force) { if (dirty && (force || Date.now() - lastSave > 10000)) save(); }
+function tick() { if (!D()) return; if (catchUp()) renderTop(); if (react && react.until < Date.now()) { react = null; renderTop(); } flush(false); }
+setInterval(tick, 1000);
+document.addEventListener('visibilitychange', () => { if (document.hidden) { flush(true); const g = G.catch; if (g && g.state === 'run') g.pause(); } else tick(); });
+window.addEventListener('pagehide', () => flush(true));
+
+/* ===== Ton ===== */
+let gesture = false, actx = null;
+['pointerdown', 'keydown'].forEach((ev) => document.addEventListener(ev, () => { gesture = true; }, { capture: true, passive: true }));
+function beep(seq) {
+  if (!gesture || !D() || !D().settings.sound) return;
+  try {
+    if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
+    if (actx.state === 'suspended') actx.resume().catch(() => {});
+    let t = actx.currentTime;
+    seq.forEach((n) => { const o = actx.createOscillator(), g = actx.createGain(); o.type = n[2] || 'square'; o.frequency.value = n[0]; g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + n[1]); o.connect(g); g.connect(actx.destination); o.start(t); o.stop(t + n[1]); t += n[1] * 0.9; });
+  } catch (e) { /* kein Ton */ }
+}
+const SND = { ok: [[660, .08], [880, .1]], eat: [[330, .06], [392, .06], [330, .06]], coin: [[988, .06], [1319, .14]], bad: [[220, .15, 'sawtooth'], [165, .2, 'sawtooth']], love: [[784, .08, 'sine'], [988, .12, 'sine']], sleep: [[440, .15, 'sine'], [330, .2, 'sine']], med: [[523, .08], [659, .08], [523, .08]] };
+
+/* ===== Sprites ===== */
+const NS = 'http://www.w3.org/2000/svg';
+function sv(tag, a, ...kids) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in (a || {})) e.setAttribute(k, a[k]);
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const DARK = '#2b2233';
+function eye(cx, cy, kind, left, form) {
+  if (kind === 'happy') return sv('path', { d: `M${cx - 6} ${cy + 2} Q${cx} ${cy - 6} ${cx + 6} ${cy + 2}`, stroke: DARK, 'stroke-width': 3, 'stroke-linecap': 'round', fill: 'none' });
+  if (kind === 'sleep') return sv('path', { d: `M${cx - 6} ${cy} Q${cx} ${cy + 5} ${cx + 6} ${cy}`, stroke: DARK, 'stroke-width': 3, 'stroke-linecap': 'round', fill: 'none' });
+  if (kind === 'x') return sv('g', { stroke: DARK, 'stroke-width': 3, 'stroke-linecap': 'round' }, sv('path', { d: `M${cx - 5} ${cy - 5} L${cx + 5} ${cy + 5} M${cx + 5} ${cy - 5} L${cx - 5} ${cy + 5}` }));
+  const g = sv('g', {}, sv('g', { class: 'blink' }, sv('circle', { cx, cy, r: 7, fill: '#fff', stroke: DARK, 'stroke-width': 1.5 }), sv('circle', { cx, cy: cy + 0.5, r: 3.8, fill: DARK }), sv('circle', { cx: cx + 1.6, cy: cy - 1.2, r: 1.3, fill: '#fff' })));
+  if (kind === 'sad') {
+    g.append(sv('path', { d: left ? `M${cx - 8} ${cy - 8} L${cx + 5} ${cy - 12}` : `M${cx - 5} ${cy - 12} L${cx + 8} ${cy - 8}`, stroke: DARK, 'stroke-width': 2.5, 'stroke-linecap': 'round' }));
+    g.append(sv('ellipse', { cx: cx + (left ? -4 : 4), cy: cy + 12, rx: 2, ry: 3, fill: '#5ab2ff' }));
+  } else if (form === 'C') g.append(sv('path', { d: left ? `M${cx - 8} ${cy - 12} L${cx + 5} ${cy - 8}` : `M${cx - 5} ${cy - 8} L${cx + 8} ${cy - 12}`, stroke: DARK, 'stroke-width': 2.5, 'stroke-linecap': 'round' }));
+  return g;
+}
+function sprite(o) {
+  const S = SPECIES[o.sp], k = [1, 0.62, 0.76, 0.88, 1, 0.95][o.stage], W = o.heavy ? 41 : 34, c = S.c, d = S.d, b = S.b, L = 60 - W, R = 60 + W;
+  const back = [], front = [];
+  const st = { stroke: d, 'stroke-width': 2.5, 'stroke-linejoin': 'round' };
+  if (S.k === 'cat') {
+    back.push(sv('path', { d: `M${R - 4} 98 Q${R + 24} 96 ${R + 14} 62`, stroke: c, 'stroke-width': 9, 'stroke-linecap': 'round', fill: 'none' }));
+    back.push(sv('polygon', { points: `${L + 2},62 ${L + 8},30 ${L + 26},50`, fill: c, ...st }), sv('polygon', { points: `${R - 2},62 ${R - 8},30 ${R - 26},50`, fill: c, ...st }));
+    back.push(sv('polygon', { points: `${L + 9},52 ${L + 10},38 ${L + 19},48`, fill: '#ffb3c1' }), sv('polygon', { points: `${R - 9},52 ${R - 10},38 ${R - 19},48`, fill: '#ffb3c1' }));
+    front.push(sv('polygon', { points: '56,80 64,80 60,85', fill: '#ff8fa3' }), sv('path', { d: 'M34 84 L48 83 M34 90 L48 87 M86 84 L72 83 M86 90 L72 87', stroke: d, 'stroke-width': 1.5, 'stroke-linecap': 'round' }));
+  } else if (S.k === 'dog') {
+    back.push(sv('path', { d: `M${R - 4} 98 Q${R + 14} 96 ${R + 10} 80`, stroke: d, 'stroke-width': 8, 'stroke-linecap': 'round', fill: 'none' }));
+    back.push(sv('ellipse', { cx: L + 3, cy: 66, rx: 9, ry: 18, fill: d, transform: `rotate(16 ${L + 3} 66)` }), sv('ellipse', { cx: R - 3, cy: 66, rx: 9, ry: 18, fill: d, transform: `rotate(-16 ${R - 3} 66)` }));
+    front.push(sv('circle', { cx: 74, cy: 71, r: 9.5, fill: d, opacity: 0.55 }), sv('ellipse', { cx: 60, cy: 86, rx: 13, ry: 9, fill: b, stroke: d, 'stroke-width': 1.5 }), sv('ellipse', { cx: 60, cy: 81, rx: 5, ry: 3.5, fill: DARK }));
+  } else if (S.k === 'bun') {
+    back.push(sv('circle', { cx: R - 2, cy: 98, r: 8, fill: '#fff', stroke: d, 'stroke-width': 2 }));
+    back.push(sv('ellipse', { cx: 46, cy: 34, rx: 9, ry: 24, fill: c, ...st, transform: 'rotate(-6 46 56)' }), sv('ellipse', { cx: 74, cy: 34, rx: 9, ry: 24, fill: c, ...st, transform: 'rotate(6 74 56)' }));
+    back.push(sv('ellipse', { cx: 46, cy: 36, rx: 4.5, ry: 16, fill: '#ffc2d1', transform: 'rotate(-6 46 56)' }), sv('ellipse', { cx: 74, cy: 36, rx: 4.5, ry: 16, fill: '#ffc2d1', transform: 'rotate(6 74 56)' }));
+    front.push(sv('ellipse', { cx: 60, cy: 81, rx: 3.5, ry: 2.5, fill: '#ff8fa3' }), sv('path', { d: 'M60 84 L60 88', stroke: d, 'stroke-width': 1.5 }));
+  } else if (S.k === 'chick') {
+    back.push(sv('ellipse', { cx: L + 2, cy: 84, rx: 8, ry: 15, fill: d, opacity: 0.8, transform: `rotate(18 ${L + 2} 84)` }), sv('ellipse', { cx: R - 2, cy: 84, rx: 8, ry: 15, fill: d, opacity: 0.8, transform: `rotate(-18 ${R - 2} 84)` }));
+    back.push(sv('path', { d: 'M46 108 L46 114 M42 114 L50 114 M74 108 L74 114 M70 114 L78 114', stroke: '#ff9f1c', 'stroke-width': 3, 'stroke-linecap': 'round' }));
+    front.push(sv('path', { d: 'M54 49 q-3 -10 4 -13 M60 48 q0 -13 7 -13 M66 49 q5 -8 9 -5', stroke: d, 'stroke-width': 3, fill: 'none', 'stroke-linecap': 'round' }));
+    front.push(sv('polygon', { points: '53,79 67,79 60,90', fill: '#ff9f1c', stroke: '#b86a00', 'stroke-width': 1.5, 'stroke-linejoin': 'round' }));
+  } else {
+    back.push(sv('path', { d: `M${R - 4} 100 Q${R + 26} 108 ${R + 20} 82`, stroke: c, 'stroke-width': 10, 'stroke-linecap': 'round', fill: 'none' }), sv('polygon', { points: `${R + 14},84 ${R + 26},74 ${R + 26},92`, fill: d }));
+    back.push(sv('path', { d: `M${R - 8} 66 Q${R + 26} 36 ${R + 24} 80 Q${R + 10} 72 ${R - 8} 86 Z`, fill: '#a5e3bf', ...st }));
+    [48, 60, 72].forEach((x) => back.push(sv('polygon', { points: `${x - 5},52 ${x},38 ${x + 5},52`, fill: d })));
+    back.push(sv('polygon', { points: `${L + 6},56 ${L + 8},34 ${L + 20},50`, fill: '#fff0b3', ...st }), sv('polygon', { points: `${R - 6},56 ${R - 8},34 ${R - 20},50`, fill: '#fff0b3', ...st }));
+    front.push(sv('path', { d: 'M48 94 L72 94 M50 100 L70 100', stroke: d, 'stroke-width': 1.5, opacity: 0.4 }), sv('circle', { cx: 56, cy: 82, r: 1.4, fill: d }), sv('circle', { cx: 64, cy: 82, r: 1.4, fill: d }));
+  }
+  const body = [sv('ellipse', { cx: 60, cy: 78, rx: W, ry: 30, fill: c, ...st }), sv('ellipse', { cx: 60, cy: 90, rx: W * 0.6, ry: 17, fill: b, opacity: 0.9 })];
+  if (S.k !== 'chick') body.push(sv('ellipse', { cx: 44, cy: 107, rx: 9, ry: 5, fill: d }), sv('ellipse', { cx: 76, cy: 107, rx: 9, ry: 5, fill: d }));
+  const m = o.mood;
+  const ek = m === 'sleep' ? 'sleep' : m === 'happy' ? 'happy' : (m === 'sick' || m === 'faint') ? 'x' : m === 'sad' ? 'sad' : 'open';
+  const face = [eye(48, 70, ek, true, o.form), eye(72, 70, ek, false, o.form)];
+  if (o.stage === 5) face.push(sv('g', { stroke: DARK, 'stroke-width': 1.6, fill: 'none' }, sv('circle', { cx: 48, cy: 70, r: 10 }), sv('circle', { cx: 72, cy: 70, r: 10 }), sv('path', { d: 'M58 70 L62 70' })));
+  const my = S.k === 'dog' ? 93 : S.k === 'chick' ? 0 : 89;
+  if (my) {
+    if (m === 'happy') face.push(sv('path', { d: `M52 ${my - 3} Q60 ${my + 9} 68 ${my - 3} Z`, fill: '#7a2c3b', stroke: DARK, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    else if (m === 'sleep') face.push(sv('ellipse', { cx: 60, cy: my, rx: 3, ry: 2.5, fill: DARK, opacity: 0.55 }));
+    else if (m === 'sad') face.push(sv('path', { d: `M53 ${my + 3} Q60 ${my - 5} 67 ${my + 3}`, stroke: DARK, 'stroke-width': 2.5, fill: 'none', 'stroke-linecap': 'round' }));
+    else if (m === 'sick' || m === 'faint') face.push(sv('path', { d: `M52 ${my + 1} q4 -5 8 0 t8 0`, stroke: DARK, 'stroke-width': 2.5, fill: 'none', 'stroke-linecap': 'round' }));
+    else if (o.hungry) face.push(sv('ellipse', { cx: 60, cy: my, rx: 4, ry: 5, fill: '#7a2c3b', stroke: DARK, 'stroke-width': 1.5 }));
+    else face.push(sv('path', { d: `M54 ${my - 1} Q60 ${my + (m === 'glad' ? 5 : 3)} 66 ${my - 1}`, stroke: DARK, 'stroke-width': 2.5, fill: 'none', 'stroke-linecap': 'round' }));
+  }
+  if (o.form === 'A' && m !== 'sick' && m !== 'faint') face.push(sv('circle', { cx: 37, cy: 82, r: 5, fill: '#ff8fa3', opacity: 0.55 }), sv('circle', { cx: 83, cy: 82, r: 5, fill: '#ff8fa3', opacity: 0.55 }), sv('text', { x: 92, y: 46, 'font-size': 18 }, '✨'));
+  if (o.form === 'C') face.push(sv('path', { d: 'M48 50 l-3 -8 M56 47 l-1 -9 M64 47 l2 -8', stroke: d, 'stroke-width': 2.5, 'stroke-linecap': 'round' }));
+  const tint = (m === 'sick') ? '#6fbf5a' : (m === 'faint') ? '#8a8a8a' : null;
+  if (tint) face.unshift(sv('ellipse', { cx: 60, cy: 78, rx: W - 1, ry: 29, fill: tint, opacity: 0.35 }));
+  const hat = o.hat ? [sv('text', { x: 60, y: S.k === 'bun' ? 56 : 52, 'font-size': 32, 'text-anchor': 'middle', transform: 'rotate(-8 60 46)' }, (HATS.find((x) => x.id === o.hat) || {}).icon || '')] : [];
+  return sv('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true' }, sv('g', { transform: `translate(60 108) scale(${k}) translate(-60 -108)`, filter: o.form === 'C' ? 'saturate(.65)' : o.form === 'A' ? 'saturate(1.2)' : '' }, back, body, front, face, hat));
+}
+function eggSprite(p) {
+  return sv('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true' }, sv('ellipse', { cx: 60, cy: 68, rx: 33, ry: 43, fill: '#fff6e0', stroke: '#b8924f', 'stroke-width': 3 }),
+    sv('circle', { cx: 48, cy: 50, r: 6, fill: '#ffb3c1' }), sv('circle', { cx: 74, cy: 62, r: 8, fill: '#a5d8ff' }), sv('circle', { cx: 52, cy: 82, r: 7, fill: '#c3f0c8' }), sv('circle', { cx: 72, cy: 88, r: 4, fill: '#ffe08a' }),
+    p > 0.4 ? sv('path', { d: 'M38 58 l9 7 l-7 7 l11 6', stroke: DARK, 'stroke-width': 2, fill: 'none', 'stroke-linejoin': 'round' }) : null,
+    p > 0.75 ? sv('path', { d: 'M82 50 l-8 8 l8 6 l-9 7', stroke: DARK, 'stroke-width': 2, fill: 'none', 'stroke-linejoin': 'round' }) : null);
+}
+function tombSprite() {
+  return sv('svg', { viewBox: '0 0 120 120', 'aria-hidden': 'true' }, sv('path', { d: 'M30 108 L30 52 Q30 24 60 24 Q90 24 90 52 L90 108 Z', fill: '#c9ccd3', stroke: '#6b7280', 'stroke-width': 3 }),
+    sv('path', { d: 'M60 40 L60 74 M48 52 L72 52', stroke: '#6b7280', 'stroke-width': 5, 'stroke-linecap': 'round' }), sv('path', { d: 'M18 108 L102 108', stroke: '#6b7280', 'stroke-width': 4 }), sv('text', { x: 92, y: 30, 'font-size': 18 }, '🌼'));
+}
+
+/* ===== Stimmung ===== */
+function moodOf(c) {
+  if (c.asleep) return 'sleep';
+  if (c.health <= 5) return 'faint';
+  if (c.sick) return 'sick';
+  if (react && react.until > Date.now()) return 'happy';
+  if (Math.min(c.hunger, c.fun, c.energy, c.hygiene) < 20 || c.poop >= 3) return 'sad';
+  return mean(c) >= 72 ? 'glad' : 'idle';
+}
+function speech(c) {
+  if (flashMsg && flashUntil > Date.now()) return flashMsg;
+  if (c.stage === 0) return 'Im Ei regt sich etwas …';
+  if (c.asleep) return 'Zzz … Es schläft tief und fest.';
+  if (c.health <= 5) return D().settings.mercy ? 'Es ist ganz schwach und braucht Hilfe.' : 'Es ist in Lebensgefahr!';
+  if (c.sick) return 'Mir ist so schlecht … Ich brauche Medizin.';
+  if (c.poop >= 2) return 'Hier stinkt es! Bitte aufräumen.';
+  if (c.hunger < 25) return 'Ich habe riesigen Hunger!';
+  if (c.energy < 20) return 'Ich bin sooo müde …';
+  if (c.fun < 25) return 'Mir ist langweilig. Spielst du mit mir?';
+  if (c.hygiene < 25) return 'Ich bin ganz schmutzig.';
+  if (heavy(c)) return 'Puh, ich bin etwas zu pummelig …';
+  if (mean(c) >= 75) return 'Mir geht es richtig gut!';
+  return 'Alles in Ordnung.';
+}
+function flash(msg) { flashMsg = msg; flashUntil = Date.now() + 3500; renderTop(); setTimeout(() => { if (Date.now() >= flashUntil) renderTop(); }, 3600); }
+function cheer(kind, ms) { react = { k: kind || 'happy', until: Date.now() + (ms || 1800) }; }
+
+/* ===== Aktionen ===== */
+const busy = () => G.mode != null;
+function can(c) {
+  if (!c || c.dead) return false;
+  if (c.stage === 0) { flash('Das Ei muss erst schlüpfen.'); return false; }
+  return true;
+}
+function done(sound) { if (sound) beep(sound); save(); renderTop(); }
+function feed(kind) {
+  const c = C(); if (!can(c)) return;
+  if (c.asleep) return flash('Pssst! Es schläft gerade.');
+  const full = c.hunger >= 90;
+  if (kind === 'snack') { c.hunger = clamp(c.hunger + 12); c.fun = clamp(c.fun + 10); c.weight = Math.min(100, c.weight + 3); c.poopP += 4; if (!full) c.stuff += 0.5; logEv(`„${c.name}“ hat einen Snack genascht.`); }
+  else { c.hunger = clamp(c.hunger + 35); c.fun = clamp(c.fun + 2); c.weight = Math.min(100, c.weight + 1.5); c.poopP += 8; logEv(`„${c.name}“ hat eine Mahlzeit gegessen.`); }
+  if (full) {
+    c.stuff += 1; c.fun = clamp(c.fun - 3);
+    if (c.stuff >= 3 && !c.sick) { c.sick = true; c.health = clamp(c.health - 10); logEv(`„${c.name}“ hat Bauchweh vom Überfressen.`); cheer('x', 0); react = null; flashMsg = 'Oje, zu viel gegessen! Jetzt hat es Bauchweh.'; flashUntil = Date.now() + 3500; return done(SND.bad); }
+    flashMsg = 'Es ist schon pappsatt!'; flashUntil = Date.now() + 3500; return done(SND.bad);
+  }
+  cheer(); done(SND.eat);
+}
+function toggleSleep() {
+  const c = C(); if (!can(c)) return;
+  if (c.asleep) { c.asleep = false; logEv(`„${c.name}“ wurde geweckt.`); cheer(); return done(SND.ok); }
+  if (c.energy >= 95) return flash('Es ist noch gar nicht müde.');
+  c.asleep = true; logEv(`Licht aus: „${c.name}“ schläft.`); done(SND.sleep);
+}
+function wash() {
+  const c = C(); if (!can(c)) return;
+  if (c.asleep) return flash('Pssst! Es schläft gerade.');
+  if (c.hygiene >= 95) return flash('Es ist schon blitzsauber.');
+  c.hygiene = clamp(c.hygiene + 45); c.fun = clamp(c.fun - 4); logEv(`„${c.name}“ wurde gebadet.`); cheer(); done(SND.ok);
+}
+function tidy(all) {
+  const c = C(); if (!can(c)) return;
+  if (c.poop <= 0) return flash('Hier ist nichts aufzuräumen.');
+  c.poop = all ? 0 : c.poop - 1; c.hygiene = clamp(c.hygiene + (all ? 8 : 4)); if (all) logEv('Alles aufgeräumt.'); done(SND.ok);
+}
+function medicine() {
+  const c = C(); if (!can(c)) return;
+  if (!c.sick) return flash('Es ist gar nicht krank.');
+  c.sick = false; c.health = clamp(c.health + 20); c.stuff = 0; c.fun = clamp(c.fun - 5); logEv(`„${c.name}“ hat Medizin bekommen und ist wieder gesund.`); cheer(); done(SND.med);
+}
+function cuddle() {
+  const c = C(); if (!can(c)) return;
+  if (c.asleep) return flash('Pssst! Es schläft gerade.');
+  c.cuddles++;
+  if (c.fun >= 98) { cheer('love'); return flash('Es genießt die Streicheleinheiten.'); }
+  c.fun = clamp(c.fun + 6); cheer('love', 2200); if (c.cuddles % 10 === 0) { D().coins++; logEv('Streicheln belohnt: +1 Münze.'); }
+  done(SND.love);
+}
+function revive() {
+  const c = C(); if (!c || c.dead) return;
+  c.hunger = Math.max(c.hunger, 50); c.fun = Math.max(c.fun, 50); c.energy = Math.max(c.energy, 50); c.hygiene = Math.max(c.hygiene, 60);
+  c.health = 45; c.sick = false; c.poop = 0; c.asleep = false; c.stuff = 0;
+  logEv(`„${c.name}“ wurde wiederbelebt.`); cheer(); done(SND.med);
+}
+function hatch() {
+  const c = C(); if (!c || c.stage !== 0) return;
+  c.born = Math.min(c.born, now() - AGE_AT[1] * 60000); c.lastTick = now();
+  checkStage(c); done(null);
+}
+function adopt() {
+  const sp = SPECIES[pick], name = (nameDraft || '').trim().slice(0, 16) || sp.def;
+  D().cur = newCur(pick, name); nameDraft = ''; react = null;
+  logEv(`„${name}“ ist eingezogen. Ein Ei!`); beep(SND.ok); save(); render();
+}
+function release() {
+  const c = C(); if (!c || c.dead) return;
+  if (!confirm('Das aktuelle Haustier abgeben und ein neues adoptieren? Es kommt in die Ruhmeshalle.')) return;
+  D().hall.unshift({ name: c.name, species: SPECIES[c.species].name, days: Math.floor(ageMin(c) / 1440), stage: STAGES[c.stage], how: 'abgegeben', t: now() });
+  D().hall.length = Math.min(D().hall.length, 50);
+  logEv(`„${c.name}“ wurde abgegeben.`); D().cur = null; save(); render();
+}
+function buy(item, kind) {
+  const p = D(), c = C(); if (!c || c.dead) return;
+  if (p.coins < item.price) return flash('Nicht genug Münzen.');
+  p.coins -= item.price;
+  if (kind === 'food') {
+    if (!can(c)) { p.coins += item.price; return; }
+    if (c.asleep) { p.coins += item.price; return flash('Pssst! Es schläft gerade.'); }
+    c.hunger = clamp(c.hunger + item.hunger); c.fun = clamp(c.fun + item.fun); c.weight = Math.min(100, c.weight + item.w); c.health = clamp(c.health + (item.hp || 0)); c.poopP += 6;
+    if (c.hunger >= 100) c.stuff += 0.5;
+    logEv(`„${c.name}“ hat ${item.icon} bekommen.`); cheer(); return done(SND.eat);
+  }
+  p.owned[item.id] = true; c[kind] = item.id; logEv(`Neu gekauft: ${item.icon}`); cheer(); done(SND.coin);
+}
+function equip(item, kind) { const c = C(); if (!c || c.dead) return; c[kind] = c[kind] === item.id ? '' : item.id; done(SND.ok); }
+const FOODS = [{ id: 'apple', icon: '🍎', name: 'Apfel', price: 5, hunger: 15, fun: 3, w: 0, hp: 3 }, { id: 'cake', icon: '🎂', name: 'Torte', price: 15, hunger: 25, fun: 22, w: 4 }];
+
+/* ===== Minispiele ===== */
+const G = { mode: null, catch: null, hilo: null };
+let grndState = (URLSEED != null ? URLSEED : Math.floor(Math.random() * 4294967295)) >>> 0;
+function grnd() { let t = (grndState = (grndState + 0x6D2B79F5) >>> 0); t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }
+const reduced = () => { try { return matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; } };
+function closeGame() { if (G.catch && G.catch.stop) G.catch.stop(); G.mode = null; G.catch = null; G.hilo = null; const b = $('gamebox'); b.hidden = true; b.replaceChildren(); renderTop(); }
+function openGame() {
+  const c = C(); if (!can(c)) return;
+  if (c.asleep) return flash('Pssst! Es schläft gerade.');
+  if (c.sick) return flash('Es ist krank – gib ihm erst Medizin.');
+  if (c.energy < 15) return flash('Zu müde zum Spielen.');
+  if (c.health <= 5) return flash('Es ist zu schwach zum Spielen.');
+  showMenu();
+}
+function showMenu() {
+  if (G.catch && G.catch.stop) G.catch.stop();
+  G.mode = 'menu'; G.catch = null; G.hilo = null;
+  const b = $('gamebox'), best = D().best; b.hidden = false;
+  b.replaceChildren(h('h2', {}, '🎮 Spielen'), h('p', { class: 'muted' }, 'Wähle ein Spiel. Es macht das Haustier glücklich und bringt Münzen.'),
+    h('div', { class: 'row' }, h('button', { class: 'primary', onclick: startCatch }, 'Leckerli fangen'), h('button', { class: 'primary', onclick: startHilo }, 'Höher oder tiefer'), h('button', { onclick: closeGame }, 'Schließen')),
+    h('p', { class: 'muted' }, h('span', {}, `Rekord Leckerli fangen: ${best.catch}`), ' ', h('span', {}, `Rekord Höher oder tiefer: ${best.hilo}`)));
+  renderTop();
+}
+function reward(game, score, funGain, coins, energyCost) {
+  const c = C(), p = D();
+  c.fun = clamp(c.fun + funGain); c.energy = clamp(c.energy - energyCost); c.weight = Math.max(30, c.weight - 1.5); p.coins += coins;
+  const newBest = score > p.best[game];
+  if (newBest) p.best[game] = score;
+  logEv(game === 'catch' ? `Leckerli fangen: ${score} Punkte (+${coins} Münzen)` : `Höher oder tiefer: Serie von ${score} (+${coins} Münzen)`);
+  cheer('happy', 2500); beep(coins > 0 ? SND.coin : SND.ok); save();
+  return newBest;
+}
+function startCatch() {
+  G.mode = 'catch';
+  const box = $('gamebox');
+  const cv = h('canvas', { class: 'gcanvas', tabIndex: 0, role: 'img', 'aria-label': 'Spielfeld' });
+  const sc = h('b', {}, '0'), tm = h('b', {}, '25');
+  const msg = h('p', { class: 'gmsg muted', role: 'status' }, 'Bewege den Korb mit Maus, Finger oder Pfeiltasten. Fange 🍎 und ⭐ und weiche 🪨 aus!');
+  const ctx = cv.getContext('2d');
+  const g = G.catch = { state: 'ready', score: 0, time: 25, px: 150, keys: { l: false, r: false }, items: [], spawn: 0.4, el: 0, shake: 0, pop: [], stop: null, pause: null };
+  const css = (n, f) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || f;
+  let raf = 0, last = 0;
+  function size() { const w = Math.max(160, Math.round(cv.clientWidth || 300)), dpr = window.devicePixelRatio || 1; cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr * 330 / 300); draw(); }
+  function update(dt) {
+    g.el += dt; g.time -= dt; g.shake = Math.max(0, g.shake - dt);
+    const sp = 260 * dt; if (g.keys.l) g.px -= sp; if (g.keys.r) g.px += sp;
+    g.px = Math.min(278, Math.max(22, g.px));
+    g.spawn -= dt;
+    if (g.spawn <= 0) {
+      g.spawn = Math.max(0.32, 0.85 - g.el * 0.014);
+      const r = grnd(), kind = r < 0.14 ? 'rock' : r < 0.22 ? 'star' : 'treat';
+      g.items.push({ x: 18 + grnd() * 264, y: -16, vy: 90 + g.el * 3.2 + grnd() * 45, kind, e: kind === 'rock' ? '🪨' : kind === 'star' ? '⭐' : ['🍎', '🍪', '🍓', '🥕'][Math.floor(grnd() * 4)] });
+    }
+    for (const it of g.items) {
+      it.y += it.vy * dt;
+      if (!it.hit && it.y > 268 && it.y < 322 && Math.abs(it.x - g.px) < 36) {
+        it.hit = true;
+        if (it.kind === 'rock') { g.score = Math.max(0, g.score - 2); if (!reduced()) g.shake = 0.3; beep(SND.bad); g.pop.push({ x: it.x, y: 262, t: 0.6, s: '−2' }); }
+        else { const v = it.kind === 'star' ? 3 : 1; g.score += v; beep([[700 + v * 150, .05]]); g.pop.push({ x: it.x, y: 262, t: 0.6, s: '+' + v }); }
+        sc.textContent = g.score;
+      }
+    }
+    g.items = g.items.filter((it) => !it.hit && it.y < 350);
+    g.pop.forEach((p) => { p.t -= dt; p.y -= 40 * dt; }); g.pop = g.pop.filter((p) => p.t > 0);
+    tm.textContent = Math.max(0, Math.ceil(g.time));
+    if (g.time <= 0) finish();
+  }
+  function draw() {
+    const s = cv.width / 300; ctx.setTransform(s, 0, 0, s, 0, 0);
+    ctx.clearRect(0, 0, 300, 330);
+    ctx.save();
+    if (g.shake > 0) ctx.translate((Math.random() - 0.5) * 8, (Math.random() - 0.5) * 8);
+    const gr = ctx.createLinearGradient(0, 0, 0, 330); gr.addColorStop(0, '#bfe6ff'); gr.addColorStop(0.85, '#e8f6ff'); gr.addColorStop(1, '#8cc56e');
+    ctx.fillStyle = gr; ctx.fillRect(0, 0, 300, 330);
+    ctx.fillStyle = '#8cc56e'; ctx.fillRect(0, 316, 300, 14);
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.font = '28px serif';
+    for (const it of g.items) ctx.fillText(it.e, it.x, it.y);
+    ctx.font = '44px serif'; ctx.fillText(SPECIES[C().species].emoji, g.px, 296);
+    ctx.font = '22px serif'; ctx.fillText('🧺', g.px, 316);
+    ctx.font = 'bold 16px sans-serif'; ctx.fillStyle = css('--fg', '#222');
+    g.pop.forEach((p) => { ctx.globalAlpha = Math.min(1, p.t * 2); ctx.fillText(p.s, p.x, p.y); }); ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+  function frame(ts) { if (g.state !== 'run') return; const dt = Math.min(0.05, ((ts - last) / 1000) || 0); last = ts; update(dt); draw(); if (g.state === 'run') raf = requestAnimationFrame(frame); }
+  function run() { g.state = 'run'; last = performance.now(); cancelAnimationFrame(raf); raf = requestAnimationFrame(frame); buttons(); cv.focus({ preventScroll: true }); }
+  function finish() {
+    if (g.state === 'over') return;
+    g.state = 'over'; cancelAnimationFrame(raf); draw();
+    const c = Math.min(30, g.score), nb = reward('catch', g.score, Math.min(40, 6 + Math.round(g.score * 2.5)), c, 12);
+    msg.textContent = nb ? `Neuer Rekord! ${g.score} Punkte, +${c} Münzen.` : `Geschafft! ${g.score} Punkte, +${c} Münzen.`;
+    buttons(); renderTop();
+  }
+  g.stop = () => { cancelAnimationFrame(raf); if (g.state === 'run') g.state = 'over'; document.removeEventListener('keydown', onKey); document.removeEventListener('keyup', onKeyUp); window.removeEventListener('resize', size); };
+  g.pause = () => { if (g.state !== 'run') return; g.state = 'paused'; cancelAnimationFrame(raf); msg.textContent = 'Pausiert.'; buttons(); };
+  g.update = update; g.draw = draw; g.finish = finish; g.start = run;
+  const bar = h('div', { class: 'row' });
+  function buttons() {
+    const L = h('button', { 'aria-label': 'Nach links', class: 'small', onpointerdown: (e) => { e.preventDefault(); g.keys.l = true; }, onpointerup: () => { g.keys.l = false; }, onpointerleave: () => { g.keys.l = false; }, onpointercancel: () => { g.keys.l = false; } }, '◀');
+    const R = h('button', { 'aria-label': 'Nach rechts', class: 'small', onpointerdown: (e) => { e.preventDefault(); g.keys.r = true; }, onpointerup: () => { g.keys.r = false; }, onpointerleave: () => { g.keys.r = false; }, onpointercancel: () => { g.keys.r = false; } }, '▶');
+    const main = g.state === 'ready' ? h('button', { class: 'primary', onclick: run }, 'Start') : g.state === 'paused' ? h('button', { class: 'primary', onclick: () => { msg.textContent = ''; run(); } }, 'Weiter')
+      : g.state === 'over' ? h('button', { class: 'primary', onclick: () => { g.stop(); const c = C(); if (!c || c.energy < 15) { showMenu(); flash('Zu müde zum Spielen.'); } else startCatch(); } }, 'Nochmal') : h('button', { onclick: g.pause }, 'Pause');
+    bar.replaceChildren(...[L, R, main, g.state === 'run' || g.state === 'paused' ? h('button', { onclick: finish }, 'Beenden') : null, h('button', { onclick: showMenu }, g.state === 'over' ? 'Zurück' : 'Abbrechen')].filter(Boolean));
+  }
+  function setX(e) { const r = cv.getBoundingClientRect(); g.px = Math.min(278, Math.max(22, (e.clientX - r.left) / r.width * 300)); }
+  cv.onpointerdown = (e) => { cv.focus({ preventScroll: true }); setX(e); try { cv.setPointerCapture(e.pointerId); } catch (x) { /* egal */ } };
+  cv.onpointermove = (e) => { if (g.state === 'run' && (e.buttons || e.pointerType === 'mouse')) setX(e); };
+  function onKey(e) {
+    if (G.mode !== 'catch' || G.catch !== g) return;
+    const k = e.key, l = k === 'ArrowLeft' || k === 'a' || k === 'A', r = k === 'ArrowRight' || k === 'd' || k === 'D';
+    const mine = g.state === 'run' || e.target === cv;
+    if (l) { g.keys.l = true; if (mine) e.preventDefault(); } else if (r) { g.keys.r = true; if (mine) e.preventDefault(); }
+    else if ((k === 'ArrowUp' || k === 'ArrowDown') && mine) e.preventDefault();
+    else if (k === ' ' || k === 'Enter') { const tag = e.target && e.target.tagName; if (tag === 'BUTTON' || tag === 'INPUT' || tag === 'SELECT' || tag === 'A') return; e.preventDefault(); if (g.state === 'ready' || g.state === 'paused') run(); }
+    else if ((k === 'p' || k === 'P' || k === 'Escape') && g.state === 'run') { e.preventDefault(); g.pause(); }
+  }
+  function onKeyUp(e) { const k = e.key; if (k === 'ArrowLeft' || k === 'a' || k === 'A') g.keys.l = false; if (k === 'ArrowRight' || k === 'd' || k === 'D') g.keys.r = false; }
+  document.addEventListener('keydown', onKey); document.addEventListener('keyup', onKeyUp); window.addEventListener('resize', size);
+  buttons();
+  box.replaceChildren(h('h2', {}, '🧺 Leckerli fangen'), h('div', { class: 'row ghud' }, h('span', {}, 'Punkte: ', sc), h('span', {}, 'Zeit: ', tm, ' s'), h('span', { class: 'sp' }), h('span', { class: 'muted' }, `Rekord: ${D().best.catch}`)), cv, msg, bar);
+  size(); renderTop();
+}
+function startHilo() {
+  G.mode = 'hilo';
+  const g = G.hilo = { cur: 1 + Math.floor(grnd() * 13), streak: 0, over: false, msg: '' };
+  showHilo(g);
+  renderTop();
+}
+function showHilo(g) {
+  const box = $('gamebox');
+  function guess(up) {
+    let n; do n = 1 + Math.floor(grnd() * 13); while (n === g.cur);
+    const ok = up ? n > g.cur : n < g.cur; g.cur = n;
+    if (ok) { g.streak++; beep([[600 + g.streak * 40, .07]]); g.msg = 'Richtig!'; if (g.streak >= 15) return end(g.streak); }
+    else { beep(SND.bad); end(Math.floor(g.streak / 2), true); return; }
+    showHilo(g);
+  }
+  function end(score, lost) {
+    g.over = true; const coins = Math.min(20, score), nb = reward('hilo', score, Math.min(40, 3 + score * 4), coins, 5);
+    g.msg = lost ? `Leider falsch. Du bekommst die halbe Serie: ${score}, +${coins} Münzen.` : nb ? `Neuer Rekord! Serie von ${score}, +${coins} Münzen.` : `Ausgezahlt! Serie von ${score}, +${coins} Münzen.`;
+    showHilo(g); renderTop();
+  }
+  box.replaceChildren(h('h2', {}, '🔢 Höher oder tiefer'), h('div', { class: 'bignum', 'aria-live': 'polite' }, String(g.cur)),
+    h('p', { class: 'gmsg', role: 'status' }, g.over ? g.msg : [g.msg ? h('b', {}, g.msg) : null, g.msg ? ' ' : null, 'Ist die nächste Zahl (1 bis 13) höher oder tiefer?']),
+    h('div', { class: 'row' }, h('span', {}, 'Serie: ', h('b', {}, String(g.streak))), h('span', { class: 'sp' }), h('span', { class: 'muted' }, `Rekord: ${D().best.hilo}`)),
+    h('div', { class: 'row', style: 'margin-top:8px' }, g.over ? [h('button', { class: 'primary', onclick: () => { const c = C(); if (c && c.energy >= 15 && !c.sick) startHilo(); else { showMenu(); flash('Zu müde zum Spielen.'); } } }, 'Nochmal'), h('button', { onclick: showMenu }, 'Zurück')]
+      : [h('button', { class: 'primary', onclick: () => guess(true) }, '▲ Höher'), h('button', { class: 'primary', onclick: () => guess(false) }, '▼ Tiefer'), h('button', { disabled: g.streak < 1, onclick: () => end(g.streak, false) }, 'Auszahlen'), h('button', { onclick: showMenu }, 'Abbrechen')]));
+}
+
+/* ===== Ansicht ===== */
+function stageText(c) { return STAGES[c.stage]; }
+function scene(c) {
+  const mood = c.stage === 0 ? 'egg' : moodOf(c);
+  const sp = c.stage === 0 ? eggSprite(Math.min(1, ageMin(c) / AGE_AT[1])) : sprite({ sp: c.species, stage: c.stage, form: c.forms[c.stage] || 'B', mood, hat: c.hat, heavy: heavy(c), hungry: c.hunger < 25 });
+  const xs = ['8%', '78%', '20%', '66%'];
+  const kids = [h('div', { class: 'pw ' + mood }, sp)];
+  if (c.asleep) kids.push(h('span', { class: 'fx zzz', 'aria-hidden': 'true' }, '💤'));
+  else if (mood === 'sick' || mood === 'faint') kids.push(h('span', { class: 'fx bubble', 'aria-hidden': 'true' }, '🤢'));
+  else if (mood === 'sad') kids.push(h('span', { class: 'fx bubble', 'aria-hidden': 'true' }, c.hunger < 25 ? '🍖' : '💧'));
+  if (react && react.k === 'love' && react.until > Date.now()) [0, 1, 2].forEach((i) => kids.push(h('span', { class: 'fx heart', style: `left:${38 + i * 12}%;animation-delay:${i * 0.35}s`, 'aria-hidden': 'true' }, '❤️')));
+  if (c.toy) kids.push(h('span', { class: 'toy', 'aria-hidden': 'true' }, (TOYS.find((x) => x.id === c.toy) || {}).icon || ''));
+  for (let i = 0; i < c.poop; i++) kids.push(h('button', { class: 'poop', style: `left:${xs[i]}`, 'aria-label': 'Häufchen entfernen', title: 'Häufchen entfernen', onclick: () => tidy(false) }, '💩'));
+  return h('div', { class: 'scene' + (c.asleep ? ' night' : '') }, kids);
+}
+function statRows(c) {
+  const rows = STAT_ROWS.map(([k, ic, lab]) => {
+    const v = Math.round(c[k]);
+    return h('div', { class: 'st' }, h('span', { 'aria-hidden': 'true' }, ic), h('span', { class: 'lab' }, lab),
+      h('div', { class: 'bar' + (v < 25 ? ' err' : v < 50 ? ' warn' : ''), role: 'progressbar', 'aria-label': lab, 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-valuenow': String(v) }, h('i', { style: 'width:' + v + '%' })),
+      h('span', { class: 'val' }, v + ' %'));
+  });
+  const hp = Math.ceil(c.health / 20), hs = [];
+  for (let i = 0; i < 5; i++) hs.push(i < hp ? '❤️' : '🖤');
+  rows.push(h('div', { class: 'st' }, h('span', { 'aria-hidden': 'true' }, '💗'), h('span', { class: 'lab' }, 'Gesundheit'), h('span', { class: 'hearts', role: 'img', 'aria-label': 'Gesundheit ' + Math.round(c.health) + ' %' }, hs.join('')), h('span', { class: 'val' }, Math.round(c.health) + ' %')));
+  return h('div', { class: 'stats' }, rows);
+}
+function act(id, ic, label, fn, cls) { return h('button', { class: cls || '', dataset: { act: id }, onclick: () => { if (busy() && id !== 'shop') return flash('Beende erst das Spiel.'); fn(); } }, h('span', { class: 'ic', 'aria-hidden': 'true' }, ic), h('span', {}, label)); }
+function shopView(c) {
+  const p = D();
+  const row = (it, kind, extra) => h('div', { class: 'it' }, h('span', { class: 'ic', 'aria-hidden': 'true' }, it.icon), h('span', { class: 'nm' }, it.name), extra);
+  return h('div', { class: 'shop', style: 'margin-top:12px' }, h('h2', {}, '🛍️ Shop'), h('p', { class: 'muted' }, 'Münzen gibt es für Spiele, Streicheln und Wachstum.'),
+    FOODS.map((f) => row(f, 'food', h('button', { class: 'small', onclick: () => buy(f, 'food') }, 'Kaufen & füttern ', h('span', {}, '🪙 ' + f.price)))),
+    HATS.map((x) => row(x, 'hat', p.owned[x.id] ? h('button', { class: 'small', onclick: () => equip(x, 'hat') }, c.hat === x.id ? 'Ablegen' : 'Aufsetzen') : h('button', { class: 'small', onclick: () => buy(x, 'hat') }, 'Kaufen ', h('span', {}, '🪙 ' + x.price)))),
+    TOYS.map((x) => row(x, 'toy', p.owned[x.id] ? h('button', { class: 'small', onclick: () => equip(x, 'toy') }, c.toy === x.id ? 'Wegräumen' : 'Hinstellen') : h('button', { class: 'small', onclick: () => buy(x, 'toy') }, 'Kaufen ', h('span', {}, '🪙 ' + x.price)))));
+}
+function petCard(c) {
+  const p = D(), q = quality(c), form = c.forms[c.stage];
+  const head = h('div', { class: 'top' }, h('h2', {}, c.name), h('span', { class: 'badge' }, stageText(c)),
+    c.stage > 0 ? h('span', { class: 'badge' }, `Tag ${Math.floor(ageMin(c) / 1440) + 1}`) : null,
+    c.sick ? h('span', { class: 'badge err' }, 'Krank') : null, c.asleep ? h('span', { class: 'badge' }, 'Schläft') : null, heavy(c) ? h('span', { class: 'badge warn' }, 'Pummelig') : null,
+    h('span', { class: 'badge', title: 'Münzen' }, '🪙 ' + p.coins),
+    h('button', { class: 'small', dataset: { act: 'snd' }, 'aria-pressed': String(p.settings.sound), 'aria-label': 'Ton', title: 'Ton', onclick: () => { p.settings.sound = !p.settings.sound; if (p.settings.sound) beep(SND.ok); save(); render(); } }, p.settings.sound ? '🔊' : '🔇'));
+  const parts = [head, scene(c), h('div', { class: 'speech', role: 'status', 'aria-live': 'polite' }, speech(c))];
+  if (c.stage === 0) {
+    const left = Math.max(1, Math.ceil(AGE_AT[1] - ageMin(c)));
+    parts.push(h('p', { class: 'muted' }, `Das Ei schlüpft in etwa ${left} Min.`), h('div', { class: 'row' }, h('button', { class: 'primary', onclick: hatch }, 'Jetzt schlüpfen lassen')));
+    return h('div', { class: 'card petcard' }, parts);
+  }
+  parts.push(statRows(c));
+  if (p.settings.mercy && c.health <= 5) parts.push(h('div', { class: 'row', style: 'margin-bottom:10px' }, h('button', { class: 'primary', dataset: { act: 'revive' }, onclick: revive }, '✨ Wiederbeleben')));
+  parts.push(h('div', { class: 'acts' }, act('meal', '🍽️', 'Mahlzeit', () => feed('meal')), act('snack', '🍪', 'Snack', () => feed('snack')), act('play', '🎮', 'Spielen', openGame),
+    act('sleep', c.asleep ? '☀️' : '💡', c.asleep ? 'Licht an' : 'Licht aus', toggleSleep), act('wash', '🛁', 'Baden', wash), act('tidy', '🧹', 'Aufräumen', () => tidy(true)),
+    act('med', '💊', 'Medizin', medicine), act('cuddle', '🤗', 'Streicheln', cuddle), act('shop', '🛍️', 'Shop', () => { shopOpen = !shopOpen; renderTop(); }, shopOpen ? 'primary' : '')));
+  if (shopOpen) parts.push(shopView(c));
+  if (c.stage >= 2) parts.push(h('p', { class: 'muted', style: 'margin:10px 0 0;font-size:.85rem' }, q >= 72 ? 'Pflege: super' : q >= 48 ? 'Pflege: gut' : 'Pflege: ausbaufähig', form === 'A' ? ' ✨' : ''));
+  return h('div', { class: 'card petcard' }, parts);
+}
+function adoptCard(c) {
+  const kids = [];
+  if (c && c.dead) {
+    const days = D().hall[0] ? D().hall[0].days : 0;
+    kids.push(h('div', { class: 'card memorial' }, tombSprite(), h('h2', {}, c.name), h('p', {}, c.how === 'alt' ? 'Hat ein langes, schönes Leben gehabt und ist friedlich eingeschlafen.' : 'Ist leider gestorben. Pflege dein nächstes Haustier gut!'),
+      h('p', { class: 'muted' }, SPECIES[c.species].name, ' · ', days === 1 ? '1 Tag alt' : `${days} Tage alt`)));
+  }
+  kids.push(h('div', { class: 'card' }, h('h2', {}, '🥚 Haustier adoptieren'), h('p', { class: 'muted' }, 'Wähle eine Tierart und gib deinem Haustier einen Namen. Es schlüpft aus einem Ei und wächst in Echtzeit.'),
+    h('div', { class: 'species', role: 'group', 'aria-label': 'Tierart' }, SPECIES.map((s, i) => h('button', { 'aria-pressed': String(pick === i), onclick: () => { pick = i; renderTop(); } }, sprite({ sp: i, stage: 4, form: 'B', mood: 'glad', hat: '', heavy: false }), h('span', {}, s.name)))),
+    h('form', { class: 'row', onsubmit: (e) => { e.preventDefault(); adopt(); } },
+      h('input', { type: 'text', maxLength: 16, placeholder: SPECIES[pick].def, value: nameDraft, 'aria-label': 'Name des Haustiers', oninput: (e) => { nameDraft = e.target.value; } }), h('button', { class: 'primary' }, 'Adoptieren'))));
+  return kids;
+}
+function renderTop() {
+  const ae = document.activeElement, keep = ae && ae.dataset && ae.dataset.act;
+  const c = C();
+  $('top').replaceChildren(...(c && !c.dead ? [petCard(c)] : adoptCard(c)));
+  if (keep) { const b = $('top').querySelector('[data-act="' + keep + '"]'); if (b) b.focus({ preventScroll: true }); }
+}
+function render() {
+  const p = D(), c = C();
+  renderTop();
+  const hall = p.hall.length ? p.hall.map((e) => h('div', { class: 'e' }, h('span', { 'aria-hidden': 'true' }, e.how === 'abgegeben' ? '🏡' : e.how === 'alt' ? '🌟' : '🪦'), h('b', {}, e.name), h('span', {}, e.species), h('span', { class: 'muted' }, e.days === 1 ? '1 Tag alt' : `${e.days} Tage alt`), h('span', { class: 'muted' }, e.stage))) : [h('p', { class: 'muted' }, 'Noch leer. Hier erscheinen später abgegebene oder verstorbene Haustiere.')];
+  const log = p.log.length ? p.log.map((e) => { const d = new Date(e.t); return h('div', { class: 'e' }, h('span', { class: 'tm' }, d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }) + ' ' + d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })), h('span', {}, e.m)); }) : [h('p', { class: 'muted' }, 'Noch nichts passiert.')];
+  $('rest').replaceChildren(
+    h('div', { class: 'card log' }, h('h2', {}, '📜 Ereignisse'), log),
+    h('div', { class: 'card' }, h('h2', {}, '⚙️ Einstellungen'),
+      h('div', { class: 'setrow' }, h('label', {}, h('input', { type: 'checkbox', checked: p.settings.mercy, onchange: (e) => { p.settings.mercy = e.target.checked; save(); render(); } }), ' Gnädiger Modus'),
+        h('span', { class: 'muted', style: 'font-size:.85rem' }, 'An: Das Haustier stirbt nie. Bei schlechter Pflege wird es nur sehr traurig und krank und kann wiederbelebt werden. Aus: Es kann sterben.')),
+      h('div', { class: 'setrow' }, h('label', {}, h('input', { type: 'checkbox', checked: p.settings.sound, onchange: (e) => { p.settings.sound = e.target.checked; if (e.target.checked) beep(SND.ok); save(); render(); } }), ' Ton (Pieptöne)')),
+      c && !c.dead ? h('button', { onclick: release }, 'Haustier abgeben …') : null),
+    h('div', { class: 'card hall' }, h('h2', {}, '🏆 Ruhmeshalle'), hall));
+}
+
+/* ===== Test-Schnittstelle ===== */
+window.__game = {
+  get data() { return D(); }, get pet() { return C(); }, get state() { return G.mode; }, get game() { return G; }, get skew() { return skew; },
+  now, tick, render, catchUp, simulate: (m) => { const c = C(); if (c) simulate(c, m); render(); },
+  // Uhr um N Minuten vorstellen und die Spielzeit exakt (ohne Offline-Limit) nachrechnen
+  advance(min) {
+    const c = C(); skew += min * 60000;
+    if (c && !c.dead) { const n = Math.floor(min); simulate(c, n); c.lastTick += n * 60000; checkStage(c); }
+    save(); render();
+  },
+  // simuliert „App war N Minuten geschlossen“ (mit 8-Stunden-Limit)
+  closedFor(min) { const c = C(); if (!c) return; c.lastTick -= min * 60000; c.born -= min * 60000; catchUp(); render(); },
+  adopt(sp, name) { pick = sp; nameDraft = name || ''; adopt(); },
+  set(patch) { Object.assign(C(), patch); render(); },
+  act(name, arg) { return ({ feed, toggleSleep, wash, tidy: () => tidy(true), medicine, cuddle, revive, hatch, release, openGame })[name](arg); },
+  buy(id) { const f = FOODS.find((x) => x.id === id); if (f) return buy(f, 'food'); const hh = HATS.find((x) => x.id === id); if (hh) return buy(hh, 'hat'); const t = TOYS.find((x) => x.id === id); if (t) return buy(t, 'toy'); },
+  catchStep(sec) { const g = G.catch; if (!g) return; if (g.state === 'ready') g.start(); g.state = 'run'; for (let t = 0; t < sec && g.state === 'run'; t += 0.05) g.update(0.05); },
+  setSeed(s) { grndState = s >>> 0; },
+};
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+render();
+</script>
+</body>
+</html>
