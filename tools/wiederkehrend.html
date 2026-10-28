@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wiederkehrende Aufgaben</title>
+<link rel="stylesheet" href="../shared/style.css">
+<script src="../shared/i18n.js"></script>
+<script src="../shared/ui.js"></script>
+<style>
+  main { max-width: 1100px; }
+  .toolbar button { min-height: 38px; }
+  .sp { flex: 1; }
+  .muted { color: var(--muted); }
+  .badge { display:inline-block; padding:1px 8px; border-radius:99px; font-size:.78rem; border:1px solid var(--line); background:var(--bg); white-space:nowrap; }
+  .badge.ok { color:var(--ok); border-color:var(--ok); } .badge.warn { color:var(--warn); border-color:var(--warn); } .badge.err { color:var(--err); border-color:var(--err); }
+  [hidden] { display:none !important; }
+
+  .sum { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; }
+  .sum button { margin:0; text-align:center; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:10px; cursor:pointer; color:inherit; font:inherit; }
+  .sum button.on { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+  .sum b { display:block; font-size:1.25rem; }
+  .sum .err b { color:var(--err); } .sum .warn b { color:var(--warn); }
+
+  .tablewrap { overflow-x:auto; padding:0; }
+  table { width:100%; border-collapse:collapse; font-size:.92rem; }
+  th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td.t, td.d { white-space:normal; min-width:120px; overflow-wrap:anywhere; }
+  th { position:sticky; top:0; background:var(--card); cursor:pointer; user-select:none; font-weight:600; }
+  th[aria-sort=ascending]::after { content:' ▲'; font-size:.7em; } th[aria-sort=descending]::after { content:' ▼'; font-size:.7em; }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:var(--bg); }
+  tbody tr.over td { color:var(--err); }
+  tbody tr.done td { color:var(--muted); }
+  tbody tr.done td.t { text-decoration:line-through; }
+  tbody tr.sel, tbody tr.sel:hover { background:var(--accent); }
+  tbody tr.sel td { color:var(--on-accent); }
+  tbody tr.sel .badge { color:var(--on-accent); border-color:var(--on-accent); background:transparent; }
+  tbody tr:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
+
+  .form { display:grid; grid-template-columns:max-content minmax(0, 420px); gap:8px 16px; align-items:center; }
+  .form label { color:var(--muted); }
+  .form input, .form select { width:100%; box-sizing:border-box; }
+  @media (max-width: 560px) { .form { grid-template-columns:1fr; gap:2px; } .form label { margin-top:6px; } }
+  .btns { display:flex; flex-wrap:wrap; gap:8px; margin-top:14px; }
+  .btns button { min-width:96px; min-height:38px; }
+  #hint { font-size:.85rem; margin:8px 0 0; }
+</style>
+</head>
+<body>
+<main>
+  <p><a href="../index.html">← Alle Tools</a></p>
+  <h1>Wiederkehrende Aufgaben</h1>
+  <div class="card toolbar">
+    <button id="new">Neu</button>
+    <button id="open">Öffnen…</button>
+    <button id="save" class="primary">Speichern</button>
+    <button id="saveas">Speichern unter…</button>
+  </div>
+  <div id="status"></div>
+
+  <div class="sum" id="sum"></div>
+
+  <div class="card toolbar" style="margin-top:12px">
+    <label for="filter">Filter:</label>
+    <select id="filter">
+      <option value="all">Alle</option>
+      <option value="pending" selected>Offen</option>
+      <option value="over">Überfällig</option>
+      <option value="today">Heute fällig</option>
+      <option value="done">Erledigt</option>
+      <option value="week">Diese Woche</option>
+      <option value="month">Dieser Monat</option>
+    </select>
+    <label for="q">Suche:</label>
+    <input type="search" id="q" placeholder="Titel oder Beschreibung…" style="flex:1; min-width:140px">
+    <button id="csv">CSV-Export</button>
+  </div>
+
+  <div class="card tablewrap">
+    <table>
+      <thead><tr id="head"></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="muted" id="empty" style="padding:10px" hidden></p>
+  </div>
+
+  <form class="card" id="form" autocomplete="off">
+    <div class="form">
+      <label for="title">Titel:</label>
+      <input type="text" id="title" required>
+      <label for="desc">Beschreibung:</label>
+      <input type="text" id="desc" list="descs">
+      <datalist id="descs"></datalist>
+      <label for="date">Liefertermin:</label>
+      <input type="date" id="date" required>
+      <label for="rec">Wiederholung:</label>
+      <select id="rec"></select>
+      <label for="shift">Fällt auf Wochenende:</label>
+      <select id="shift">
+        <option value="next">auf Montag verschieben</option>
+        <option value="prev">auf Freitag vorziehen</option>
+        <option value="none">nicht verschieben</option>
+      </select>
+    </div>
+    <div class="btns">
+      <button type="submit" id="add">Hinzufügen</button>
+      <button type="button" id="update">Aktualisieren</button>
+      <button type="button" id="del">Löschen</button>
+      <button type="button" id="complete" class="primary">✔ Erledigt</button>
+      <button type="button" id="undo">↩ Rückgängig</button>
+      <button type="button" id="clear">Leeren</button>
+    </div>
+    <p class="muted" id="hint">Zeile anklicken zum Bearbeiten. „Erledigt“ legt bei wiederkehrenden Aufgaben automatisch den nächsten Termin an; „Rückgängig“ nimmt das wieder zurück. Fällt ein Termin auf ein Wochenende, zeigt „Effektives Datum“ den verschobenen Tag.</p>
+  </form>
+</main>
+<script src="../shared/storage.js"></script>
+<script>
+'use strict';
+const $ = (id) => document.getElementById(id);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const k in (props || {})) {
+    if (k === 'class') e.className = props[k];
+    else if (k === 'dataset') Object.assign(e.dataset, props[k]);
+    else if (k.startsWith('on')) e[k] = props[k];
+    else if (k.includes('-') || k === 'role') e.setAttribute(k, props[k]);
+    else e[k] = props[k];
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) e.append(c.nodeType ? c : String(c));
+  return e;
+}
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const fmtDate = (s) => s ? parseYmd(s).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '';
+const fmtWd = (s) => parseYmd(s).toLocaleDateString('de-DE', { weekday: 'short' }).replace(/\.$/, '');
+function download(name, text, type) {
+  const a = h('a', { href: URL.createObjectURL(new Blob([text], { type: type || 'text/plain;charset=utf-8' })), download: name });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+const store = SimpleStorage.create({
+  name: 'wiederkehrend',
+  defaults: () => ({ tasks: [], shift: 'next' }),
+  onChange: () => { normalize(); selId = null; fillForm(null); render(); },
+  statusEl: $('status'),
+});
+$('new').onclick = () => store.new();
+$('open').onclick = () => store.open();
+$('save').onclick = () => store.save();
+$('saveas').onclick = () => store.saveAs();
+
+const REC = { none: 'Einmalig', daily: 'Täglich', workdays: 'Werktags', weekly: 'Wöchentlich', biweekly: 'Alle 2 Wochen', monthly: 'Monatlich', quarterly: 'Quartalsweise', halfyear: 'Halbjährlich', yearly: 'Jährlich' };
+const MONTHS = { monthly: 1, quarterly: 3, halfyear: 6, yearly: 12 };
+const COLS = [['title', 'Titel'], ['desc', 'Beschreibung'], ['date', 'Ursprungsdatum'], ['eff', 'Effektives Datum'], ['rec', 'Wiederholung'], ['status', 'Status']];
+let selId = null, sort = { key: 'eff', dir: 1 };
+const undoStack = [];   // zuletzt erledigte Aufgaben (nur diese Sitzung)
+
+$('rec').append(...Object.entries(REC).map(([k, l]) => h('option', { value: k, selected: k === 'monthly' }, l)));
+
+function normalize() {
+  const d = store.data;
+  if (!Array.isArray(d.tasks)) d.tasks = [];
+  if (!['next', 'prev', 'none'].includes(d.shift)) d.shift = 'next';
+  d.tasks = d.tasks.filter((t) => t && typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date));
+  for (const t of d.tasks) { if (!t.id) t.id = uid(); if (!REC[t.rec]) t.rec = 'none'; t.title = t.title || ''; t.desc = t.desc || ''; }
+  $('shift').value = d.shift;
+}
+const today = () => ymd(new Date());
+// Effektives Datum: Wochenende je nach Einstellung auf Montag bzw. Freitag verschieben
+function effOf(t) {
+  const d = parseYmd(t.date), wd = d.getDay(), s = store.data.shift;
+  if (s === 'none' || (wd !== 0 && wd !== 6)) return t.date;
+  d.setDate(d.getDate() + (s === 'next' ? (wd === 6 ? 2 : 1) : (wd === 6 ? -1 : -2)));
+  return ymd(d);
+}
+// Nächster Termin ab dem Ursprungsdatum; Monatsserien merken sich den Tag (31. → Monatsende)
+function nextDate(t) {
+  const d = parseYmd(t.date);
+  if (MONTHS[t.rec]) {
+    const day = t.day || d.getDate(), y = d.getFullYear(), m = d.getMonth() + MONTHS[t.rec];
+    return ymd(new Date(y, m, Math.min(day, new Date(y, m + 1, 0).getDate())));
+  }
+  if (t.rec === 'workdays') { do d.setDate(d.getDate() + 1); while (d.getDay() === 0 || d.getDay() === 6); return ymd(d); }
+  d.setDate(d.getDate() + ({ daily: 1, weekly: 7, biweekly: 14 }[t.rec] || 0));
+  return ymd(d);
+}
+function statusOf(t) {
+  if (t.done) return { key: 'done', text: 'Erledigt', cls: 'ok', rank: 3 };
+  const e = effOf(t), n = today();
+  if (e < n) return { key: 'over', text: 'Überfällig', cls: 'err', rank: 0 };
+  if (e === n) return { key: 'today', text: 'Heute fällig', cls: 'warn', rank: 1 };
+  return { key: 'pending', text: 'Offen', cls: '', rank: 2 };
+}
+function range(kind) {
+  const n = new Date(), s = kind === 'week' ? new Date(n.getFullYear(), n.getMonth(), n.getDate() - (n.getDay() + 6) % 7) : new Date(n.getFullYear(), n.getMonth(), 1);
+  const e = kind === 'week' ? new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6) : new Date(n.getFullYear(), n.getMonth() + 1, 0);
+  return [ymd(s), ymd(e)];
+}
+function matches(t, f) {
+  const st = statusOf(t).key;
+  if (f === 'pending') return st !== 'done';
+  if (f === 'done') return st === 'done';
+  if (f === 'over' || f === 'today') return st === f;
+  if (f === 'week' || f === 'month') { const [a, b] = range(f), e = effOf(t); return e >= a && e <= b; }
+  return true;
+}
+function sortVal(t, k) {
+  if (k === 'eff') return effOf(t);
+  if (k === 'status') return statusOf(t).rank;
+  if (k === 'rec') return Object.keys(REC).indexOf(t.rec);
+  return (t[k] || '').toLowerCase();
+}
+function visible() {
+  const f = $('filter').value, q = $('q').value.trim().toLowerCase();
+  return store.data.tasks.filter((t) => matches(t, f) && (!q || (t.title + ' ' + t.desc).toLowerCase().includes(q)))
+    .sort((a, b) => { const x = sortVal(a, sort.key), y = sortVal(b, sort.key); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || effOf(a).localeCompare(effOf(b)) || a.title.localeCompare(b.title); });
+}
+
+function render() {
+  const all = store.data.tasks, [ws, we] = range('week');
+  const cnt = { over: 0, today: 0, week: 0, pending: 0 };
+  for (const t of all) {
+    const st = statusOf(t).key; if (st === 'done') continue;
+    cnt.pending++; if (st === 'over') cnt.over++; if (st === 'today') cnt.today++;
+    const e = effOf(t); if (e >= ws && e <= we) cnt.week++;
+  }
+  const f = $('filter').value;
+  const tile = (filter, label, n, cls) => h('button', { type: 'button', class: (cls || '') + (f === filter ? ' on' : ''), onclick: () => { $('filter').value = filter; render(); } }, h('span', { class: 'muted' }, label), h('b', {}, n));
+  $('sum').replaceChildren(tile('over', 'Überfällig', cnt.over, cnt.over ? 'err' : ''), tile('today', 'Heute fällig', cnt.today, cnt.today ? 'warn' : ''), tile('week', 'Diese Woche', cnt.week), tile('pending', 'Offen gesamt', cnt.pending));
+
+  $('head').replaceChildren(...COLS.map(([k, l]) => h('th', { scope: 'col', 'aria-sort': sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none',
+    onclick: () => { sort = sort.key === k ? { key: k, dir: -sort.dir } : { key: k, dir: 1 }; render(); } }, l)));
+  const list = visible();
+  $('rows').replaceChildren(...list.map((t) => {
+    const st = statusOf(t), e = effOf(t);
+    const tr = h('tr', { tabIndex: 0, class: (st.key === 'over' ? 'over' : st.key === 'done' ? 'done' : '') + (t.id === selId ? ' sel' : ''), 'aria-selected': String(t.id === selId),
+      onclick: () => select(t.id), onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(t.id); } } },
+      h('td', { class: 't', 'data-notranslate': '' }, t.title),
+      h('td', { class: 'd', 'data-notranslate': '' }, t.desc),
+      h('td', { 'data-notranslate': '' }, fmtDate(t.date)),
+      h('td', { title: e !== t.date ? 'Verschoben vom Wochenende' : '' }, h('span', { 'data-notranslate': '' }, fmtDate(e) + ' (' + fmtWd(e) + ')')),
+      h('td', {}, REC[t.rec]),
+      h('td', {}, h('span', { class: 'badge ' + st.cls, title: t.done ? 'Erledigt am ' + fmtDate(t.done) : '' }, st.text)));
+    return tr;
+  }));
+  $('empty').hidden = list.length > 0;
+  $('empty').textContent = all.length ? 'Keine Aufgaben in dieser Auswahl.' : 'Noch keine Aufgaben. Unten Titel, Datum und Wiederholung eintragen und „Hinzufügen“ klicken.';
+  $('descs').replaceChildren(...[...new Set(all.map((t) => t.desc).filter(Boolean))].sort().map((d) => h('option', { value: d })));
+  const cur = sel();
+  $('update').disabled = $('del').disabled = !cur;
+  $('complete').disabled = !cur || !!cur.done;
+  $('undo').disabled = !(cur && cur.done) && !undoStack.some((id) => all.some((t) => t.id === id && t.done));
+}
+
+const sel = () => store.data.tasks.find((t) => t.id === selId) || null;
+function fillForm(t) {
+  $('title').value = t ? t.title : ''; $('desc').value = t ? t.desc : '';
+  $('date').value = t ? t.date : today(); $('rec').value = t ? t.rec : 'monthly';
+}
+function select(id) { selId = selId === id ? null : id; fillForm(sel()); render(); }
+function readForm() {
+  const title = $('title').value.trim(), date = $('date').value;
+  if (!title || !date) { $('form').reportValidity(); return null; }
+  return { title, desc: $('desc').value.trim(), date, rec: $('rec').value };
+}
+
+$('form').onsubmit = (e) => {
+  e.preventDefault();
+  const rec = readForm(); if (!rec) return;
+  const t = { id: uid(), ...rec, day: parseYmd(rec.date).getDate(), done: '', created: today() };
+  store.data.tasks.push(t);
+  selId = null; fillForm(null); store.changed(); render(); $('title').focus();
+};
+$('update').onclick = () => {
+  const t = sel(), rec = readForm(); if (!t || !rec) return;
+  if (rec.date !== t.date) t.day = parseYmd(rec.date).getDate();
+  Object.assign(t, rec); store.changed(); render();
+};
+$('del').onclick = () => {
+  const t = sel(); if (!t || !confirm('„' + t.title + '“ löschen?')) return;
+  store.data.tasks = store.data.tasks.filter((x) => x !== t);
+  for (const x of store.data.tasks) if (x.nextId === t.id) x.nextId = '';
+  selId = null; fillForm(null); store.changed(); render();
+};
+$('complete').onclick = () => {
+  const t = sel(); if (!t || t.done) return;
+  t.done = today();
+  if (t.rec !== 'none') {
+    const n = { id: uid(), title: t.title, desc: t.desc, date: nextDate(t), rec: t.rec, day: t.day || parseYmd(t.date).getDate(), done: '', created: today() };
+    store.data.tasks.push(n); t.nextId = n.id;
+  }
+  undoStack.push(t.id);
+  selId = null; fillForm(null); store.changed(); render();
+};
+$('undo').onclick = () => {
+  // Ausgewählte erledigte Aufgabe – sonst die zuletzt erledigte dieser Sitzung
+  let t = sel();
+  if (!t || !t.done) {
+    while (undoStack.length && !store.data.tasks.some((x) => x.id === undoStack[undoStack.length - 1] && x.done)) undoStack.pop();
+    t = store.data.tasks.find((x) => x.id === undoStack[undoStack.length - 1]);
+  }
+  if (!t || !t.done) return;
+  const n = t.nextId && store.data.tasks.find((x) => x.id === t.nextId);
+  if (n && n.done) { alert('Der Folgetermin „' + n.title + '“ ist schon erledigt. Bitte zuerst dort „Rückgängig“ wählen.'); return; }
+  if (n) store.data.tasks = store.data.tasks.filter((x) => x !== n);
+  t.done = ''; t.nextId = '';
+  const i = undoStack.lastIndexOf(t.id); if (i >= 0) undoStack.splice(i, 1);
+  selId = t.id; fillForm(t); store.changed(); render();
+};
+$('clear').onclick = () => { selId = null; fillForm(null); render(); $('title').focus(); };
+$('shift').onchange = () => { store.data.shift = $('shift').value; store.changed(); render(); };
+$('filter').onchange = render;
+$('q').oninput = render;
+$('csv').onclick = () => {
+  const esc = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+  const lines = [['Titel', 'Beschreibung', 'Ursprungsdatum', 'Effektives Datum', 'Wiederholung', 'Status', 'Erledigt am'].map(esc).join(';')];
+  for (const t of visible()) lines.push([t.title, t.desc, t.date, effOf(t), REC[t.rec], statusOf(t).text, t.done || ''].map(esc).join(';'));
+  download('wiederkehrende-aufgaben.csv', '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
+};
+// Um Mitternacht (oder nach dem Aufwachen des Rechners) Status neu berechnen
+let lastDay = today();
+setInterval(() => { if (today() !== lastDay) { lastDay = today(); render(); } }, 60000);
+
+{ // Neuzeichnen darf sich nicht selbst unterbrechen (Blur/Change-Ereignisse beim Ersetzen von Elementen)
+  const inner = render; let busy = false, again = false;
+  render = function () {
+    if (busy) { again = true; return; }
+    busy = true; try { inner(); } finally { busy = false; }
+    if (again) { again = false; render(); }
+  };
+}
+store.restore();
+normalize();
+fillForm(null);
+render();
+</script>
+</body>
+</html>
