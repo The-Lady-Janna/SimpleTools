@@ -32,6 +32,8 @@
   tbody tr:hover { background:var(--bg); }
   tbody tr.over td { color:var(--err); }
   tbody tr.done td { color:var(--muted); }
+  tbody tr.esc td { font-weight:600; }
+  .dir { font-size:.8rem; color:var(--muted); } tr.over .dir, tr.sel .dir { color:inherit; }
   tbody tr.done td.t { text-decoration:line-through; }
   tbody tr.sel, tbody tr.sel:hover { background:var(--accent); }
   tbody tr.sel td { color:var(--on-accent); }
@@ -67,13 +69,20 @@
       <option value="all">Alle</option>
       <option value="pending" selected>Offen</option>
       <option value="over">Überfällig</option>
+      <option value="esc">Eskalieren</option>
       <option value="today">Heute fällig</option>
       <option value="done">Erledigt</option>
       <option value="week">Diese Woche</option>
       <option value="month">Dieser Monat</option>
     </select>
+    <label for="who">Wer:</label>
+    <select id="who">
+      <option value="">Alle</option>
+      <option value="from">Von mir</option>
+      <option value="to">An mich</option>
+    </select>
     <label for="q">Suche:</label>
-    <input type="search" id="q" placeholder="Titel oder Beschreibung…" style="flex:1; min-width:140px">
+    <input type="search" id="q" placeholder="Titel, Beschreibung, Gegenseite…" style="flex:1; min-width:140px">
     <button id="csv">CSV-Export</button>
   </div>
 
@@ -92,6 +101,14 @@
       <label for="desc">Beschreibung:</label>
       <input type="text" id="desc" list="descs">
       <datalist id="descs"></datalist>
+      <label for="dir">Richtung:</label>
+      <select id="dir">
+        <option value="from">Von mir – meine Aufgabe</option>
+        <option value="to">An mich – Aufgabe einer anderen Partei</option>
+      </select>
+      <label for="party" class="party">Gegenseite:</label>
+      <input type="text" id="party" class="party" list="parties" placeholder="Wer liefert? (Person, Team, Firma)">
+      <datalist id="parties"></datalist>
       <label for="date">Liefertermin:</label>
       <input type="date" id="date" required>
       <label for="rec">Wiederholung:</label>
@@ -111,7 +128,7 @@
       <button type="button" id="undo">↩ Rückgängig</button>
       <button type="button" id="clear">Leeren</button>
     </div>
-    <p class="muted" id="hint">Zeile anklicken zum Bearbeiten. „Erledigt“ legt bei wiederkehrenden Aufgaben automatisch den nächsten Termin an; „Rückgängig“ nimmt das wieder zurück. Fällt ein Termin auf ein Wochenende, zeigt „Effektives Datum“ den verschobenen Tag.</p>
+    <p class="muted" id="hint">Zeile anklicken zum Bearbeiten. „Erledigt“ legt bei wiederkehrenden Aufgaben automatisch den nächsten Termin an; „Rückgängig“ nimmt das wieder zurück. Fällt ein Termin auf ein Wochenende, zeigt „Effektives Datum“ den verschobenen Tag. Aufgaben „An mich“ liefert eine andere Partei – sind sie überfällig, stehen sie auf „Eskalieren“.</p>
   </form>
 </main>
 <script src="../shared/storage.js"></script>
@@ -154,7 +171,8 @@ $('saveas').onclick = () => store.saveAs();
 
 const REC = { none: 'Einmalig', daily: 'Täglich', workdays: 'Werktags', weekly: 'Wöchentlich', biweekly: 'Alle 2 Wochen', monthly: 'Monatlich', quarterly: 'Quartalsweise', halfyear: 'Halbjährlich', yearly: 'Jährlich' };
 const MONTHS = { monthly: 1, quarterly: 3, halfyear: 6, yearly: 12 };
-const COLS = [['title', 'Titel'], ['desc', 'Beschreibung'], ['date', 'Ursprungsdatum'], ['eff', 'Effektives Datum'], ['rec', 'Wiederholung'], ['status', 'Status']];
+const DIR = { from: '↗ Von mir', to: '↙ An mich' };
+const COLS = [['title', 'Titel'], ['desc', 'Beschreibung'], ['dir', 'Richtung'], ['date', 'Ursprungsdatum'], ['eff', 'Effektives Datum'], ['rec', 'Wiederholung'], ['status', 'Status']];
 let selId = null, sort = { key: 'eff', dir: 1 };
 const undoStack = [];   // zuletzt erledigte Aufgaben (nur diese Sitzung)
 
@@ -165,7 +183,7 @@ function normalize() {
   if (!Array.isArray(d.tasks)) d.tasks = [];
   if (!['next', 'prev', 'none'].includes(d.shift)) d.shift = 'next';
   d.tasks = d.tasks.filter((t) => t && typeof t.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(t.date));
-  for (const t of d.tasks) { if (!t.id) t.id = uid(); if (!REC[t.rec]) t.rec = 'none'; t.title = t.title || ''; t.desc = t.desc || ''; }
+  for (const t of d.tasks) { if (!t.id) t.id = uid(); if (!REC[t.rec]) t.rec = 'none'; t.title = t.title || ''; t.desc = t.desc || ''; if (!DIR[t.dir]) t.dir = 'from'; t.party = t.party || ''; }
   $('shift').value = d.shift;
 }
 const today = () => ymd(new Date());
@@ -190,7 +208,7 @@ function nextDate(t) {
 function statusOf(t) {
   if (t.done) return { key: 'done', text: 'Erledigt', cls: 'ok', rank: 3 };
   const e = effOf(t), n = today();
-  if (e < n) return { key: 'over', text: 'Überfällig', cls: 'err', rank: 0 };
+  if (e < n) return t.dir === 'to' ? { key: 'esc', text: '⚠ Eskalieren', cls: 'err', rank: 0 } : { key: 'over', text: 'Überfällig', cls: 'err', rank: 0 };
   if (e === n) return { key: 'today', text: 'Heute fällig', cls: 'warn', rank: 1 };
   return { key: 'pending', text: 'Offen', cls: '', rank: 2 };
 }
@@ -203,7 +221,8 @@ function matches(t, f) {
   const st = statusOf(t).key;
   if (f === 'pending') return st !== 'done';
   if (f === 'done') return st === 'done';
-  if (f === 'over' || f === 'today') return st === f;
+  if (f === 'over') return st === 'over' || st === 'esc';
+  if (f === 'esc' || f === 'today') return st === f;
   if (f === 'week' || f === 'month') { const [a, b] = range(f), e = effOf(t); return e >= a && e <= b; }
   return true;
 }
@@ -211,35 +230,37 @@ function sortVal(t, k) {
   if (k === 'eff') return effOf(t);
   if (k === 'status') return statusOf(t).rank;
   if (k === 'rec') return Object.keys(REC).indexOf(t.rec);
+  if (k === 'dir') return t.dir + (t.party || '').toLowerCase();
   return (t[k] || '').toLowerCase();
 }
 function visible() {
-  const f = $('filter').value, q = $('q').value.trim().toLowerCase();
-  return store.data.tasks.filter((t) => matches(t, f) && (!q || (t.title + ' ' + t.desc).toLowerCase().includes(q)))
+  const f = $('filter').value, who = $('who').value, q = $('q').value.trim().toLowerCase();
+  return store.data.tasks.filter((t) => matches(t, f) && (!who || t.dir === who) && (!q || (t.title + ' ' + t.desc + ' ' + t.party).toLowerCase().includes(q)))
     .sort((a, b) => { const x = sortVal(a, sort.key), y = sortVal(b, sort.key); return (x < y ? -1 : x > y ? 1 : 0) * sort.dir || effOf(a).localeCompare(effOf(b)) || a.title.localeCompare(b.title); });
 }
 
 function render() {
   const all = store.data.tasks, [ws, we] = range('week');
-  const cnt = { over: 0, today: 0, week: 0, pending: 0 };
+  const cnt = { over: 0, esc: 0, today: 0, week: 0, pending: 0 };
   for (const t of all) {
     const st = statusOf(t).key; if (st === 'done') continue;
-    cnt.pending++; if (st === 'over') cnt.over++; if (st === 'today') cnt.today++;
+    cnt.pending++; if (st === 'over' || st === 'esc') cnt.over++; if (st === 'esc') cnt.esc++; if (st === 'today') cnt.today++;
     const e = effOf(t); if (e >= ws && e <= we) cnt.week++;
   }
   const f = $('filter').value;
   const tile = (filter, label, n, cls) => h('button', { type: 'button', class: (cls || '') + (f === filter ? ' on' : ''), onclick: () => { $('filter').value = filter; render(); } }, h('span', { class: 'muted' }, label), h('b', {}, n));
-  $('sum').replaceChildren(tile('over', 'Überfällig', cnt.over, cnt.over ? 'err' : ''), tile('today', 'Heute fällig', cnt.today, cnt.today ? 'warn' : ''), tile('week', 'Diese Woche', cnt.week), tile('pending', 'Offen gesamt', cnt.pending));
+  $('sum').replaceChildren(tile('over', 'Überfällig', cnt.over, cnt.over ? 'err' : ''), tile('esc', 'Zu eskalieren', cnt.esc, cnt.esc ? 'err' : ''), tile('today', 'Heute fällig', cnt.today, cnt.today ? 'warn' : ''), tile('week', 'Diese Woche', cnt.week), tile('pending', 'Offen gesamt', cnt.pending));
 
   $('head').replaceChildren(...COLS.map(([k, l]) => h('th', { scope: 'col', 'aria-sort': sort.key === k ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none',
     onclick: () => { sort = sort.key === k ? { key: k, dir: -sort.dir } : { key: k, dir: 1 }; render(); } }, l)));
   const list = visible();
   $('rows').replaceChildren(...list.map((t) => {
     const st = statusOf(t), e = effOf(t);
-    const tr = h('tr', { tabIndex: 0, class: (st.key === 'over' ? 'over' : st.key === 'done' ? 'done' : '') + (t.id === selId ? ' sel' : ''), 'aria-selected': String(t.id === selId),
+    const tr = h('tr', { tabIndex: 0, class: (st.key === 'over' ? 'over' : st.key === 'esc' ? 'over esc' : st.key === 'done' ? 'done' : '') + (t.id === selId ? ' sel' : ''), 'aria-selected': String(t.id === selId),
       onclick: () => select(t.id), onkeydown: (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); select(t.id); } } },
       h('td', { class: 't', 'data-notranslate': '' }, t.title),
       h('td', { class: 'd', 'data-notranslate': '' }, t.desc),
+      h('td', {}, h('span', { class: 'dir' }, DIR[t.dir]), t.party ? h('div', { 'data-notranslate': '' }, t.party) : null),
       h('td', { 'data-notranslate': '' }, fmtDate(t.date)),
       h('td', { title: e !== t.date ? 'Verschoben vom Wochenende' : '' }, h('span', { 'data-notranslate': '' }, fmtDate(e) + ' (' + fmtWd(e) + ')')),
       h('td', {}, REC[t.rec]),
@@ -248,6 +269,7 @@ function render() {
   }));
   $('empty').hidden = list.length > 0;
   $('empty').textContent = all.length ? 'Keine Aufgaben in dieser Auswahl.' : 'Noch keine Aufgaben. Unten Titel, Datum und Wiederholung eintragen und „Hinzufügen“ klicken.';
+  $('parties').replaceChildren(...[...new Set(all.map((t) => t.party).filter(Boolean))].sort().map((d) => h('option', { value: d })));
   $('descs').replaceChildren(...[...new Set(all.map((t) => t.desc).filter(Boolean))].sort().map((d) => h('option', { value: d })));
   const cur = sel();
   $('update').disabled = $('del').disabled = !cur;
@@ -258,13 +280,17 @@ function render() {
 const sel = () => store.data.tasks.find((t) => t.id === selId) || null;
 function fillForm(t) {
   $('title').value = t ? t.title : ''; $('desc').value = t ? t.desc : '';
+  $('dir').value = t ? t.dir : 'from'; $('party').value = t ? t.party : ''; showParty();
   $('date').value = t ? t.date : today(); $('rec').value = t ? t.rec : 'monthly';
 }
+function showParty() { document.querySelectorAll('.party').forEach((e) => e.hidden = $('dir').value !== 'to'); }
+$('dir').onchange = showParty;
 function select(id) { selId = selId === id ? null : id; fillForm(sel()); render(); }
 function readForm() {
   const title = $('title').value.trim(), date = $('date').value;
   if (!title || !date) { $('form').reportValidity(); return null; }
-  return { title, desc: $('desc').value.trim(), date, rec: $('rec').value };
+  const dir = $('dir').value;
+  return { title, desc: $('desc').value.trim(), dir, party: dir === 'to' ? $('party').value.trim() : '', date, rec: $('rec').value };
 }
 
 $('form').onsubmit = (e) => {
@@ -289,7 +315,7 @@ $('complete').onclick = () => {
   const t = sel(); if (!t || t.done) return;
   t.done = today();
   if (t.rec !== 'none') {
-    const n = { id: uid(), title: t.title, desc: t.desc, date: nextDate(t), rec: t.rec, day: t.day || parseYmd(t.date).getDate(), done: '', created: today() };
+    const n = { id: uid(), title: t.title, desc: t.desc, dir: t.dir, party: t.party, date: nextDate(t), rec: t.rec, day: t.day || parseYmd(t.date).getDate(), done: '', created: today() };
     store.data.tasks.push(n); t.nextId = n.id;
   }
   undoStack.push(t.id);
@@ -313,11 +339,12 @@ $('undo').onclick = () => {
 $('clear').onclick = () => { selId = null; fillForm(null); render(); $('title').focus(); };
 $('shift').onchange = () => { store.data.shift = $('shift').value; store.changed(); render(); };
 $('filter').onchange = render;
+$('who').onchange = render;
 $('q').oninput = render;
 $('csv').onclick = () => {
   const esc = (v) => '"' + String(v).replace(/"/g, '""') + '"';
-  const lines = [['Titel', 'Beschreibung', 'Ursprungsdatum', 'Effektives Datum', 'Wiederholung', 'Status', 'Erledigt am'].map(esc).join(';')];
-  for (const t of visible()) lines.push([t.title, t.desc, t.date, effOf(t), REC[t.rec], statusOf(t).text, t.done || ''].map(esc).join(';'));
+  const lines = [['Titel', 'Beschreibung', 'Richtung', 'Gegenseite', 'Ursprungsdatum', 'Effektives Datum', 'Wiederholung', 'Status', 'Erledigt am'].map(esc).join(';')];
+  for (const t of visible()) lines.push([t.title, t.desc, t.dir === 'to' ? 'An mich' : 'Von mir', t.party, t.date, effOf(t), REC[t.rec], statusOf(t).text, t.done || ''].map(esc).join(';'));
   download('wiederkehrende-aufgaben.csv', '﻿' + lines.join('\r\n'), 'text/csv;charset=utf-8');
 };
 // Um Mitternacht (oder nach dem Aufwachen des Rechners) Status neu berechnen
